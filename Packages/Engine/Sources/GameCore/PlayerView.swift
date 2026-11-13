@@ -66,6 +66,14 @@ public struct ResearchOption: Hashable, Sendable {
     public var turns: Int?
     /// What it unlocks, by name.
     public var unlocks: [String]
+    /// Its era's index (M2 §2; 0 without eras).
+    public var era: Int = 0
+    /// Credit toward it from Insights and the world era (M2 §6.2).
+    public var credit: Int = 0
+    /// Its Insight's text, if it has one.
+    public var insight: String?
+    /// Its Insight has fired for the viewer.
+    public var insightGained: Bool = false
 }
 
 public enum UnitActionKind: String, Hashable, Sendable, CaseIterable {
@@ -297,14 +305,19 @@ public struct PlayerView: Sendable {
                 for i in stride(from: goal, through: 0, by: -1) where needed[i] {
                     for r in rules.techRequires[i] { needed[r] = true }
                 }
-                for i in rules.techs.indices where needed[i] && !me.knows(rules.techs[i].id) { cost += rules.techs[i].cost }
+                for i in rules.techs.indices where needed[i] && !me.knows(rules.techs[i].id) {
+                    cost += max(0, rules.techs[i].cost - me.credit(techIndex: i))
+                }
                 let remaining = max(0, cost - me.researchProgress)
                 turns = max(1, (remaining + science - 1) / science)
             }
+            let index = rules.techIndex(tech.id)!
             return ResearchOption(tech: tech.id, name: tech.name, cost: tech.cost, requires: tech.requires, known: known,
                                   researching: me.researching == tech.id, isTarget: me.researchTarget == tech.id,
                                   available: !known && tech.requires.allSatisfy(me.knows),
-                                  turns: turns, unlocks: unlocks(of: tech.id))
+                                  turns: turns, unlocks: unlocks(of: tech.id), era: rules.techEras[index],
+                                  credit: me.credit(techIndex: index), insight: tech.insight?.text,
+                                  insightGained: me.hasInsight(tech.id))
         }
     }
 

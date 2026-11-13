@@ -38,6 +38,11 @@ public struct Player: Codable, Hashable, Sendable {
     public internal(set) var lastPhaseStart: Int
     /// Cities named so far (picks the next name from the civ's list).
     public internal(set) var citiesNamed: Int
+    /// Credit toward each tech from Insights and the world era's catch-up (M2 §2, §6.2), in tree
+    /// order; a tech needs `cost − credit` science. Nil until the first credit (left out of saves).
+    public internal(set) var techCredit: [Int]?
+    /// Techs whose Insight fired, sorted. Nil until the first (left out of saves).
+    public internal(set) var insights: [TechID]?
 
     /// A new, living player with nothing yet. An empty `civ` is filled in by `GameState.init`.
     public init(id: PlayerID, name: String, isHuman: Bool, tileCount: Int, civ: CivID = "", gold: Int = 0) {
@@ -58,9 +63,20 @@ public struct Player: Codable, Hashable, Sendable {
         self.memory = PlayerMemory(tileCount: tileCount)
         self.lastPhaseStart = 0
         self.citiesNamed = 0
+        self.techCredit = nil
+        self.insights = nil
     }
 
     public func knows(_ tech: TechID) -> Bool { knownTechs.contains(tech) }
+
+    /// Credit toward the tech at tree index `index` (M2 §6.2).
+    public func credit(techIndex index: Int) -> Int {
+        guard let credit = techCredit, credit.indices.contains(index) else { return 0 }
+        return credit[index]
+    }
+
+    /// Whether the tech's Insight has fired for this player.
+    public func hasInsight(_ tech: TechID) -> Bool { insights?.contains(tech) ?? false }
 }
 
 /// The complete simulation state. A value type: copying is cheap until mutated.
@@ -98,6 +114,8 @@ public struct GameState: Codable, Hashable, Sendable {
     /// them, so the key is absent from saves and the state hash. Internal: players learn of
     /// them only through their memory (`PlayerView.knownTribalVillages`).
     var tribalVillages: TribalVillageState?
+    /// The world era's index (M2 §2); nil in a game whose rules have no eras (left out of saves).
+    public internal(set) var worldEra: Int?
 
     public var rules: Ruleset { rulesRef.rules }
 
@@ -132,6 +150,7 @@ public struct GameState: Codable, Hashable, Sendable {
         self.relations = relations
         self.outcome = nil
         self.tribalVillages = nil
+        self.worldEra = rules.eras.isEmpty ? nil : 0
     }
 
     /// Creates a game (M1 §2): one player per start position, civs in order (or `civs`), each

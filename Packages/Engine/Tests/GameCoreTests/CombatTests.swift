@@ -267,6 +267,8 @@ import Testing
             .unitKilled(unit: d, type: .warrior, owner: PlayerID(1), at: hex(4, 1)),
             .unitMoved(unit: a, from: hex(3, 1), path: [hex(4, 1)]),
             .unitCaptured(old: settler, new: captured, type: .builder, from: PlayerID(1), to: PlayerID(0), at: hex(4, 1)),
+            // A kill by a melee unit is Archery's Insight (M2 §6.2).
+            .insightGained(player: PlayerID(0), tech: "archery", credit: 18),
         ])
         #expect(state.unit(d) == nil && state.unit(settler) == nil)
         let winner = try #require(state.unit(a))
@@ -377,8 +379,10 @@ import Testing
         let dealt = CombatMath.damage(base: CombatMath.baseDamage(-1), roll: rolls.attack)
         let taken = CombatMath.damage(base: CombatMath.baseDamage(1), roll: rolls.retaliation)
         var records = try apply(.attack(unit: a, target: hex(6, 3)), &state)
+        // A city that keeps its walls standing is Castles' Insight (M2 §6.2).
         #expect(events(records) == [.combat(attacker: .unit(a), defender: .city(city), from: hex(5, 3), to: hex(6, 3),
-                                            ranged: false, dealt: dealt, taken: taken)])
+                                            ranged: false, dealt: dealt, taken: taken),
+                                    .insightGained(player: PlayerID(1), tech: "castles", credit: 92)])
         #expect(state.city(city)!.wallHP == 100 - dealt && state.city(city)!.hp == 200)
         #expect(state.city(city)!.lastAttackedPhase == state.phaseCount)
         #expect(state.unit(a)!.hp == 100 - taken)

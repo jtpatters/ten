@@ -110,6 +110,10 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case tribalVillageGift(player: PlayerID, at: HexCoord, gift: TribalVillageGift)
     case playerEliminated(PlayerID)
     case gameOver(GameOutcome)
+    /// A tech's Insight fired for `player` (M2 §6.2): `credit` science toward it.
+    case insightGained(player: PlayerID, tech: TechID, credit: Int)
+    /// The world entered era `era` (an index into the rules' eras, M2 §2).
+    case worldEraAdvanced(era: Int)
     case phaseStarted(turn: Int, player: PlayerID)
 }
 
@@ -298,6 +302,7 @@ public enum GameEngine {
             state.raze(index, &fx)
         }
 
+        state.checkInsights(&fx)
         state.finishCommand(&fx)
         return fx.records(before: before, after: state)
     }

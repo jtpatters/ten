@@ -265,6 +265,10 @@ struct GameReport {
     var wars: [(turn: Int, by: PlayerID, on: PlayerID)] = []
     var peaces: [(turn: Int, a: PlayerID, b: PlayerID)] = []
     var firstCapture: Int?
+    /// The turn the world entered each era after the first (M2 §2).
+    var eraTurns: [(era: Int, turn: Int)] = []
+    /// Insights fired, per player.
+    var insights: [Int] = []
     /// Turns that ended with some pair of players at war.
     var turnsAtWar = 0
     var commands = Timings(), phases = Timings(), ai = Timings()
@@ -311,6 +315,10 @@ struct GameReport {
             case let .unitKilled(_, _, owner, _): tallies[owner.rawValue].unitsLost += 1
             case let .warDeclared(by, on): wars.append((turn, by, on))
             case let .peaceSigned(a, b): peaces.append((turn, a, b))
+            case let .worldEraAdvanced(era): eraTurns.append((era, turn))
+            case let .insightGained(player, _, _):
+                if insights.count < state.players.count { insights = Array(repeating: 0, count: state.players.count) }
+                insights[player.rawValue] += 1
             default: break
             }
         }
@@ -337,6 +345,15 @@ struct GameReport {
         return "wars declared: " + list(wars.map { "t\($0.turn) \($0.by)→\($0.on)" })
             + "; peace: " + list(peaces.map { "t\($0.turn) \($0.a)+\($0.b)" })
             + "; \(turnsAtWar) turns at war; first city captured: " + (firstCapture.map { "t\($0)" } ?? "none")
+    }
+
+    /// "world era: Classical t44, Medieval t88; insights p0 5, p1 4" (M2 §2, §6.2).
+    var eraLine: String {
+        let rules = state.rules
+        let eras = eraTurns.map { "\(rules.eras.indices.contains($0.era) ? rules.eras[$0.era].name : "\($0.era)") t\($0.turn)" }
+        let fired = insights.enumerated().map { "p\($0.offset) \($0.element)" }
+        return "world era: " + (eras.isEmpty ? "unchanged" : eras.joined(separator: ", "))
+            + "; insights " + (fired.isEmpty ? "none" : fired.joined(separator: ", "))
     }
 
     func playerLine(_ player: Player) -> String {
@@ -679,6 +696,7 @@ if options.games == 1 {
     }
     print("events: \(report.counts.summary)")
     print(report.warLine)
+    if !report.state.rules.eras.isEmpty { print(report.eraLine) }
     if report.villages.enabled { print(report.villageLine) }
     print("outcome: " + report.outcomeLine)
     for player in state.players { print(report.playerLine(player)) }
@@ -774,6 +792,7 @@ if options.games == 1 {
                 + "\(report.commandCount) commands, \(report.rejected) rejected, \(report.capHits) command-cap phases; "
                 + String(format: "final hash %016llx", hash))
             print("  " + report.warLine)
+            if !report.state.rules.eras.isEmpty { print("  " + report.eraLine) }
             if report.villages.enabled {
                 print("  " + report.villageLine)
                 villages.add(report.villages, standing: DebugTools.tribalVillages(in: report.state).count)

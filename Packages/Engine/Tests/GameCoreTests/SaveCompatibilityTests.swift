@@ -105,6 +105,10 @@ enum SaveFixture {
         state.players[0].researching = TechID("mining")
         state.players[0].researchTarget = TechID("masonry")
         state.players[0].researchProgress = 9
+        // Insight credit and Insights fired (M2 §6.2, additive fields).
+        state.players[0].techCredit = Array(repeating: 0, count: state.rules.techs.count)
+        state.players[0].techCredit![state.rules.techIndex("writing")!] = 18
+        state.players[0].insights = ["writing"]
         state.players[0].lastPhaseStart = 7
         state.players[1].lastPhaseStart = 8
         state.players[2].lastPhaseStart = 6
@@ -168,6 +172,7 @@ enum SaveFixture {
         #expect(items.contains { if case .unit = $0 { true } else { false } } && items.contains { if case .building = $0 { true } else { false } })
         let p0 = state.players[0]
         #expect(p0.researching != nil && p0.researchTarget != nil && p0.originalCapital != nil && p0.capital != nil)
+        #expect(p0.techCredit != nil && p0.insights?.isEmpty == false && state.worldEra != nil)
         #expect(!p0.memory.cities.isEmpty && !p0.memory.units.isEmpty && p0.memory.tileImprovement.contains { $0 != 0 })
         // Tribal villages: the live state with gifts, and one remembered.
         #expect(state.tribalVillages.map { $0.sites.count == 2 && $0.gifts.contains { $0 > 0 } } == true)

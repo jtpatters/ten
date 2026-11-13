@@ -37,8 +37,10 @@ func validationProblems(_ change: (inout [String: Any]) -> Void) throws -> [Stri
         #expect(rules.contentHash != 0)
         #expect(makeTestState().rules == rules)
         #expect(rules.units.map(\.type) == UnitType.allCases)
-        #expect(rules.techs.map(\.id) == ["pottery", "mining", "animalHusbandry", "sailing", "writing", "irrigation",
-                                          "archery", "bronzeWorking", "masonry", "currency"])
+        // M2 §6.1: the M1 techs come first, in M1's order.
+        #expect(rules.techs.prefix(10).map(\.id) == ["pottery", "mining", "animalHusbandry", "sailing", "writing", "irrigation",
+                                                    "archery", "bronzeWorking", "masonry", "currency"])
+        #expect(rules.techs.count == 30 && rules.eras.map(\.id) == ["ancient", "classical", "medieval"])
         #expect(rules.civs.map(\.name) == ["Rome", "Mongols", "Mali", "China", "Inca", "Khmer", "Norse", "Abbasid Caliphate"])
         #expect(rules.civs.map(\.leader) == ["Trajan", "Genghis Khan", "Mansa Musa", "Wu Zetian", "Pachacuti",
                                              "Jayavarman VII", "Harald Hardrada", "Harun al-Rashid"])
@@ -67,9 +69,9 @@ func validationProblems(_ change: (inout [String: Any]) -> Void) throws -> [Stri
         #expect(buildings[3].wallHP == 100 && buildings[3].cityStrength == 5)
         #expect(rules.palace.yields == Yields(production: 2, gold: 3, science: 3, culture: 1) && !rules.palace.buildable)
 
-        #expect(rules.techs.map(\.cost) == [25, 25, 25, 40, 45, 45, 45, 45, 45, 70])
-        #expect(rules.techs.map(\.requires) == [[], [], [], ["pottery"], ["pottery"], ["pottery"], ["animalHusbandry"],
-                                                ["mining"], ["mining"], ["writing"]])
+        #expect(rules.techs.prefix(10).map(\.cost) == [25, 25, 25, 40, 45, 45, 45, 45, 45, 70])
+        #expect(rules.techs.prefix(10).map(\.requires) == [[], [], [], ["pottery"], ["pottery"], ["pottery"], ["animalHusbandry"],
+                                                          ["mining"], ["mining"], ["writing"]])
 
         #expect((1...6).map { rules.growthThreshold(population: $0) } == [11, 20, 29, 40, 51, 62]) // p3f: base 11
         #expect((0...2).map { rules.borderThreshold(tilesGained: $0) } == [10, 16, 22])
