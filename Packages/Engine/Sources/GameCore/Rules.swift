@@ -535,6 +535,7 @@ public struct PromotionDef: Codable, Hashable, Sendable {
     public let moveAfterAttack: Bool?
     /// No river penalty when it attacks.
     public let noRiverPenalty: Bool?
+    public let text: String
 }
 
 public struct EraDef: Codable, Hashable, Sendable {
