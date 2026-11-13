@@ -147,7 +147,7 @@ struct UnitCard: View {
                             .frame(width: 16)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(promotion.name).font(HUD.title(.caption))
-                            Text(promotion.effectText).font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
+                            Text(promotion.text).font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
                         }
                         .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
@@ -159,7 +159,7 @@ struct UnitCard: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!session.isInputEnabled)
-                .accessibilityLabel("\(promotion.name): \(promotion.effectText)")
+                .accessibilityLabel("\(promotion.name): \(promotion.text)")
                 .accessibilityHint("Take this promotion.")
             }
         }
@@ -333,59 +333,5 @@ private struct ActionTileView: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { onTap() }
             .accessibilityAction(named: "Describe") { onLongPress() }
-    }
-}
-
-/// What a promotion does, built from its effects (`PromotionDef` carries no text).
-extension PromotionDef {
-    var effectText: String {
-        var parts: [String] = []
-        if let strength {
-            var clause = "+\(strength)\(ranged == true && when == "attack" ? " ranged" : "") Strength"
-            if ranged == true && when == "defend" {
-                clause += " vs ranged attacks"
-            } else if when == "attack" {
-                clause += " attacking"
-            } else if when == "defend" {
-                clause += " defending"
-            } else if ranged == true {
-                clause += " in ranged fights"
-            }
-            if let against, !against.isEmpty {
-                let military = Set(UnitClass.allCases).subtracting([.civilian])
-                clause += military.isSubset(of: against) ? " vs units"
-                    : " vs " + against.map(\.displayName).joined(separator: " and ")
-            }
-            if vsCity == true { clause += " vs cities" } else if vsCity == false { clause += " vs units" }
-            if vsWounded == true { clause += " vs wounded units" }
-            if inCity == true { clause += " in an own city" }
-            parts.append(clause)
-        }
-        if let moves { parts.append("+\(moves) move\(moves == 1 ? "" : "s")") }
-        if let range { parts.append("+\(range) range") }
-        if let sight { parts.append("+\(sight) sight") }
-        if rangedAfterMove == true { parts.append("fires after moving") }
-        if let freeMoveOn, !freeMoveOn.isEmpty { parts.append("no extra move cost on " + freeMoveOn.joined(separator: ", ")) }
-        if ignoresZOC == true { parts.append("ignores zones of control") }
-        if holdsZOC == true { parts.append("its zone of control holds units that ignore them") }
-        if moveAfterAttack == true { parts.append("attacking costs one move") }
-        if noRiverPenalty == true { parts.append("no river penalty attacking") }
-        if let wallDamagePct { parts.append("\(wallDamagePct)% damage to walls") }
-        return parts.isEmpty ? name : parts.joined(separator: "; ")
-    }
-}
-
-private extension UnitClass {
-    var displayName: String {
-        switch self {
-        case .civilian: "civilians"
-        case .recon: "recon"
-        case .melee: "melee"
-        case .ranged: "ranged"
-        case .antiCavalry: "anti-cavalry"
-        case .cavalry: "cavalry"
-        case .heavyCavalry: "heavy cavalry"
-        case .siege: "siege"
-        }
     }
 }
