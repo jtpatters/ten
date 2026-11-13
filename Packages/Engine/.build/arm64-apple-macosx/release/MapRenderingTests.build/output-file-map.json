@@ -1,0 +1,145 @@
+{
+  "": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapRenderingTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapRenderingTests.o",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/primary.swiftdeps"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/ArtGalleryTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ArtGalleryTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ArtGalleryTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ArtGalleryTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ArtGalleryTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/ArtLineupTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ArtLineupTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ArtLineupTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ArtLineupTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ArtLineupTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/CityArtTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/CityArtTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/CityArtTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/CityArtTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/CityArtTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/ExploreCompassTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ExploreCompassTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ExploreCompassTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ExploreCompassTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/ExploreCompassTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/FrozenAPITests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/FrozenAPITests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/FrozenAPITests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/FrozenAPITests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/FrozenAPITests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/GhostPickLeakTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GhostPickLeakTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GhostPickLeakTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GhostPickLeakTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GhostPickLeakTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/GuidanceFixture.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceFixture.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceFixture~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceFixture.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceFixture.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/GuidanceMarksTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceMarksTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceMarksTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceMarksTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceMarksTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/GuidanceOverlay.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceOverlay.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceOverlay~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceOverlay.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/GuidanceOverlay.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/HexLayoutTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/HexLayoutTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/HexLayoutTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/HexLayoutTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/HexLayoutTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/MapCameraTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapCameraTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapCameraTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapCameraTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapCameraTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/MapRendererTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapRendererTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapRendererTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapRendererTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MapRendererTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/MarksAnimationTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MarksAnimationTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MarksAnimationTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MarksAnimationTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MarksAnimationTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/MoveChainTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MoveChainTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MoveChainTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MoveChainTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/MoveChainTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/PolarBandTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/PolarBandTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/PolarBandTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/PolarBandTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/PolarBandTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/PortraitGalleryTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/PortraitGalleryTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/PortraitGalleryTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/PortraitGalleryTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/PortraitGalleryTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/RendererContractTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/RendererContractTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/RendererContractTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/RendererContractTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/RendererContractTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/RouteFogFixture.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/RouteFogFixture.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/RouteFogFixture~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/RouteFogFixture.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/RouteFogFixture.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/SkirmishFixture.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/SkirmishFixture.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/SkirmishFixture~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/SkirmishFixture.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/SkirmishFixture.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/TribalVillageFixture.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/TribalVillageFixture.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/TribalVillageFixture~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/TribalVillageFixture.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/TribalVillageFixture.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/TribalVillageStubTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/TribalVillageStubTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/TribalVillageStubTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/TribalVillageStubTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/TribalVillageStubTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/UnitLayeringTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/UnitLayeringTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/UnitLayeringTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/UnitLayeringTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/UnitLayeringTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/MapRenderingTests/UnitTapTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/UnitTapTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/UnitTapTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/UnitTapTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/MapRenderingTests.build/UnitTapTests.dia"
+  }
+}

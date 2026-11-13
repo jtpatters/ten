@@ -1,0 +1,3 @@
+module GameAI {
+    header "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAI.build/include/GameAI-Swift.h"
+}

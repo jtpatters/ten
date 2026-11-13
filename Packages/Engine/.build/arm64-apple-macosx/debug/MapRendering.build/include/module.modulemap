@@ -1,0 +1,3 @@
+module MapRendering {
+    header "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/MapRendering.build/include/MapRendering-Swift.h"
+}

@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/ShaderSource.build/primary.swiftdeps"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/ShaderSource/main.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/ShaderSource.build/main.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/ShaderSource.build/main.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/ShaderSource.build/main~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/ShaderSource.build/main.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/ShaderSource.build/main.dia"
+  }
+}

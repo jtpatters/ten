@@ -1,0 +1,103 @@
+{
+  "": {
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/primary.swiftdeps"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AIAfterLossTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAfterLossTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAfterLossTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAfterLossTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAfterLossTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAfterLossTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AIAuditTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAuditTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAuditTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAuditTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAuditTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIAuditTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AIFairnessTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIFairnessTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIFairnessTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIFairnessTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIFairnessTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIFairnessTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AIGameTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIGameTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIGameTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIGameTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIGameTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIGameTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AIPlayTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AIPlayerTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayerTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayerTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayerTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayerTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPlayerTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AIPreparePostureTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPreparePostureTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPreparePostureTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPreparePostureTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPreparePostureTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIPreparePostureTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AIRobustnessTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRobustnessTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRobustnessTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRobustnessTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRobustnessTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRobustnessTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AIRuleTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRuleTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRuleTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRuleTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRuleTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AIRuleTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AISettlerEscortTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AISettlerEscortTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AISettlerEscortTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AISettlerEscortTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AISettlerEscortTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AISettlerEscortTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AITestSupport.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITestSupport.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITestSupport.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITestSupport~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITestSupport.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITestSupport.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AITribalVillageGameTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageGameTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageGameTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageGameTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageGameTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageGameTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/AITribalVillageTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/AITribalVillageTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameAITests/ExploreOrderPlayTests.swift": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/ExploreOrderPlayTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/ExploreOrderPlayTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/ExploreOrderPlayTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/ExploreOrderPlayTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/GameAITests.build/ExploreOrderPlayTests.dia"
+  }
+}

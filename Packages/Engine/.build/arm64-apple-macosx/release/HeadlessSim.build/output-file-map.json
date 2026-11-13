@@ -1,0 +1,61 @@
+{
+  "": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/HeadlessSim.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/HeadlessSim.o",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/primary.swiftdeps"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/HeadlessSim/AfterLoss.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/AfterLoss.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/AfterLoss~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/AfterLoss.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/AfterLoss.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/HeadlessSim/EarlyGame.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/EarlyGame.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/EarlyGame~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/EarlyGame.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/EarlyGame.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/HeadlessSim/EarlyOpening.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/EarlyOpening.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/EarlyOpening~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/EarlyOpening.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/EarlyOpening.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/HeadlessSim/Narration.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/Narration.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/Narration~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/Narration.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/Narration.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/HeadlessSim/NewPlayer.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/NewPlayer.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/NewPlayer~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/NewPlayer.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/NewPlayer.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/HeadlessSim/Opponents.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/Opponents.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/Opponents~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/Opponents.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/Opponents.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/HeadlessSim/StartQuality.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/StartQuality.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/StartQuality~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/StartQuality.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/StartQuality.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/HeadlessSim/TribalVillageStats.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/TribalVillageStats.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/TribalVillageStats~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/TribalVillageStats.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/TribalVillageStats.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Sources/HeadlessSim/main.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/main.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/main~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/main.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/HeadlessSim.build/main.dia"
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/GameCoreTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/GameCoreTests.o",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/primary.swiftdeps"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/CityTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/CityTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/CityTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/CityTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/CityTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/CombatTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/CombatTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/CombatTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/CombatTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/CombatTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/ContractTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/ContractTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/ContractTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/ContractTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/ContractTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/DiplomacyTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/DiplomacyTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/DiplomacyTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/DiplomacyTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/DiplomacyTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/EngineTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/EngineTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/EngineTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/EngineTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/EngineTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/FogLeakTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/FogLeakTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/FogLeakTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/FogLeakTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/FogLeakTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/HashTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/HashTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/HashTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/HashTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/HashTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/HexTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/HexTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/HexTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/HexTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/HexTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/KnowledgeTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/KnowledgeTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/KnowledgeTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/KnowledgeTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/KnowledgeTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/MoveThenAttackPreviewTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/MoveThenAttackPreviewTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/MoveThenAttackPreviewTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/MoveThenAttackPreviewTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/MoveThenAttackPreviewTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/OpeningTempoTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/OpeningTempoTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/OpeningTempoTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/OpeningTempoTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/OpeningTempoTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/PhaseTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/PhaseTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/PhaseTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/PhaseTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/PhaseTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/QueryTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/QueryTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/QueryTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/QueryTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/QueryTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/SaveCompatibilityTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/SaveCompatibilityTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/SaveCompatibilityTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/SaveCompatibilityTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/SaveCompatibilityTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/TestSupport.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TestSupport.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TestSupport~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TestSupport.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TestSupport.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/TribalVillageContractTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TribalVillageContractTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TribalVillageContractTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TribalVillageContractTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TribalVillageContractTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/TribalVillageTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TribalVillageTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TribalVillageTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TribalVillageTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/TribalVillageTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UIBuilderTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIBuilderTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIBuilderTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIBuilderTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIBuilderTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UICombatCardTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UICombatCardTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UICombatCardTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UICombatCardTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UICombatCardTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UIExploreTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIExploreTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIExploreTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIExploreTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIExploreTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UINoticesTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UINoticesTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UINoticesTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UINoticesTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UINoticesTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UIPanelQueryTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIPanelQueryTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIPanelQueryTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIPanelQueryTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIPanelQueryTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UIQueryTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIQueryTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIQueryTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIQueryTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIQueryTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UIRoutesTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIRoutesTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIRoutesTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIRoutesTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIRoutesTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UISettlerTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UISettlerTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UISettlerTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UISettlerTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UISettlerTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UIThreatsTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIThreatsTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIThreatsTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIThreatsTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UIThreatsTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UITileInfoTribalVillageTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UITileInfoTribalVillageTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UITileInfoTribalVillageTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UITileInfoTribalVillageTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UITileInfoTribalVillageTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UITribalVillagesTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UITribalVillagesTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UITribalVillagesTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UITribalVillagesTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UITribalVillagesTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/UnitRuleTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UnitRuleTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UnitRuleTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UnitRuleTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/UnitRuleTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/GameCoreTests/WarfareTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/WarfareTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/WarfareTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/WarfareTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/GameCoreTests.build/WarfareTests.dia"
+  }
+}

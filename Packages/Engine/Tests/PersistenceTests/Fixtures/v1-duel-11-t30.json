@@ -1,0 +1,13 @@
+{
+  "about": "A format-1 save written by the post-3f tree (snapshot build/m1/p3fs) before tribal villages existed: Duel seed 11, every player an AI (GameAITests' aiGame and playAI), played to the start of turn 30 (player 0's phase), saved with SaveStore (manual kind, clock fixed at 784252800). stateHash is the state's stateHash() when saved; contentHash is that tree's Ruleset.standard.contentHash, which the standard rules without their tribalVillages section (C0) reproduce.",
+  "file": "v1-duel-11-t30.ttys",
+  "formatVersion": 1,
+  "rulesID": "m1.1",
+  "seed": 11,
+  "mapSize": "duel",
+  "turn": 30,
+  "currentPlayer": 0,
+  "phaseCount": 59,
+  "stateHash": "0x959837d42369d708",
+  "contentHash": "0x3ca49347f3ced14c"
+}

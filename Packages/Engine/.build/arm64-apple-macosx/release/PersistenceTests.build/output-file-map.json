@@ -1,0 +1,49 @@
+{
+  "": {
+    "dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/PersistenceTests.d",
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/PersistenceTests.o",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/primary.swiftdeps"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/PersistenceTests/ExplorerHeaderTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/ExplorerHeaderTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/ExplorerHeaderTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/ExplorerHeaderTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/ExplorerHeaderTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/PersistenceTests/LegacySaveTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/LegacySaveTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/LegacySaveTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/LegacySaveTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/LegacySaveTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/PersistenceTests/PersistenceFixtures.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/PersistenceFixtures.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/PersistenceFixtures~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/PersistenceFixtures.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/PersistenceFixtures.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/PersistenceTests/SaveStoreTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SaveStoreTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SaveStoreTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SaveStoreTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SaveStoreTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/PersistenceTests/SaveSummaryTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SaveSummaryTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SaveSummaryTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SaveSummaryTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SaveSummaryTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/Tests/PersistenceTests/SchemaFingerprintTests.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SchemaFingerprintTests.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SchemaFingerprintTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SchemaFingerprintTests.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/SchemaFingerprintTests.dia"
+  },
+  "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/DerivedSources/resource_bundle_accessor.swift": {
+    "object": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/resource_bundle_accessor.swift.o",
+    "swiftmodule": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/resource_bundle_accessor~partial.swiftmodule",
+    "swift-dependencies": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/resource_bundle_accessor.swiftdeps",
+    "diagnostics": "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/PersistenceTests.build/resource_bundle_accessor.dia"
+  }
+}

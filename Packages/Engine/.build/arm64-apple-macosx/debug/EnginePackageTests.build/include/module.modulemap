@@ -1,0 +1,3 @@
+module EnginePackageTests {
+    header "/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/debug/EnginePackageTests.build/include/EnginePackageTests-Swift.h"
+}
