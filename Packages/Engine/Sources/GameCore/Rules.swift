@@ -236,6 +236,15 @@ extension UnitType {
         case .warrior: 3
         case .archer: 4
         case .spearman: 5
+        case .horseman: 6
+        case .heavyChariot: 7
+        case .swordsman: 8
+        case .catapult: 9
+        case .manAtArms: 10
+        case .crossbowman: 11
+        case .pikeman: 12
+        case .knight: 13
+        case .trebuchet: 14
         }
     }
 }
@@ -404,6 +413,8 @@ public struct ImprovementDef: Codable, Hashable, Sendable {
 /// A unit's class (M1 §7). Military = every class except civilian.
 public enum UnitClass: String, Codable, Hashable, Sendable, CaseIterable {
     case civilian, recon, melee, ranged, antiCavalry, cavalry
+    /// M2 §8.1.
+    case heavyCavalry, siege
 }
 
 public struct ClassBonus: Codable, Hashable, Sendable {
@@ -434,13 +445,17 @@ public struct UnitDef: Codable, Hashable, Sendable {
     public let capturedAs: UnitType?
     /// Charges of the captured unit; nil keeps the old unit's charges.
     public let capturedCharges: Int?
+    /// The unit it upgrades to (M2 §8.2), if any.
+    public let upgradesTo: UnitType?
+    /// False for siege units: no ranged attack after moving in the phase (M2 §8.1). Nil = true.
+    public let rangedAfterMove: Bool?
 
     public var isMilitary: Bool { unitClass != .civilian }
     public var isRanged: Bool { rangedStrength > 0 }
 
     enum CodingKeys: String, CodingKey {
         case type, unitClass = "class", cost, strength, rangedStrength, range, moves, sight, tech, charges, foundsCity,
-             minPopulation, populationCost, classBonuses, capturedAs, capturedCharges
+             minPopulation, populationCost, classBonuses, capturedAs, capturedCharges, upgradesTo, rangedAfterMove
     }
 }
 

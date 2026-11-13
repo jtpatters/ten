@@ -10,16 +10,25 @@ public struct UnitID: Hashable, Codable, Sendable, Comparable, CustomStringConve
 /// art and data follow it.
 public enum UnitType: String, Codable, Sendable, CaseIterable {
     case settler, builder, scout, warrior, archer, spearman
+    // M2 §8.1 (appended; naval units, the Trader and unique units come later).
+    case horseman, heavyChariot, swordsman, catapult, manAtArms, crossbowman, pikeman, knight, trebuchet
 
     /// Hard-coded; rules validation checks it matches the data's unit class.
     public var isCivilian: Bool {
         switch self {
         case .settler, .builder: true
         case .scout, .warrior, .archer, .spearman: false
+        case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: false
         }
     }
 
-    public var displayName: String { rawValue.capitalized }
+    public var displayName: String {
+        switch self {
+        case .heavyChariot: "Heavy Chariot"
+        case .manAtArms: "Man-at-Arms"
+        default: rawValue.capitalized
+        }
+    }
 }
 
 /// What a unit is doing besides moving (M1 §7.4). Moving or attacking clears it.

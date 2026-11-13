@@ -195,7 +195,7 @@ import Testing
         let back = try preview(state, scout, hex(3, 1))
         #expect(back.defenderStrength.modifiers == [StrengthModifier(kind: .classBonus(.recon), value: 7)])
         // The standard Spearman's bonus is against cavalry, which nothing in M1 is.
-        #expect(Ruleset.standard.unit(.spearman).classBonuses.map(\.against) == [.cavalry])
+        #expect(Ruleset.standard.unit(.spearman).classBonuses.map(\.against) == [.cavalry, .heavyCavalry])
     }
 
     /// City Strength = 14 + 2·population, +5 while wall HP > 0, +3 on hills, +4 with a

@@ -51,13 +51,13 @@ func validationProblems(_ change: (inout [String: Any]) -> Void) throws -> [Stri
     @Test func rulesMatchTheM1Tables() throws {
         let rules = Ruleset.standard
         func unit(_ t: UnitType) -> UnitDef { rules.unit(t) }
-        #expect(UnitType.allCases.map { unit($0).cost } == [60, 40, 30, 40, 60, 65])
-        #expect(UnitType.allCases.map { unit($0).strength } == [0, 0, 10, 20, 15, 25])
-        #expect(UnitType.allCases.map { unit($0).moves } == [2, 2, 3, 2, 2, 2])
-        #expect(UnitType.allCases.map { unit($0).sight } == [2, 2, 3, 2, 2, 2])
-        #expect(UnitType.allCases.map { unit($0).unitClass } == [.civilian, .civilian, .recon, .melee, .ranged, .antiCavalry])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).cost } == [60, 40, 30, 40, 60, 65])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).strength } == [0, 0, 10, 20, 15, 25])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).moves } == [2, 2, 3, 2, 2, 2])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).sight } == [2, 2, 3, 2, 2, 2])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).unitClass } == [.civilian, .civilian, .recon, .melee, .ranged, .antiCavalry])
         #expect(unit(.archer).rangedStrength == 25 && unit(.archer).range == 2 && unit(.archer).tech == "archery")
-        #expect(unit(.spearman).tech == "bronzeWorking" && unit(.spearman).classBonuses == [ClassBonus(against: .cavalry, strength: 10)])
+        #expect(unit(.spearman).tech == "bronzeWorking" && unit(.spearman).classBonuses == [ClassBonus(against: .cavalry, strength: 10), ClassBonus(against: .heavyCavalry, strength: 10)])
         #expect(unit(.builder).charges == 3)
         #expect(unit(.settler).foundsCity && unit(.settler).minPopulation == 2 && unit(.settler).populationCost == 1)
         for type in UnitType.allCases { #expect(unit(type).isMilitary == !type.isCivilian) }

@@ -11,7 +11,7 @@ import Testing
 /// (snapshot p3fs), as PersistenceTests' version-1 save fixture records it.
 /// The standard rules without the tribal village section. Re-pinned for M2 2.1a's research arc
 /// (0x3CA4_9347_F3CE_D14C before).
-let preTribalVillagesContentHash: UInt64 = 0x727F_8E66_FA5E_7BBD
+let preTribalVillagesContentHash: UInt64 = 0x8C10_49D9_0F6A_B2E8 // M2 2.1b units (2.1a: 0x727F_8E66_FA5E_7BBD)
 
 /// C0: the standard rules without their tribal village section.
 func c0Rules() throws -> Ruleset {
@@ -209,7 +209,7 @@ func removeTribalVillage(at hex: HexCoord, in state: inout GameState) {
         DebugTools.spawnUnits(count: 300, seed: 42, in: &headless)
         for i in headless.players.indices { headless.players[i].gold = 1_000_000 }
         expectNone(headless, "large seed 42")
-        #expect(headless.stateHash() == 0x1640_6D53_F16E_6AB9, // M2 2.1a (0xFD8F_CBC6_4C98_2AD4 before)
+        #expect(headless.stateHash() == 0xE55F_FD84_CDC3_7A63, // M2 2.1b (2.1a: 0x1640_6D53_F16E_6AB9) (0xFD8F_CBC6_4C98_2AD4 before)
                 "turn-1 hash: 0x\(String(headless.stateHash(), radix: 16))")
     }
 }
