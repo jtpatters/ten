@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     '/Users/jason/Documents/GitHub/civ/Packages/Engine/.build/arm64-apple-macosx/release/headless-sim'
-relocations:     []
-...
