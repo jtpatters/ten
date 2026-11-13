@@ -115,7 +115,7 @@ extension PlayerView {
     public func aiMovementField(for id: UnitID, mayStop: [Bool], limit: Int = .max) -> [Int32] {
         guard let (k, start, unit) = aiKnowledge(id, mayStop: mayStop) else { return [] }
         return Pathfinder.movementField(k, from: start, movesLeft: unit.zocStopped ? 0 : unit.movesLeft,
-                                        maxMoves: rules.unit(unit.type).moves, limit: limit)
+                                        maxMoves: state.maxMoves(of: unit), limit: limit)
     }
 
     /// A path for own unit `id` by the rules of `aiMovementField(for:mayStop:limit:)`; nil when
@@ -124,7 +124,7 @@ extension PlayerView {
         guard let (k, start, unit) = aiKnowledge(id, mayStop: mayStop), let goal = index(of: hex), goal != start,
               k.canEnd(goal) else { return nil }
         return Pathfinder.search(k, from: start, movesLeft: unit.zocStopped ? 0 : unit.movesLeft,
-                                 maxMoves: rules.unit(unit.type).moves, to: goal)
+                                 maxMoves: state.maxMoves(of: unit), to: goal)
     }
 
     /// The movement knowledge behind `aiMovementField(for:mayStop:limit:)` and
@@ -319,5 +319,7 @@ extension MoveKnowledge {
         self.occupied = occupied
         ownCities = base.ownCities
         zoc = base.zoc
+        freeElevation = base.freeElevation
+        freeFeature = base.freeFeature
     }
 }

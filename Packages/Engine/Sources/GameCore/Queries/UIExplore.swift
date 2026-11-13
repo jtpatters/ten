@@ -265,7 +265,7 @@ extension PlayerView {
         guard unit.owner == player, let start = index(of: unit.position) else { return [] }
         let k = MoveKnowledge(MoveKnowledge(state: state, unit: unit), withoutUnitsIn: state)
         return Pathfinder.movementField(k, from: start, movesLeft: unit.zocStopped ? 0 : unit.movesLeft,
-                                        maxMoves: rules.unit(unit.type).moves)
+                                        maxMoves: state.maxMoves(of: unit))
     }
 
     /// Unexplored tiles within `radius` of tile `t` (what a unit with that sight would bring into
@@ -343,7 +343,7 @@ extension PlayerView {
             guard let start = index(of: enemy.position), visible[start], power(of: enemy) > 0 else { continue }
             let def = rules.unit(enemy.type)
             if def.unitClass == .recon, !reconExplorer { continue }
-            let reach = def.isRanged ? def.range : 1
+            let reach = def.isRanged ? state.range(of: enemy) : 1
             var touched = [start]
             left[start] = Int8(def.moves)
             var buckets = [[Int]](repeating: [], count: def.moves + 1)
@@ -463,6 +463,8 @@ extension MoveKnowledge {
         occupied = base.occupied
         ownCities = base.ownCities
         zoc = base.zoc
+        freeElevation = base.freeElevation
+        freeFeature = base.freeFeature
     }
 }
 

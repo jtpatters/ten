@@ -56,6 +56,8 @@ public struct Unit: Codable, Hashable, Sendable {
     public var lastActedTurn: Int
     /// Promotions taken, in order (M2 §8.3); nil = none.
     public var promotions: [String]?
+    /// Attacked this phase, for units that may move after attacking (M2 §8.3); nil = no.
+    public var attacked: Bool?
 
     /// A fresh unit: full HP, no orders or activity. Moves and charges come from the rules
     /// (`GameState.addUnit` fills them in).
@@ -73,5 +75,6 @@ public struct Unit: Codable, Hashable, Sendable {
         self.charges = charges
         self.lastActedTurn = 0
         self.promotions = nil
+        self.attacked = nil
     }
 }

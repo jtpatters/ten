@@ -29,4 +29,69 @@ import Testing
         state.startPhase(ofUnit: horse)
         #expect(state.unit(horse)!.movesLeft == 5)
     }
+
+    @Test func rangeSightAndCrewPromotions() {
+        var state = makeTestState()
+        let catapult = state.addUnit(.catapult, owner: PlayerID(0), at: hex(3, 3))
+        let scout = state.addUnit(.scout, owner: PlayerID(0), at: hex(4, 4))
+        #expect(state.range(of: state.unit(catapult)!) == 2 && !state.firesAfterMoving(state.unit(catapult)!))
+        state.updateUnit(catapult) { $0.promotions = ["crew", "siegeEngineers"] }
+        #expect(state.range(of: state.unit(catapult)!) == 3 && state.firesAfterMoving(state.unit(catapult)!))
+        let sight = state.sight(of: state.unit(scout)!)
+        state.updateUnit(scout) { $0.promotions = ["ranger", "sentry"] }
+        #expect(state.sight(of: state.unit(scout)!) == sight + 1 && state.range(of: state.unit(scout)!) == 0)
+    }
+
+    @Test func alpineCrossesHillsFreely() {
+        var map = openMap(width: 8, height: 6)
+        let a = map.index(of: hex(1, 1))!, b = map.index(of: hex(2, 1))!
+        map[index: b].elevation = .hills
+        var state = makeTestState(map: map)
+        let scout = state.addUnit(.scout, owner: PlayerID(0), at: hex(1, 1))
+        let plain = state.moveCost(from: a, to: b, .east, free: state.freeMove(state.unit(scout)!))
+        state.updateUnit(scout) { $0.promotions = ["alpine"] }
+        let alpine = state.moveCost(from: a, to: b, .east, free: state.freeMove(state.unit(scout)!))
+        #expect(plain == 2 && alpine == 1)
+    }
+
+    @Test func pursuitIgnoresZonesOfControlExceptSquare() {
+        var state = makeWarState(width: 16, height: 10)
+        let horse = state.addUnit(.horseman, owner: PlayerID(0), at: hex(3, 3))
+        let enemy = state.addUnit(.spearman, owner: PlayerID(1), at: hex(6, 3))
+        let near = tile(state, hex(5, 3))
+        #expect(state.zoneOfControl(for: state.unit(horse)!)?[near] == true)
+        state.updateUnit(horse) { $0.promotions = ["caparison", "pursuit"] }
+        #expect(state.zoneOfControl(for: state.unit(horse)!)?[near] != true)
+        state.updateUnit(enemy) { $0.promotions = ["echelon", "square"] }
+        #expect(state.zoneOfControl(for: state.unit(horse)!)?[near] == true)
+    }
+
+    @Test func guerrillaMovesAfterAttackingOnce() throws {
+        var state = makeWarState(width: 16, height: 10)
+        let scout = state.addUnit(.scout, owner: PlayerID(0), at: hex(4, 3))
+        _ = state.addUnit(.warrior, owner: PlayerID(1), at: hex(5, 3))
+        state.updateUnit(scout) { $0.promotions = ["ranger", "guerrilla"] }
+        let moves = state.unit(scout)!.movesLeft
+        try apply(.attack(unit: scout, target: hex(5, 3)), &state)
+        let after = try #require(state.unit(scout))
+        #expect(after.movesLeft == moves - 1 && after.attacked == true)
+        #expect(throws: CommandError.self) { try apply(.attack(unit: scout, target: hex(5, 3)), &state) }
+        state.startPhase(ofUnit: scout)
+        #expect(state.unit(scout)!.attacked == nil)
+    }
+
+    @Test func chargeHitsOnlyWoundedUnits() throws {
+        var state = makeWarState(width: 16, height: 10)
+        let horse = state.addUnit(.horseman, owner: PlayerID(0), at: hex(4, 3))
+        let enemy = state.addUnit(.warrior, owner: PlayerID(1), at: hex(5, 3))
+        func strength(_ state: GameState) throws -> Int {
+            try #require(state.view(for: PlayerID(0)).combatPreview(attacker: .unit(horse), target: hex(5, 3), from: hex(4, 3)))
+                .attackerStrength.total
+        }
+        let base = try strength(state)
+        state.updateUnit(horse) { $0.promotions = ["charge"] }
+        #expect(try strength(state) == base)
+        state.updateUnit(enemy) { $0.hp = 60 }
+        #expect(try strength(state) == base + 7)
+    }
 }

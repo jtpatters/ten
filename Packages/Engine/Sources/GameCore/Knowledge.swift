@@ -108,7 +108,7 @@ extension GameState {
         func wanted(_ p: PlayerID) -> Bool { mask & (1 << UInt64(p.rawValue)) != 0 }
         for unit in units where wanted(unit.owner) {
             let o = unit.owner.rawValue
-            map.forEachIndex(within: rules.unit(unit.type).sight, of: unit.position) { result[o][$0] = true }
+            map.forEachIndex(within: sight(of: unit), of: unit.position) { result[o][$0] = true }
         }
         let citySight = rules.constants.city.sight
         for city in cities where wanted(city.owner) {

@@ -272,7 +272,7 @@ public enum GameEngine {
             case let .target(side): defender = side
             }
             let from = state.map.index(of: unit.position)!
-            if let problem = state.attackReachProblem(unit.type, from: from, at: t, against: defender) {
+            if let problem = state.attackReachProblem(unit, from: from, at: t, against: defender) {
                 throw .rejected(reason: problem)
             }
             state.attack(with: id, at: t, against: defender, &fx)

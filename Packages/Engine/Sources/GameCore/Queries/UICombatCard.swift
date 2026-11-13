@@ -264,7 +264,7 @@ extension PlayerView {
               !isVisible(city.position) else { return nil }
         let def = rules.unit(unit.type)
         guard def.isRanged else { return nil }
-        let near = max(1, min(def.range, def.sight))
+        let near = max(1, min(state.range(of: unit), state.sight(of: unit)))
         return "Out of sight: move within \(near) tile\(near == 1 ? "" : "s") to see it, then shoot."
     }
 

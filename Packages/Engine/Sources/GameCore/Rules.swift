@@ -519,7 +519,22 @@ public struct PromotionDef: Codable, Hashable, Sendable {
     public let moves: Int?
     /// Percent of its damage that wall HP takes, replacing the unit's (M2 §9.2).
     public let wallDamagePct: Int?
-    public let text: String
+    /// Added to its range and its sight.
+    public let range: Int?
+    public let sight: Int?
+    /// True lifts the siege rule: it may fire after moving.
+    public let rangedAfterMove: Bool?
+    /// Its strength applies only against a wounded unit (true).
+    public let vsWounded: Bool?
+    /// Elevation and feature names whose extra move cost it does not pay.
+    public let freeMoveOn: [String]?
+    /// It ignores zones of control, except those of units with a `holdsZOC` promotion.
+    public let ignoresZOC: Bool?
+    public let holdsZOC: Bool?
+    /// Attacking costs it one move instead of all; it still attacks once per phase.
+    public let moveAfterAttack: Bool?
+    /// No river penalty when it attacks.
+    public let noRiverPenalty: Bool?
 }
 
 public struct EraDef: Codable, Hashable, Sendable {

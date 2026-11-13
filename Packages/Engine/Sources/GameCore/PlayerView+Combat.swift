@@ -70,8 +70,8 @@ extension PlayerView {
               let start = index(of: unit.position) else { return [] }
         let def = rules.unit(unit.type)
         let k = MoveKnowledge(state: state, unit: unit)
-        let field = Pathfinder.phaseField(k, from: start, movesLeft: unit.zocStopped || rules.unit(unit.type).rangedAfterMove == false ? 0 : unit.movesLeft)
-        let reach = def.isRanged ? def.range : 1
+        let field = Pathfinder.phaseField(k, from: start, movesLeft: unit.zocStopped || !state.firesAfterMoving(unit) ? 0 : unit.movesLeft)
+        let reach = def.isRanged ? state.range(of: unit) : 1
         var options: [AttackOption] = []
         for (t, defender) in visibleTargets(attackingCities: def.unitClass != .recon) {
             var best: (cost: Int, tile: Int)?
@@ -131,7 +131,7 @@ extension PlayerView {
         switch attacker {
         case let .unit(id):
             guard var unit = state.unit(id), unit.owner == player, rules.unit(unit.type).isMilitary,
-                  state.attackReachProblem(unit.type, from: f, at: t, against: defender) == nil else { return nil }
+                  state.attackReachProblem(unit, from: f, at: t, against: defender) == nil else { return nil }
             unit.position = coord(at: f)
             side = .unit(unit)
             ranged = rules.unit(unit.type).isRanged
@@ -210,7 +210,7 @@ extension PlayerView {
         guard let unit = state.unit(id), unit.owner == player, let start = index(of: unit.position) else { return [] }
         let k = MoveKnowledge(state: state, unit: unit)
         return Pathfinder.movementField(k, from: start, movesLeft: unit.zocStopped ? 0 : unit.movesLeft,
-                                        maxMoves: rules.unit(unit.type).moves, limit: limit)
+                                        maxMoves: state.maxMoves(of: unit), limit: limit)
     }
 
     /// Steps from the nearest of `sources` to each tile over land as this player knows it
@@ -260,7 +260,7 @@ extension PlayerView {
             guard let start = index(of: enemy.position), me.visible[start] else { continue }
             let def = rules.unit(enemy.type)
             let power = Int32(power(of: enemy))
-            let reach = def.isRanged ? def.range : 1
+            let reach = def.isRanged ? state.range(of: enemy) : 1
             stamp += 1
             // Where it can stand with a move left next phase (most moves left first).
             var touched = [start]

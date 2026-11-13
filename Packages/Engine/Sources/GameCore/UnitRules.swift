@@ -111,6 +111,7 @@ extension GameState {
         let maxHP = rules.constants.healing.maxHP
         updateUnit(id) { u in
             u.zocStopped = false
+            u.attacked = nil
             if u.activity == .fortifying { u.activity = .fortified }
             if u.activity == .skipped || wake { u.activity = .none }
             u.hp = min(maxHP, u.hp + heal)
@@ -181,6 +182,41 @@ extension GameState {
     func promotionMoves(_ unit: Unit) -> Int {
         guard let taken = unit.promotions else { return 0 }
         return rules.promotions.reduce(0) { $0 + (taken.contains($1.id) ? $1.moves ?? 0 : 0) }
+    }
+
+    /// The promotions `unit` has taken.
+    func promotionDefs(_ unit: Unit) -> [PromotionDef] {
+        guard let taken = unit.promotions, !taken.isEmpty else { return [] }
+        return rules.promotions.filter { taken.contains($0.id) }
+    }
+
+    /// Its moves per phase, promotions included.
+    public func maxMoves(of unit: Unit) -> Int { rules.unit(unit.type).moves + promotionMoves(unit) }
+
+    /// Its range (0 for non-ranged units), promotions included.
+    public func range(of unit: Unit) -> Int {
+        let def = rules.unit(unit.type)
+        guard def.isRanged else { return 0 }
+        return def.range + promotionDefs(unit).reduce(0) { $0 + ($1.range ?? 0) }
+    }
+
+    /// Its sight, promotions included.
+    public func sight(of unit: Unit) -> Int {
+        rules.unit(unit.type).sight + promotionDefs(unit).reduce(0) { $0 + ($1.sight ?? 0) }
+    }
+
+    /// Whether it may fire after moving in the phase (siege may not, M2 §8.1, unless promoted).
+    func firesAfterMoving(_ unit: Unit) -> Bool {
+        rules.unit(unit.type).rangedAfterMove != false || promotionDefs(unit).contains { $0.rangedAfterMove == true }
+    }
+
+    func ignoresZOC(_ unit: Unit) -> Bool { promotionDefs(unit).contains { $0.ignoresZOC == true } }
+    func holdsZOC(_ unit: Unit) -> Bool { promotionDefs(unit).contains { $0.holdsZOC == true } }
+
+    /// Per elevation and per feature (by raw value): whether `unit` skips its extra move cost.
+    func freeMove(_ unit: Unit) -> (elevations: [Bool], features: [Bool]) {
+        let names = Set(promotionDefs(unit).flatMap { $0.freeMoveOn ?? [] })
+        return (rules.elevations.map { names.contains($0.name) }, rules.features.map { names.contains($0.name) })
     }
 
     func promoteProblem(_ unit: Unit, _ promotion: String) -> String? {

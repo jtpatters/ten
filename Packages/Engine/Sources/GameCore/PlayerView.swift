@@ -180,6 +180,9 @@ public struct PlayerView: Sendable {
     }
 
     /// Gold to upgrade an own unit now, nil when it may not (M2 §8.2).
+    /// `unit`'s range, promotions included (0 for non-ranged units).
+    public func range(of unit: Unit) -> Int { state.range(of: unit) }
+
     public func upgradeCost(_ id: UnitID) -> Int? {
         guard isMyPhase, let u = state.unit(id), u.owner == player, state.upgradeProblem(u) == nil else { return nil }
         return state.upgradeCost(of: u.type)

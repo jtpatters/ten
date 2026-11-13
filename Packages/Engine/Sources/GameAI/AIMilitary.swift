@@ -76,7 +76,7 @@ extension AITurn {
     mutating func attackSpots(_ unit: Unit, target t: Int, garrison: Bool) -> [Int] {
         let v = view
         guard let here = v.index(of: unit.position) else { return [] }
-        let reach = isRanged(unit.type) ? rules.unit(unit.type).range : 1
+        let reach = isRanged(unit.type) ? v.range(of: unit) : 1
         var spots: [Int] = []
         let d = v.aiDistance(here, t)
         if d <= reach, isRanged(unit.type) || d == 1 { spots.append(here) }
@@ -578,7 +578,7 @@ extension AITurn {
                 if !plan.assault {
                     place(unit, around: t, band: stage, goal: field)
                 } else if isRanged(unit.type) {
-                    let range = rules.unit(unit.type).range
+                    let range = view.range(of: unit)
                     place(unit, around: t, band: min(2, range)...range, goal: field)
                 } else {
                     place(unit, around: t, band: low ? 1...1 : 1...2, goal: field)

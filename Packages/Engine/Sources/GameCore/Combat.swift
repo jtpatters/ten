@@ -246,7 +246,9 @@ extension GameState {
                   p.ranged.map({ $0 == ranged }) ?? true,
                   p.against.map({ list in otherClass.map(list.contains) ?? false }) ?? true,
                   p.vsCity.map({ $0 == (otherClass == nil) }) ?? true,
-                  p.inCity.map({ $0 == inOwnCity }) ?? true else { return sum }
+                  p.inCity.map({ $0 == inOwnCity }) ?? true,
+                  p.vsWounded.map({ w in if case let .unit(o) = other { (o.hp < rules.constants.healing.maxHP) == w } else { !w } }) ?? true
+            else { return sum }
             return sum + s
         }
     }
@@ -275,7 +277,7 @@ extension GameState {
             if !ranged {
                 let flankers = adjacentMilitary(of: unit.owner, around: target, excluding: unit.id, sees: sees)
                 s.add(.flanking, min(c.flankingMax, c.flankingPerUnit * flankers))
-                if crossesRiver(from, target) { s.add(.river, rules.river.meleeAttackModifier) }
+                if crossesRiver(from, target), !promotionDefs(unit).contains(where: { $0.noRiverPenalty == true }) { s.add(.river, rules.river.meleeAttackModifier) }
             }
             s.add(.wounded, woundPenalty(unit))
             if let (cls, bonus) = classBonus(of: unit, against: defender) { s.add(.classBonus(cls), bonus) }
@@ -356,18 +358,20 @@ extension GameState {
         guard def.isMilitary else { return "civilians cannot attack" }
         guard unit.movesLeft > 0 else { return "no moves left" }
         // Siege units fire only before moving in the phase (M2 §8.1).
-        if def.rangedAfterMove == false, unit.movesLeft < def.moves { return "\(unit.type.displayName)s cannot fire after moving" }
+        if unit.attacked == true { return "already attacked this phase" }
+        if !firesAfterMoving(unit), unit.movesLeft < maxMoves(of: unit) { return "\(unit.type.displayName)s cannot fire after moving" }
         return nil
     }
 
     /// Why a unit of `type` standing on tile `from` may not attack `target` on tile `t`
     /// (nil: it may): range, and recon units never attack cities.
-    func attackReachProblem(_ type: UnitType, from: Int, at t: Int, against target: CombatSide) -> String? {
+    func attackReachProblem(_ unit: Unit, from: Int, at t: Int, against target: CombatSide) -> String? {
+        let type = unit.type
         let def = rules.unit(type)
         if case .city = target, def.unitClass == .recon { return "\(type.displayName)s cannot attack cities" }
         let distance = map.distance(index: from, t)
         if def.isRanged {
-            if distance < 1 || distance > def.range { return "target out of range" }
+            if distance < 1 || distance > range(of: unit) { return "target out of range" }
         } else if distance != 1 {
             return "target not adjacent"
         }
@@ -398,9 +402,12 @@ extension GameState {
         let c = rules.constants.combat
         let turn = self.turn
 
-        // Attacking ends the attacker's moves and clears its activity and orders.
+        // Attacking ends the attacker's moves (one move for a skirmisher, M2 §8.3) and clears
+        // its activity and orders.
+        let skirmish = promotionDefs(attacker).contains { $0.moveAfterAttack == true }
         updateUnit(id) { u in
-            u.movesLeft = 0
+            u.movesLeft = skirmish ? max(0, u.movesLeft - 1) : 0
+            if skirmish { u.attacked = true }
             u.activity = .none
             u.destination = nil
             u.lastActedTurn = turn
