@@ -38,6 +38,8 @@ public enum Command: Codable, Hashable, Sendable {
     case razeCity(city: CityID)
     /// Upgrade a unit to its `upgradesTo` type for Gold (M2 §8.2).
     case upgrade(unit: UnitID)
+    /// Take one of the promotions offered to a unit with one due (M2 §8.3).
+    case promote(unit: UnitID, promotion: String)
 }
 
 public enum CommandError: Error, Hashable, Sendable, CustomStringConvertible {
@@ -118,6 +120,8 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case worldEraAdvanced(era: Int)
     /// A unit upgraded in place (M2 §8.2).
     case unitUpgraded(unit: UnitID, from: UnitType, to: UnitType, owner: PlayerID, at: HexCoord)
+    /// A unit took a promotion (M2 §8.3).
+    case unitPromoted(unit: UnitID, promotion: String, owner: PlayerID, at: HexCoord)
     case phaseStarted(turn: Int, player: PlayerID)
 }
 
@@ -309,6 +313,11 @@ public enum GameEngine {
             let unit = try ownedUnit(id, by: player, in: state)
             if let problem = state.upgradeProblem(unit) { throw .rejected(reason: problem) }
             state.upgrade(id, &fx)
+
+        case let .promote(id, promotion):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.promoteProblem(unit, promotion) { throw .rejected(reason: problem) }
+            state.promote(id, promotion, &fx)
         }
 
         state.checkInsights(&fx)

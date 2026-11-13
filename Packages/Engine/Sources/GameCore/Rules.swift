@@ -51,6 +51,9 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public let techEras: [Int]
     /// Insights and the world era (M2 §2, §6.2); nil in rules without them.
     public let progression: ProgressionRules?
+    /// Promotions and the XP each tier needs (M2 §8.3); empty without the sections.
+    public let promotions: [PromotionDef]
+    public let promotionXP: [Int]
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
@@ -102,6 +105,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         self.eras = eras
         techEras = data.techs.map { tech in tech.era.flatMap { e in eras.firstIndex { $0.id == e } } ?? 0 }
         progression = data.progression
+        promotions = data.promotions ?? []
+        promotionXP = data.promotionXP ?? []
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -291,6 +296,8 @@ struct RulesetData: Codable, Hashable, Sendable {
     var eras: [EraDef]?
     /// Optional (M2 §2, §6.2): absent, no Insights fire and the world era never advances.
     var progression: ProgressionRules?
+    var promotions: [PromotionDef]?
+    var promotionXP: [Int]?
 }
 
 /// Yields of one source (M1 §4). Integer only.
@@ -492,6 +499,24 @@ public struct TechDef: Codable, Hashable, Sendable {
 }
 
 /// An era (M2 §2). The rules' `eras` are in order: index 0 is the first era.
+/// A promotion (M2 §8.3): offered to units of `classes` at `tier`. Strength applies in a fight
+/// matching every condition given (`when` "attack"/"defend", `ranged`, the other side's class in
+/// `against`, `vsCity`, the unit standing in an own city `inCity`); `moves` adds to its moves.
+public struct PromotionDef: Codable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+    public let classes: [UnitClass]
+    public let tier: Int
+    public let strength: Int?
+    public let when: String?
+    public let ranged: Bool?
+    public let against: [UnitClass]?
+    public let vsCity: Bool?
+    public let inCity: Bool?
+    public let moves: Int?
+    public let text: String
+}
+
 public struct EraDef: Codable, Hashable, Sendable {
     public let id: String
     public let name: String
@@ -963,6 +988,12 @@ extension RulesetData {
             }
             if let insight = tech.insight { problems += insightProblems(insight, "tech \(tech.id)") }
         }
+        for p in promotions ?? [] {
+            try check(!p.classes.isEmpty && (1...max(1, (promotionXP ?? []).count)).contains(p.tier)
+                      && (p.when == nil || p.when == "attack" || p.when == "defend"), "promotion \(p.id): bad class, tier or when")
+        }
+        try check(Set((promotions ?? []).map(\.id)).count == (promotions ?? []).count, "promotions: duplicate id")
+        try check(zip(promotionXP ?? [], (promotionXP ?? []).dropFirst()).allSatisfy { $0 < $1 }, "promotionXP must increase")
         if let p = progression {
             check((0...100).contains(p.insightPct) && (0...100).contains(p.catchUpInsightPct)
                   && (1...100).contains(p.worldEraAdvancePct) && p.forceAheadCount > 0, "progression: numbers out of range")

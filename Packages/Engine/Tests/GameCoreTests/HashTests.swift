@@ -127,7 +127,7 @@ import MapGen
         // p3g contracts: the rules' tribal village section added (0x04D7_4139_CB7A_64C6 before);
         // the game has none, so only the rules content hash moved (`goldenHashWithoutTribalVillages`).
         // M2 2.1a: 30 techs, eras and Insights in the rules; the state's world era (0xD11F_A96D_D6E7_E48A before).
-        #expect(state.stateHash() == 0x1D35_D1AB_309B_D4D3, // M2 2.1b units (0xA75D_D47F_DE8E_AE8A in 2.1a)
+        #expect(state.stateHash() == 0x1C20_0D20_6503_3642, // M2 2.1b units (0xA75D_D47F_DE8E_AE8A in 2.1a)
                 "golden hash: 0x\(String(state.stateHash(), radix: 16))")
     }
 
@@ -216,7 +216,7 @@ import MapGen
         // At pinning: 6 taken, all by units (none by a city); 3 Gold, 2 Science, 1 Builder; 2 left.
         #expect(byUnit > 0 && gold > 0 && science > 0 && builders > 0)
         #expect(byUnit + byCity == gold + science + builders && state.tribalVillages?.gifts.reduce(0, +) == byUnit + byCity)
-        #expect(state.stateHash() == 0xA160_4EBC_D55C_D65E, // M2 2.1b (2.1a: 0x184E_3AA6_7A01_0E95) (0x1346_6444_C3B0_D609 before)
+        #expect(state.stateHash() == 0x5E4F_230E_82EB_FABD, // M2 2.1b (2.1a: 0x184E_3AA6_7A01_0E95) (0x1346_6444_C3B0_D609 before)
                 "golden hash with tribal villages: 0x\(String(state.stateHash(), radix: 16))")
     }
 
@@ -225,7 +225,7 @@ import MapGen
     @Test func goldenHashWithoutTribalVillages() throws {
         let (state, _) = try Self.goldenGame(rules: try c0Rules())
         #expect(state.rules.tribalVillages == nil && state.rules.contentHash == preTribalVillagesContentHash)
-        #expect(state.stateHash() == 0x7246_2272_02B8_789F, // M2 2.1b (2.1a: 0x4386_124D_CC4E_C3A5) (0x04D7_4139_CB7A_64C6 before)
+        #expect(state.stateHash() == 0xB67A_1D78_516C_D6A3, // M2 2.1b (2.1a: 0x4386_124D_CC4E_C3A5) (0x04D7_4139_CB7A_64C6 before)
                 "C0 golden hash: 0x\(String(state.stateHash(), radix: 16))")
     }
 }

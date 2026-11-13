@@ -107,7 +107,7 @@ extension GameState {
         guard let unit = unit(id) else { return }
         let heal = healing(for: unit)
         let wake = unit.activity == .sleeping && enemyNear(unit, within: 2)
-        let moves = rules.unit(unit.type).moves
+        let moves = rules.unit(unit.type).moves + promotionMoves(unit)
         let maxHP = rules.constants.healing.maxHP
         updateUnit(id) { u in
             u.zocStopped = false
@@ -165,5 +165,44 @@ extension GameState {
         let t = map.index(of: unit.position)!
         fx.emit(.unitUpgraded(unit: id, from: unit.type, to: target, owner: unit.owner, at: unit.position), .ownerAndTiles(unit.owner, [t]))
         fx.touchPlayer(unit.owner)
+    }
+
+    // MARK: Promotions (M2 §8.3)
+
+    /// The promotions `unit` may take now: those of its class at the next tier, once its XP
+    /// reaches that tier's threshold.
+    public func promotionsOffered(to unit: Unit) -> [PromotionDef] {
+        let taken = unit.promotions?.count ?? 0
+        guard taken < rules.promotionXP.count, unit.xp >= rules.promotionXP[taken] else { return [] }
+        let cls = rules.unit(unit.type).unitClass
+        return rules.promotions.filter { $0.tier == taken + 1 && $0.classes.contains(cls) }
+    }
+
+    func promotionMoves(_ unit: Unit) -> Int {
+        guard let taken = unit.promotions else { return 0 }
+        return rules.promotions.reduce(0) { $0 + (taken.contains($1.id) ? $1.moves ?? 0 : 0) }
+    }
+
+    func promoteProblem(_ unit: Unit, _ promotion: String) -> String? {
+        let offered = promotionsOffered(to: unit)
+        guard !offered.isEmpty else { return "no promotion due" }
+        guard offered.contains(where: { $0.id == promotion }) else { return "not offered to this unit" }
+        guard unit.movesLeft > 0 else { return "no moves left" }
+        return nil
+    }
+
+    /// Takes a promotion (validated by the caller): heals 50 HP and ends its moves.
+    mutating func promote(_ id: UnitID, _ promotion: String, _ fx: inout Effects) {
+        guard let unit = unit(id) else { return }
+        let maxHP = rules.constants.healing.maxHP
+        updateUnit(id) { u in
+            u.promotions = (u.promotions ?? []) + [promotion]
+            u.hp = min(maxHP, u.hp + 50)
+            u.movesLeft = 0
+            u.activity = .none
+            u.destination = nil
+        }
+        let t = map.index(of: unit.position)!
+        fx.emit(.unitPromoted(unit: id, promotion: promotion, owner: unit.owner, at: unit.position), .ownerAndTiles(unit.owner, [t]))
     }
 }

@@ -36,6 +36,8 @@ public struct StrengthModifier: Hashable, Sendable {
         case wounded
         /// The unit's class bonus against the other side's class (rules data).
         case classBonus(UnitClass)
+        /// The unit's promotions that apply (M2 §8.3).
+        case promotion
         /// City Strength: per citizen.
         case population
         /// City Strength while wall HP is above 0.
@@ -65,6 +67,7 @@ public struct StrengthModifier: Hashable, Sendable {
         case .river: "River crossing"
         case .wounded: "Wounded"
         case let .classBonus(c): "vs \(caseName(c).prefix(1).uppercased() + caseName(c).dropFirst())"
+        case .promotion: "Promotions"
         case .population: "Population"
         case .walls: "Walls"
         case .hills: "Hills"
@@ -220,6 +223,22 @@ extension GameState {
         return -(missing / rules.constants.combat.hpPerWoundPenalty)
     }
 
+    /// Strength from `unit`'s promotions in a fight against `other` (M2 §8.3).
+    private func promotionBonus(of unit: Unit, attacking: Bool, ranged: Bool, against other: CombatSide) -> Int {
+        guard let taken = unit.promotions, !taken.isEmpty else { return 0 }
+        let otherClass: UnitClass? = if case let .unit(o) = other { rules.unit(o.type).unitClass } else { nil }
+        let inOwnCity = city(atTile: map.index(of: unit.position)!)?.owner == unit.owner
+        return rules.promotions.filter { taken.contains($0.id) }.reduce(0) { sum, p in
+            guard let s = p.strength,
+                  p.when.map({ $0 == (attacking ? "attack" : "defend") }) ?? true,
+                  p.ranged.map({ $0 == ranged }) ?? true,
+                  p.against.map({ list in otherClass.map(list.contains) ?? false }) ?? true,
+                  p.vsCity.map({ $0 == (otherClass == nil) }) ?? true,
+                  p.inCity.map({ $0 == inOwnCity }) ?? true else { return sum }
+            return sum + s
+        }
+    }
+
     private func classBonus(of unit: Unit, against other: CombatSide) -> (UnitClass, Int)? {
         guard case let .unit(o) = other else { return nil }
         let otherClass = rules.unit(o.type).unitClass
@@ -248,6 +267,7 @@ extension GameState {
             }
             s.add(.wounded, woundPenalty(unit))
             if let (cls, bonus) = classBonus(of: unit, against: defender) { s.add(.classBonus(cls), bonus) }
+            s.add(.promotion, promotionBonus(of: unit, attacking: true, ranged: ranged, against: defender))
             attack = s
         }
 
@@ -268,6 +288,7 @@ extension GameState {
             }
             s.add(.wounded, woundPenalty(unit))
             if let (cls, bonus) = classBonus(of: unit, against: attacker) { s.add(.classBonus(cls), bonus) }
+            s.add(.promotion, promotionBonus(of: unit, attacking: false, ranged: ranged, against: attacker))
             defence = s
         }
         return Clash(attacker: attacker, defender: defender, from: from, target: target, ranged: ranged,

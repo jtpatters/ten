@@ -316,5 +316,32 @@
         { "id": "classical", "name": "Classical" },
         { "id": "medieval", "name": "Medieval" }
     ],
+    "promotionXP": [15, 45, 90],
+    "promotions": [
+        {"id": "battlecry", "name": "Battlecry", "classes": ["melee"], "tier": 1, "text": "+7 Strength attacking units", "strength": 7, "when": "attack", "against": ["melee", "ranged", "antiCavalry", "cavalry", "heavyCavalry", "siege", "recon"]},
+        {"id": "tortoise", "name": "Tortoise", "classes": ["melee"], "tier": 1, "text": "+10 Strength vs ranged attacks", "strength": 10, "when": "defend", "ranged": true},
+        {"id": "commando", "name": "Commando", "classes": ["melee"], "tier": 2, "text": "+1 move", "moves": 1},
+        {"id": "amphibious", "name": "Amphibious", "classes": ["melee"], "tier": 2, "text": "+5 Strength attacking (river and embark penalties come with M2 2.1c)", "strength": 5, "when": "attack"},
+        {"id": "volley", "name": "Volley", "classes": ["ranged"], "tier": 1, "text": "+5 ranged Strength vs land units", "strength": 5, "when": "attack", "ranged": true, "against": ["melee", "ranged", "antiCavalry", "cavalry", "heavyCavalry", "siege", "recon"]},
+        {"id": "garrison", "name": "Garrison", "classes": ["ranged"], "tier": 1, "text": "+10 Strength in an own city", "strength": 10, "inCity": true},
+        {"id": "arrowStorm", "name": "Arrow Storm", "classes": ["ranged"], "tier": 2, "text": "+7 ranged Strength vs units", "strength": 7, "when": "attack", "ranged": true, "vsCity": false},
+        {"id": "incendiaries", "name": "Incendiaries", "classes": ["ranged"], "tier": 2, "text": "+7 Strength vs cities", "strength": 7, "when": "attack", "vsCity": true},
+        {"id": "echelon", "name": "Echelon", "classes": ["antiCavalry"], "tier": 1, "text": "+5 Strength vs cavalry", "strength": 5, "against": ["cavalry", "heavyCavalry"]},
+        {"id": "thrust", "name": "Thrust", "classes": ["antiCavalry"], "tier": 1, "text": "+10 Strength attacking melee", "strength": 10, "when": "attack", "against": ["melee"]},
+        {"id": "square", "name": "Square", "classes": ["antiCavalry"], "tier": 2, "text": "+7 Strength defending vs cavalry", "strength": 7, "when": "defend", "against": ["cavalry", "heavyCavalry"]},
+        {"id": "schiltron", "name": "Schiltron", "classes": ["antiCavalry"], "tier": 2, "text": "+10 Strength defending vs melee", "strength": 10, "when": "defend", "against": ["melee"]},
+        {"id": "caparison", "name": "Caparison", "classes": ["cavalry", "heavyCavalry"], "tier": 1, "text": "+5 Strength vs anti-cavalry", "strength": 5, "against": ["antiCavalry"]},
+        {"id": "charge", "name": "Charge", "classes": ["cavalry", "heavyCavalry"], "tier": 1, "text": "+5 Strength attacking", "strength": 5, "when": "attack"},
+        {"id": "pursuit", "name": "Pursuit", "classes": ["cavalry", "heavyCavalry"], "tier": 2, "text": "+1 move", "moves": 1},
+        {"id": "barding", "name": "Barding", "classes": ["cavalry", "heavyCavalry"], "tier": 2, "text": "+7 Strength vs ranged attacks", "strength": 7, "when": "defend", "ranged": true},
+        {"id": "grapeShot", "name": "Grape Shot", "classes": ["siege"], "tier": 1, "text": "+7 Strength vs land units", "strength": 7, "against": ["melee", "ranged", "antiCavalry", "cavalry", "heavyCavalry", "siege", "recon"]},
+        {"id": "crew", "name": "Crew", "classes": ["siege"], "tier": 1, "text": "+5 Strength vs cities", "strength": 5, "vsCity": true},
+        {"id": "shrapnel", "name": "Shrapnel", "classes": ["siege"], "tier": 2, "text": "+10 Strength vs units", "strength": 10, "vsCity": false},
+        {"id": "siegeEngineers", "name": "Siege Engineers", "classes": ["siege"], "tier": 2, "text": "+7 Strength vs cities", "strength": 7, "vsCity": true},
+        {"id": "ranger", "name": "Ranger", "classes": ["recon"], "tier": 1, "text": "+5 Strength defending", "strength": 5, "when": "defend"},
+        {"id": "alpine", "name": "Alpine", "classes": ["recon"], "tier": 1, "text": "+5 Strength attacking", "strength": 5, "when": "attack"},
+        {"id": "sentry", "name": "Sentry", "classes": ["recon"], "tier": 2, "text": "+1 move", "moves": 1},
+        {"id": "guerrilla", "name": "Guerrilla", "classes": ["recon"], "tier": 2, "text": "+7 Strength defending", "strength": 7, "when": "defend"}
+    ],
     "progression": { "insightPct": 40, "catchUpInsightPct": 20, "worldEraAdvancePct": 50, "forceAheadCount": 3 }
 }

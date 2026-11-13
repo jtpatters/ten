@@ -54,6 +54,8 @@ public struct Unit: Codable, Hashable, Sendable {
     public var charges: Int
     /// The turn the unit last moved or attacked (healing, M1 §7.5); 0 = never.
     public var lastActedTurn: Int
+    /// Promotions taken, in order (M2 §8.3); nil = none.
+    public var promotions: [String]?
 
     /// A fresh unit: full HP, no orders or activity. Moves and charges come from the rules
     /// (`GameState.addUnit` fills them in).
@@ -70,5 +72,6 @@ public struct Unit: Codable, Hashable, Sendable {
         self.xp = 0
         self.charges = charges
         self.lastActedTurn = 0
+        self.promotions = nil
     }
 }
