@@ -47,10 +47,22 @@ struct LegacySave {
         return url
     }
 
-    /// C0: the standard rules without their tribal village section, as the rules were when the
-    /// fixture was saved.
+    /// C0: the standard rules as they were when the fixture was saved: without their tribal
+    /// village section, and without M2's eras, progression, Insights and later techs (M2 2.1a).
     static func c0() throws -> Ruleset {
-        try rules { $0.removeValue(forKey: "tribalVillages") }
+        try rules { json in
+            for key in ["tribalVillages", "eras", "progression"] { json.removeValue(forKey: key) }
+            let m1Techs = ["pottery", "mining", "animalHusbandry", "sailing", "writing", "irrigation",
+                           "archery", "bronzeWorking", "masonry", "currency"]
+            let techs = (json["techs"] as? [[String: Any]] ?? []).filter { m1Techs.contains($0["id"] as? String ?? "") }
+            json["techs"] = techs.map { tech in tech.filter { $0.key != "era" && $0.key != "insight" } }
+            var ai = json["ai"] as? [String: Any] ?? [:]
+            ai["researchOrderPeace"] = ["pottery", "animalHusbandry", "mining", "irrigation", "writing", "bronzeWorking",
+                                        "archery", "masonry", "sailing", "currency"]
+            ai["researchOrderWar"] = ["mining", "bronzeWorking", "animalHusbandry", "archery", "masonry", "pottery",
+                                      "writing", "irrigation", "currency", "sailing"]
+            json["ai"] = ai
+        }
     }
 }
 
