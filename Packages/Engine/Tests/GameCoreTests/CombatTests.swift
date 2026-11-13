@@ -376,7 +376,8 @@ import Testing
         let key = UInt64(1) << 32 | UInt64(city.rawValue)
         // City Strength 14 + 2 + 5 = 21 against 20: Δ = −1.
         var rolls = state.combatRolls(attacker: UInt64(a.rawValue), defender: key)
-        let dealt = CombatMath.damage(base: CombatMath.baseDamage(-1), roll: rolls.attack)
+        // A Warrior deals half its damage to wall HP (M2 §9.2).
+        let dealt = CombatMath.damage(base: CombatMath.baseDamage(-1), roll: rolls.attack) / 2
         let taken = CombatMath.damage(base: CombatMath.baseDamage(1), roll: rolls.retaliation)
         var records = try apply(.attack(unit: a, target: hex(6, 3)), &state)
         // A city that keeps its walls standing is Castles' Insight (M2 §6.2).
@@ -394,8 +395,9 @@ import Testing
         rolls = state.combatRolls(attacker: UInt64(a.rawValue), defender: key)
         let second = CombatMath.damage(base: CombatMath.baseDamage(-1), roll: rolls.attack)
         records = try apply(.attack(unit: a, target: hex(6, 3)), &state)
-        #expect(combatEvent(records)?.dealt == second)
-        #expect(state.city(city)!.wallHP == 0 && state.city(city)!.hp == 200 - (second - 10))
+        // 20 of it brings the 10 wall HP down; the rest reaches HP at full value.
+        #expect(combatEvent(records)?.dealt == 10 + second - 20)
+        #expect(state.city(city)!.wallHP == 0 && state.city(city)!.hp == 200 - (second - 20))
 
         // HP stops at 0, and the city stays the defender's.
         try nextTurn(&state)
@@ -535,6 +537,7 @@ func updateRelationsMet(_ state: inout GameState) {
 
             var defenderID: Combatant
             var defenderHP: Int
+            var cityWalls = 0
             if againstCity {
                 let city = addCity(&state, PlayerID(1), at: target)
                 let walls = rng.nextInt(below: 2) == 0
@@ -549,6 +552,7 @@ func updateRelationsMet(_ state: inout GameState) {
                 if rng.nextInt(below: 2) == 0 { state.addUnit(.warrior, owner: PlayerID(1), at: target) }
                 defenderID = .city(city)
                 defenderHP = hp + wallHP
+                cityWalls = wallHP
             } else {
                 let d = state.addUnit(attackers[rng.nextInt(below: attackers.count)], owner: PlayerID(1), at: target)
                 let hp = 1 + rng.nextInt(below: 100)
@@ -580,13 +584,21 @@ func updateRelationsMet(_ state: inout GameState) {
             #expect(p.defender == defenderID && p.ranged == ranged)
             let delta = p.attackerStrength.total - p.defenderStrength.total
             let base = CombatMath.baseDamage(delta), baseTaken = CombatMath.baseDamage(-delta)
-            #expect(p.damageDealt == CombatMath.damage(base: base, roll: -15)...CombatMath.damage(base: base, roll: 15))
+            // Against a city, wall HP takes the attacker's wall share (M2 §9.2).
+            let wallPct = state.wallDamagePct(of: .unit(state.unit(a)!))
+            func hit(_ roll: Int) -> Int {
+                let d = CombatMath.damage(base: base, roll: roll)
+                guard againstCity else { return d }
+                let split = CombatMath.cityDamage(d, wallHP: cityWalls, wallPct: wallPct)
+                return split.walls + split.rest
+            }
+            #expect(p.damageDealt == hit(-15)...hit(15))
             #expect(p.damageTaken == (ranged ? 0...0 : CombatMath.damage(base: baseTaken, roll: -15)...CombatMath.damage(base: baseTaken, roll: 15)))
 
             // The exact counts, recomputed.
             var killPairs = 0, deathPairs = 0
             for r1 in -15...15 {
-                let kill = CombatMath.damage(base: base, roll: r1) >= defenderHP
+                let kill = hit(r1) >= defenderHP
                 for r2 in -15...15 {
                     if kill { killPairs += 1 }
                     if !ranged, CombatMath.damage(base: baseTaken, roll: r2) >= attackerHP, !kill || againstCity { deathPairs += 1 }
@@ -601,7 +613,7 @@ func updateRelationsMet(_ state: inout GameState) {
             case let .city(id): defenderKey = 1 << 32 | UInt64(id.rawValue)
             }
             let rolls = state.combatRolls(attacker: UInt64(a.rawValue), defender: defenderKey)
-            let damage = CombatMath.damage(base: base, roll: rolls.attack)
+            let damage = hit(rolls.attack)
             let retaliation = ranged ? 0 : CombatMath.damage(base: baseTaken, roll: rolls.retaliation)
             let killed = damage >= defenderHP
             let unitKilled = killed && !againstCity

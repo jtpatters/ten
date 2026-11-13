@@ -155,6 +155,17 @@ public enum CombatMath {
     public static func damage(base: Int, roll: Int) -> Int {
         (base * (100 + roll) + 50) / 100
     }
+
+    /// `damage` to a city split between its walls and its HP (M2 §9.2): wall HP takes
+    /// `wallPct`% of it; what the walls do not absorb reaches HP at full value (`rest`, not
+    /// capped at the city's HP).
+    public static func cityDamage(_ damage: Int, wallHP: Int, wallPct: Int) -> (walls: Int, rest: Int) {
+        guard wallHP > 0 else { return (0, damage) }
+        let pct = max(1, wallPct)
+        let scaled = damage * pct / 100
+        if scaled <= wallHP { return (scaled, 0) }
+        return (wallHP, max(0, damage - wallHP * 100 / pct))
+    }
 }
 
 // MARK: - A fight about to happen
@@ -181,12 +192,13 @@ extension GameState {
 
     /// City Strength (M1 §5): base + per citizen, walls while wall HP > 0, hills, and a
     /// garrison (a military unit of the owner on the tile) on a tile `sees` admits.
-    func cityStrength(_ city: City, sees: (Int) -> Bool) -> Strength {
+    /// `walls` false leaves out the Walls' bonus (siege attackers ignore it, M2 §9.2).
+    func cityStrength(_ city: City, sees: (Int) -> Bool, walls: Bool = true) -> Strength {
         let c = rules.constants.city
         let centre = map.index(of: city.position)!
         var s = Strength(base: c.strengthBase)
         s.add(.population, c.strengthPerPopulation * city.population)
-        if city.wallHP > 0 {
+        if walls, city.wallHP > 0 {
             let walls = city.buildings.compactMap { rules.building($0) }.map(\.cityStrength).max() ?? 0
             s.add(.walls, walls)
         }
@@ -274,7 +286,8 @@ extension GameState {
         let defence: Strength
         switch defender {
         case let .city(city):
-            defence = cityStrength(city, sees: sees)
+            let siege = if case let .unit(u) = attacker { rules.unit(u.type).unitClass == .siege } else { false }
+            defence = cityStrength(city, sees: sees, walls: !siege)
         case let .unit(unit):
             var s = Strength(base: rules.unit(unit.type).strength)
             let tile = map.tiles[target]
@@ -395,7 +408,7 @@ extension GameState {
         }
 
         let damage = CombatMath.damage(base: clash.baseDealt, roll: rolls.attack)
-        let (dealt, defenderDied) = hurt(target, by: damage, at: t, &fx)
+        let (dealt, defenderDied) = hurt(target, by: damage, at: t, wallPct: wallDamagePct(of: .unit(attacker)), &fx)
 
         var taken = 0
         var attackerDied = false
@@ -444,6 +457,14 @@ extension GameState {
         fx.touchPlayer(target.owner)
     }
 
+    /// Percent of `attacker`'s damage that wall HP takes (M2 §9.2): a promotion's, else its
+    /// unit's, else the rules' default; a city's bombard 100.
+    func wallDamagePct(of attacker: CombatSide) -> Int {
+        guard case let .unit(unit) = attacker else { return 100 }
+        let promoted = rules.promotions.filter { (unit.promotions ?? []).contains($0.id) }.compactMap(\.wallDamagePct).max()
+        return promoted ?? rules.unit(unit.type).wallDamagePct ?? rules.constants.combat.wallDamagePct ?? 100
+    }
+
     /// Applies `damage` to a defender: a unit loses HP (a survivor gains defence XP); a city
     /// loses wall HP first, then HP, never below 0, and counts as attacked this phase. Returns
     /// the HP actually lost and whether a unit died (the caller removes it).
@@ -462,11 +483,9 @@ extension GameState {
             return (damage, false)
         case let .city(city):
             guard let i = cityIndex(city.id) else { return (0, false) }
-            let pct = max(1, wallPct)
-            let scaled = cities[i].wallHP > 0 ? damage * pct / 100 : 0
-            let walls = min(cities[i].wallHP, scaled)
-            let spent = cities[i].wallHP == 0 ? 0 : walls == scaled ? damage : walls * 100 / pct
-            let hp = min(cities[i].hp, max(0, damage - spent))
+            let split = CombatMath.cityDamage(damage, wallHP: cities[i].wallHP, wallPct: wallPct)
+            let walls = split.walls
+            let hp = min(cities[i].hp, split.rest)
             cities[i].wallHP -= walls
             cities[i].hp -= hp
             cities[i].lastAttackedPhase = phaseCount

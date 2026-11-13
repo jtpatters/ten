@@ -456,13 +456,16 @@ public struct UnitDef: Codable, Hashable, Sendable {
     public let upgradesTo: UnitType?
     /// False for siege units: no ranged attack after moving in the phase (M2 §8.1). Nil = true.
     public let rangedAfterMove: Bool?
+    /// Percent of its damage that wall HP takes (M2 §9.2); nil = `combat.wallDamagePct`.
+    public let wallDamagePct: Int?
 
     public var isMilitary: Bool { unitClass != .civilian }
     public var isRanged: Bool { rangedStrength > 0 }
 
     enum CodingKeys: String, CodingKey {
         case type, unitClass = "class", cost, strength, rangedStrength, range, moves, sight, tech, charges, foundsCity,
-             minPopulation, populationCost, classBonuses, capturedAs, capturedCharges, upgradesTo, rangedAfterMove
+             minPopulation, populationCost, classBonuses, capturedAs, capturedCharges, upgradesTo, rangedAfterMove,
+             wallDamagePct
     }
 }
 
@@ -514,6 +517,8 @@ public struct PromotionDef: Codable, Hashable, Sendable {
     public let vsCity: Bool?
     public let inCity: Bool?
     public let moves: Int?
+    /// Percent of its damage that wall HP takes, replacing the unit's (M2 §9.2).
+    public let wallDamagePct: Int?
     public let text: String
 }
 
@@ -715,6 +720,8 @@ public struct CombatRules: Codable, Hashable, Sendable {
     public let xpMeleeAttack: Int
     public let xpRangedAttack: Int
     public let xpDefend: Int
+    /// Percent of a unit's damage that wall HP takes (M2 §9.2); nil = 100 (M1).
+    public let wallDamagePct: Int?
 }
 
 public struct DiplomacyRules: Codable, Hashable, Sendable {
@@ -990,7 +997,8 @@ extension RulesetData {
         }
         for p in promotions ?? [] {
             try check(!p.classes.isEmpty && (1...max(1, (promotionXP ?? []).count)).contains(p.tier)
-                      && (p.when == nil || p.when == "attack" || p.when == "defend"), "promotion \(p.id): bad class, tier or when")
+                      && (p.when == nil || p.when == "attack" || p.when == "defend") && (p.wallDamagePct ?? 1) > 0,
+                      "promotion \(p.id): bad class, tier, when or wall damage")
         }
         try check(Set((promotions ?? []).map(\.id)).count == (promotions ?? []).count, "promotions: duplicate id")
         try check(zip(promotionXP ?? [], (promotionXP ?? []).dropFirst()).allSatisfy { $0 < $1 }, "promotionXP must increase")

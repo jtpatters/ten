@@ -85,7 +85,7 @@
         { "type": "swordsman", "class": "melee", "cost": 90, "strength": 35, "rangedStrength": 0, "range": 0, "moves": 2, "sight": 2,
           "tech": "ironWorking", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [], "upgradesTo": "manAtArms" },
         { "type": "catapult", "class": "siege", "cost": 120, "strength": 23, "rangedStrength": 35, "range": 2, "moves": 2, "sight": 2,
-          "tech": "engineering", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [{ "against": "melee", "strength": -10 }, { "against": "ranged", "strength": -10 }, { "against": "antiCavalry", "strength": -10 }, { "against": "cavalry", "strength": -10 }, { "against": "heavyCavalry", "strength": -10 }, { "against": "siege", "strength": -10 }], "upgradesTo": "trebuchet", "rangedAfterMove": false },
+          "tech": "engineering", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [{ "against": "melee", "strength": -10 }, { "against": "ranged", "strength": -10 }, { "against": "antiCavalry", "strength": -10 }, { "against": "cavalry", "strength": -10 }, { "against": "heavyCavalry", "strength": -10 }, { "against": "siege", "strength": -10 }], "upgradesTo": "trebuchet", "rangedAfterMove": false, "wallDamagePct": 150 },
         { "type": "manAtArms", "class": "melee", "cost": 160, "strength": 45, "rangedStrength": 0, "range": 0, "moves": 2, "sight": 2,
           "tech": "apprenticeship", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [] },
         { "type": "crossbowman", "class": "ranged", "cost": 160, "strength": 30, "rangedStrength": 40, "range": 2, "moves": 2, "sight": 2,
@@ -95,7 +95,7 @@
         { "type": "knight", "class": "heavyCavalry", "cost": 180, "strength": 48, "rangedStrength": 0, "range": 0, "moves": 4, "sight": 2,
           "tech": "stirrups", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [] },
         { "type": "trebuchet", "class": "siege", "cost": 200, "strength": 35, "rangedStrength": 45, "range": 2, "moves": 2, "sight": 2,
-          "tech": "militaryEngineering", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [{ "against": "melee", "strength": -10 }, { "against": "ranged", "strength": -10 }, { "against": "antiCavalry", "strength": -10 }, { "against": "cavalry", "strength": -10 }, { "against": "heavyCavalry", "strength": -10 }, { "against": "siege", "strength": -10 }], "rangedAfterMove": false }
+          "tech": "militaryEngineering", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [{ "against": "melee", "strength": -10 }, { "against": "ranged", "strength": -10 }, { "against": "antiCavalry", "strength": -10 }, { "against": "cavalry", "strength": -10 }, { "against": "heavyCavalry", "strength": -10 }, { "against": "siege", "strength": -10 }], "rangedAfterMove": false, "wallDamagePct": 150 }
     ],
     "buildings": [
         { "id": "palace", "name": "Palace", "cost": 0, "buildable": false, "palace": true,
@@ -210,7 +210,7 @@
         "combat": {
             "damageBase": 30, "damageScale": 25, "maxDifference": 50, "rollRange": 15,
             "fortified": 4, "supportPerUnit": 2, "supportMax": 6, "flankingPerUnit": 2, "flankingMax": 6,
-            "hpPerWoundPenalty": 10, "xpMeleeAttack": 5, "xpRangedAttack": 3, "xpDefend": 3
+            "hpPerWoundPenalty": 10, "xpMeleeAttack": 5, "xpRangedAttack": 3, "xpDefend": 3, "wallDamagePct": 50
         },
         "diplomacy": { "warAfterPeaceTurns": 10, "peaceAfterWarTurns": 5, "proposalCooldownTurns": 10 },
         "knowledge": { "sightingMaxAge": 20 },
@@ -325,7 +325,7 @@
         {"id": "volley", "name": "Volley", "classes": ["ranged"], "tier": 1, "text": "+5 ranged Strength vs land units", "strength": 5, "when": "attack", "ranged": true, "against": ["melee", "ranged", "antiCavalry", "cavalry", "heavyCavalry", "siege", "recon"]},
         {"id": "garrison", "name": "Garrison", "classes": ["ranged"], "tier": 1, "text": "+10 Strength in an own city", "strength": 10, "inCity": true},
         {"id": "arrowStorm", "name": "Arrow Storm", "classes": ["ranged"], "tier": 2, "text": "+7 ranged Strength vs units", "strength": 7, "when": "attack", "ranged": true, "vsCity": false},
-        {"id": "incendiaries", "name": "Incendiaries", "classes": ["ranged"], "tier": 2, "text": "+7 Strength vs cities", "strength": 7, "when": "attack", "vsCity": true},
+        {"id": "incendiaries", "name": "Incendiaries", "classes": ["ranged"], "tier": 2, "text": "+7 Strength vs cities", "strength": 7, "when": "attack", "vsCity": true, "wallDamagePct": 150},
         {"id": "echelon", "name": "Echelon", "classes": ["antiCavalry"], "tier": 1, "text": "+5 Strength vs cavalry", "strength": 5, "against": ["cavalry", "heavyCavalry"]},
         {"id": "thrust", "name": "Thrust", "classes": ["antiCavalry"], "tier": 1, "text": "+10 Strength attacking melee", "strength": 10, "when": "attack", "against": ["melee"]},
         {"id": "square", "name": "Square", "classes": ["antiCavalry"], "tier": 2, "text": "+7 Strength defending vs cavalry", "strength": 7, "when": "defend", "against": ["cavalry", "heavyCavalry"]},

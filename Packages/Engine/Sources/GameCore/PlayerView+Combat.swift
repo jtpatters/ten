@@ -153,7 +153,11 @@ extension PlayerView {
         let clash = state.clash(attacker: side, defender: defender, from: f, target: t, ranged: ranged, sees: sees)
         let range = rules.constants.combat.rollRange
         let rolls = -range...range
-        let dealt = rolls.map { CombatMath.damage(base: clash.baseDealt, roll: $0) }
+        var dealt = rolls.map { CombatMath.damage(base: clash.baseDealt, roll: $0) }
+        if case let .city(c) = defender {
+            let pct = state.wallDamagePct(of: side)
+            dealt = dealt.map { let split = CombatMath.cityDamage($0, wallHP: c.wallHP, wallPct: pct); return split.walls + split.rest }
+        }
         let taken = ranged ? rolls.map { _ in 0 } : rolls.map { CombatMath.damage(base: clash.baseTaken, roll: $0) }
 
         // Exactly over every pair of rolls (the attacker's, then the retaliation's).
