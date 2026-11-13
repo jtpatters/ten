@@ -321,6 +321,8 @@ extension GameState {
         let def = rules.unit(unit.type)
         guard def.isMilitary else { return "civilians cannot attack" }
         guard unit.movesLeft > 0 else { return "no moves left" }
+        // Siege units fire only before moving in the phase (M2 §8.1).
+        if def.rangedAfterMove == false, unit.movesLeft < def.moves { return "\(unit.type.displayName)s cannot fire after moving" }
         return nil
     }
 
@@ -424,7 +426,10 @@ extension GameState {
     /// Applies `damage` to a defender: a unit loses HP (a survivor gains defence XP); a city
     /// loses wall HP first, then HP, never below 0, and counts as attacked this phase. Returns
     /// the HP actually lost and whether a unit died (the caller removes it).
-    private mutating func hurt(_ target: CombatSide, by damage: Int, at t: Int, _ fx: inout Effects) -> (lost: Int, died: Bool) {
+    /// `wallPct` scales the damage wall HP takes (M2 §9.2: siege 150, other units 50, bombard
+    /// 100); damage beyond the walls reaches HP at full value.
+    private mutating func hurt(_ target: CombatSide, by damage: Int, at t: Int, wallPct: Int = 100,
+                               _ fx: inout Effects) -> (lost: Int, died: Bool) {
         switch target {
         case let .unit(victim):
             if damage >= victim.hp { return (victim.hp, true) }
@@ -436,8 +441,11 @@ extension GameState {
             return (damage, false)
         case let .city(city):
             guard let i = cityIndex(city.id) else { return (0, false) }
-            let walls = min(cities[i].wallHP, damage)
-            let hp = min(cities[i].hp, damage - walls)
+            let pct = max(1, wallPct)
+            let scaled = cities[i].wallHP > 0 ? damage * pct / 100 : 0
+            let walls = min(cities[i].wallHP, scaled)
+            let spent = cities[i].wallHP == 0 ? 0 : walls == scaled ? damage : walls * 100 / pct
+            let hp = min(cities[i].hp, max(0, damage - spent))
             cities[i].wallHP -= walls
             cities[i].hp -= hp
             cities[i].lastAttackedPhase = phaseCount

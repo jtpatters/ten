@@ -70,7 +70,7 @@ extension PlayerView {
               let start = index(of: unit.position) else { return [] }
         let def = rules.unit(unit.type)
         let k = MoveKnowledge(state: state, unit: unit)
-        let field = Pathfinder.phaseField(k, from: start, movesLeft: unit.zocStopped ? 0 : unit.movesLeft)
+        let field = Pathfinder.phaseField(k, from: start, movesLeft: unit.zocStopped || rules.unit(unit.type).rangedAfterMove == false ? 0 : unit.movesLeft)
         let reach = def.isRanged ? def.range : 1
         var options: [AttackOption] = []
         for (t, defender) in visibleTargets(attackingCities: def.unitClass != .recon) {
