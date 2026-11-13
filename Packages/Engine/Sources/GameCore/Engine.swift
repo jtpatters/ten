@@ -36,6 +36,8 @@ public enum Command: Codable, Hashable, Sendable {
     case respondToPeace(from: PlayerID, accept: Bool)
     /// Raze a city captured this phase that is no original capital (M1 §5).
     case razeCity(city: CityID)
+    /// Upgrade a unit to its `upgradesTo` type for Gold (M2 §8.2).
+    case upgrade(unit: UnitID)
 }
 
 public enum CommandError: Error, Hashable, Sendable, CustomStringConvertible {
@@ -114,6 +116,8 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case insightGained(player: PlayerID, tech: TechID, credit: Int)
     /// The world entered era `era` (an index into the rules' eras, M2 §2).
     case worldEraAdvanced(era: Int)
+    /// A unit upgraded in place (M2 §8.2).
+    case unitUpgraded(unit: UnitID, from: UnitType, to: UnitType, owner: PlayerID, at: HexCoord)
     case phaseStarted(turn: Int, player: PlayerID)
 }
 
@@ -300,6 +304,11 @@ public enum GameEngine {
             let index = try ownedCity(cityID, by: player, in: state)
             if let problem = state.razeProblem(index) { throw .rejected(reason: problem) }
             state.raze(index, &fx)
+
+        case let .upgrade(id):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.upgradeProblem(unit) { throw .rejected(reason: problem) }
+            state.upgrade(id, &fx)
         }
 
         state.checkInsights(&fx)

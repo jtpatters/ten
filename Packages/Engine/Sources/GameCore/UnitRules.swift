@@ -128,4 +128,42 @@ extension GameState {
                 && map.index(of: other.position).map { visible[$0] } == true
         }
     }
+
+    // MARK: Upgrades (M2 §8.2)
+
+    /// Gold to upgrade a unit of `type`: (target cost − own cost) × 2, at least 10; nil when it
+    /// has no upgrade.
+    public func upgradeCost(of type: UnitType) -> Int? {
+        guard let target = rules.unit(type).upgradesTo else { return nil }
+        return max(10, (rules.unit(target).cost - rules.unit(type).cost) * 2)
+    }
+
+    /// Why `unit` may not upgrade now (nil: it may): it stands in own territory with moves left,
+    /// its owner knows the target's tech and has the Gold.
+    func upgradeProblem(_ unit: Unit) -> String? {
+        guard let target = rules.unit(unit.type).upgradesTo, let cost = upgradeCost(of: unit.type) else {
+            return "\(unit.type.displayName)s have no upgrade"
+        }
+        guard unit.movesLeft > 0 else { return "no moves left" }
+        let t = map.index(of: unit.position)!
+        guard tileOwner(t) == unit.owner else { return "only in your territory" }
+        if let tech = rules.unit(target).tech, !players[unit.owner.rawValue].knows(tech) { return "needs \(techName(tech))" }
+        guard players[unit.owner.rawValue].gold >= cost else { return "needs \(cost) Gold" }
+        return nil
+    }
+
+    /// Upgrades a unit (validated by the caller): same id, XP, HP and position; its moves end.
+    mutating func upgrade(_ id: UnitID, _ fx: inout Effects) {
+        guard let unit = unit(id), let target = rules.unit(unit.type).upgradesTo, let cost = upgradeCost(of: unit.type) else { return }
+        players[unit.owner.rawValue].gold -= cost
+        updateUnit(id) { u in
+            u.type = target
+            u.movesLeft = 0
+            u.activity = .none
+            u.destination = nil
+        }
+        let t = map.index(of: unit.position)!
+        fx.emit(.unitUpgraded(unit: id, from: unit.type, to: target, owner: unit.owner, at: unit.position), .ownerAndTiles(unit.owner, [t]))
+        fx.touchPlayer(unit.owner)
+    }
 }
