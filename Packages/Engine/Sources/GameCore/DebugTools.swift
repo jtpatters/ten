@@ -160,6 +160,25 @@ public enum DebugTools {
         return placer.place().map { TribalVillageSite(hex: map.coord(at: $0.tile), start: $0.start) }
     }
 
+    /// Gives `player` the tech outright (scenarios: no research, Insight or event). False,
+    /// with nothing changed, for an unknown player or tech, or one already known.
+    @discardableResult
+    public static func learnTech(_ tech: TechID, player: PlayerID, in state: inout GameState) -> Bool {
+        guard state.players.indices.contains(player.rawValue), state.rules.tech(tech) != nil,
+              !state.players[player.rawValue].knows(tech) else { return false }
+        state.players[player.rawValue].knownTechs.append(tech)
+        return true
+    }
+
+    /// Sets unit `id`'s experience (scenarios: a veteran with a promotion due). False for an
+    /// unknown unit.
+    @discardableResult
+    public static func setExperience(_ xp: Int, of id: UnitID, in state: inout GameState) -> Bool {
+        guard state.unit(id) != nil else { return false }
+        state.updateUnit(id) { $0.xp = max(0, xp) }
+        return true
+    }
+
     /// Places a tribal village on `hex` (scenarios and tests). Refused, with nothing changed,
     /// when the rules have none (`Ruleset.tribalVillages == nil`), or on a tile that is owned,
     /// holds a unit, is not passable land or already holds one. Otherwise the site goes in in

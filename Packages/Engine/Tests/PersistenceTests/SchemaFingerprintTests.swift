@@ -32,7 +32,7 @@ import Testing
     static let additivePaths: [UInt16: [String]] = [
         // M2 2.1a: the world era and Insight credit (M2 §2, §6.2).
         1: ["players[].insights", "players[].memory.tribalVillages", "players[].techCredit", "tribalVillages", "tribalVillages.gifts",
-            "tribalVillages.sites", "worldEra"],
+            "tribalVillages.sites", "units[].attacked", "units[].promotions", "worldEra"],
     ]
 
     /// The sorted key paths of a value's JSON encoding: object keys joined with ".", array

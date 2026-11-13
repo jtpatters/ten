@@ -942,10 +942,19 @@ extension MapRenderer {
         }
         for type in UnitType.allCases {
             for east in [false, true] {
-                table.bodies.append(unitAtlas.uv(.body(type, east: east)))
-                table.bodyBoxes.append(UnitSprite.bounds(.body(type, east: east)))
+                if east, UnitSprite.sharesWestBody(type) {
+                    // The west-facing cell read right to left (a negative width), its box mirrored.
+                    let uv = unitAtlas.uv(.body(type, east: false)), box = UnitSprite.bounds(.body(type, east: false))
+                    table.bodies.append(SIMD4(uv.x + uv.z, uv.y, -uv.z, uv.w))
+                    table.bodyBoxes.append(SIMD4(1 - box.z, box.y, 1 - box.x, box.w))
+                } else {
+                    table.bodies.append(unitAtlas.uv(.body(type, east: east)))
+                    table.bodyBoxes.append(UnitSprite.bounds(.body(type, east: east)))
+                }
             }
-            table.masks.append(code(.teamMask(type)))
+            // A fraction of a quarter: the data is in the cell's blue and alpha (`dataCell`).
+            let data = UnitSprite.dataCell(type)
+            table.masks.append(code(.teamMask(data.key)) + (data.high ? 0.25 : 0))
         }
         table.escorted = [false, true].map { unitAtlas.uv(.escortedBody(east: $0)) }
         table.escortedBoxes = [false, true].map { UnitSprite.bounds(.escortedBody(east: $0)) }
@@ -1111,7 +1120,8 @@ struct UnitAtlasTable {
     /// plus one, negative when the east-facing body reads the west-facing body's data mirrored.
     func maskCode(_ type: UnitType, east: Bool, escorted isEscorted: Bool = false) -> Float {
         let code = isEscorted && type == .settler ? escortedMask : masks[Self.typeIndex[type] ?? 0]
-        return east ? -code : code
+        // A mirrored west-facing body reads its own data as it is.
+        return east && (isEscorted || !UnitSprite.sharesWestBody(type)) ? -code : code
     }
 
     func badge(_ type: UnitType) -> SIMD4<Float> { badges[Self.typeIndex[type] ?? 0] }

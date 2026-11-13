@@ -11,6 +11,7 @@ struct UnitCard: View {
     let unit: GameCore.Unit
     var compact = false
     var onDisband: (GameCore.Unit) -> Void
+    @State private var upgradeDescribed = false
 
     var body: some View {
         let view = session.view
@@ -22,7 +23,7 @@ struct UnitCard: View {
                 if let status = session.exploreBadge(of: unit) ?? Self.status(of: unit) { KindBadge(text: status) }
             }
             HStack(spacing: HUD.Space.m) {
-                StatPill(systemImage: "figure.walk", value: "\(unit.movesLeft)/\(def.moves)", name: "Moves",
+                StatPill(systemImage: "figure.walk", value: "\(unit.movesLeft)/\(session.state.maxMoves(of: unit))", name: "Moves",
                          valueTint: unit.movesLeft == 0 ? HUD.inkSoft : HUD.ink)
                 HStack(spacing: 4) {
                     Image(systemName: "heart.fill").font(.system(size: 11, weight: .semibold))
@@ -36,7 +37,7 @@ struct UnitCard: View {
                 if def.isMilitary {
                     StatPill(systemImage: "shield.lefthalf.filled", value: "\(def.strength)", name: "Strength")
                     if def.isRanged {
-                        StatPill(systemImage: "scope", value: "\(def.rangedStrength) · \(def.range)", name: "Ranged strength and range")
+                        StatPill(systemImage: "scope", value: "\(def.rangedStrength) · \(session.view.range(of: unit))", name: "Ranged strength and range")
                     }
                     StatPill(systemImage: "star.fill", value: "\(unit.xp)", name: "Experience", tint: HUD.gilt)
                 }
@@ -48,6 +49,7 @@ struct UnitCard: View {
             if own { ExploreRow(session: session, unit: unit) }
             if own {
                 let actions = Self.ordered(view.unitActions(for: unit.id), unit: unit)
+                let offered = def.isMilitary ? view.promotionsOffered(unit.id) : []
                 // The tiles share the card's width; when they cannot all fit, the row scrolls,
                 // and an edge with more beyond it fades out.
                 ActionBar {
@@ -55,11 +57,19 @@ struct UnitCard: View {
                     ForEach(actions, id: \.kind) { action in
                         tile(action, fill: true)
                     }
+                    if let target = def.upgradesTo { upgradeTile(to: target) }
+                    if !offered.isEmpty { promoteTile }
                     if session.canExplore(unit), !session.exploreLeads(unit) { ExploreTile(session: session, unit: unit, compact: compact) }
                 }
                 if let kind = session.describedAction, let action = actions.first(where: { $0.kind == kind }) {
                     description(action)
                         .transition(.opacity)
+                }
+                if session.promotingUnit == unit.id, !offered.isEmpty {
+                    promotionList(offered).transition(.opacity)
+                }
+                if upgradeDescribed, let target = def.upgradesTo {
+                    upgradeDescription(to: target).transition(.opacity)
                 }
                 if session.explore.described == unit.id, session.describedAction == nil {
                     ExploreDescription(session: session, unit: unit).transition(.opacity)
@@ -68,6 +78,91 @@ struct UnitCard: View {
         }
         .hudCard()
         .animation(.easeInOut(duration: 0.15), value: session.describedAction)
+        .animation(.easeInOut(duration: 0.15), value: session.promotingUnit)
+        .onChange(of: unit.id) { upgradeDescribed = false }
+    }
+
+    // MARK: Upgrade and Promote (M2 §8.2, §8.3)
+
+    /// What the upgrade costs now, else what it would cost (the rules' price).
+    private var upgradePrice: (cost: Int?, available: Bool) {
+        if let cost = session.view.upgradeCost(unit.id) { return (cost, true) }
+        return (session.state.upgradeCost(of: unit.type), false)
+    }
+
+    /// Upgrade, with its price; lit when it can be done now (`PlayerView.upgradeCost`). A tap
+    /// on a dimmed tile asks the engine, which says why not.
+    private func upgradeTile(to target: UnitType) -> some View {
+        let price = upgradePrice
+        let title = price.cost.map { "Upgrade · \($0) Gold" } ?? "Upgrade"
+        return ActionTileView(title: title, symbol: "arrow.up.circle.fill", lit: price.available && session.isInputEnabled,
+                              destructive: false, compact: compact, fill: true,
+                              onTap: {
+                                  upgradeDescribed = false
+                                  session.perform(.upgrade(unit: unit.id))
+                              },
+                              onLongPress: { upgradeDescribed.toggle() })
+            .accessibilityHint(Self.upgradeHelp(from: unit.type, to: target, cost: price.cost))
+    }
+
+    static func upgradeHelp(from type: UnitType, to target: UnitType, cost: Int?) -> String {
+        let price = cost.map { " for \($0) Gold" } ?? ""
+        return "Become a \(target.displayName)\(price), in your territory, keeping its experience and promotions. Ends its moves."
+    }
+
+    private func upgradeDescription(to target: UnitType) -> some View {
+        HStack(alignment: .top, spacing: HUD.Space.s) {
+            Image(systemName: "arrow.up.circle.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(HUD.inkSoft)
+                .frame(width: 16)
+            Text("\(Text("Upgrade").font(HUD.title(.caption)))  \(Self.upgradeHelp(from: unit.type, to: target, cost: upgradePrice.cost))")
+                .font(HUD.body(.caption))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, HUD.Space.s)
+        .padding(.vertical, HUD.Space.xs + 2)
+        .parchmentWell()
+        .onTapGesture { upgradeDescribed = false }
+    }
+
+    /// Promote: opens the promotions on offer (`PlayerView.promotionsOffered`).
+    private var promoteTile: some View {
+        ActionTileView(title: "Promote", symbol: "star.circle.fill", lit: session.isInputEnabled, destructive: false,
+                       compact: compact, fill: true,
+                       onTap: { session.promotingUnit = session.promotingUnit == unit.id ? nil : unit.id },
+                       onLongPress: { session.promotingUnit = unit.id })
+            .accessibilityHint("Choose a promotion: the unit has the experience for one.")
+    }
+
+    /// The promotions on offer, each with what it does; a tap takes one.
+    private func promotionList(_ offered: [PromotionDef]) -> some View {
+        VStack(alignment: .leading, spacing: HUD.Space.xs) {
+            ForEach(offered, id: \.id) { promotion in
+                Button {
+                    session.promotingUnit = nil
+                    session.perform(.promote(unit: unit.id, promotion: promotion.id))
+                } label: {
+                    HStack(alignment: .top, spacing: HUD.Space.s) {
+                        Image(systemName: "star.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(HUD.gilt)
+                            .frame(width: 16)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(promotion.name).font(HUD.title(.caption))
+                            Text(promotion.effectText).font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, HUD.Space.s)
+                    .padding(.vertical, HUD.Space.xs + 2)
+                    .contentShape(Rectangle())
+                    .parchmentWell()
+                }
+                .buttonStyle(.plain)
+                .disabled(!session.isInputEnabled)
+                .accessibilityLabel("\(promotion.name): \(promotion.effectText)")
+                .accessibilityHint("Take this promotion.")
+            }
+        }
     }
 
     /// The route being previewed (with Move), or the standing order.
@@ -238,5 +333,59 @@ private struct ActionTileView: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { onTap() }
             .accessibilityAction(named: "Describe") { onLongPress() }
+    }
+}
+
+/// What a promotion does, built from its effects (`PromotionDef` carries no text).
+extension PromotionDef {
+    var effectText: String {
+        var parts: [String] = []
+        if let strength {
+            var clause = "+\(strength)\(ranged == true && when == "attack" ? " ranged" : "") Strength"
+            if ranged == true && when == "defend" {
+                clause += " vs ranged attacks"
+            } else if when == "attack" {
+                clause += " attacking"
+            } else if when == "defend" {
+                clause += " defending"
+            } else if ranged == true {
+                clause += " in ranged fights"
+            }
+            if let against, !against.isEmpty {
+                let military = Set(UnitClass.allCases).subtracting([.civilian])
+                clause += military.isSubset(of: against) ? " vs units"
+                    : " vs " + against.map(\.displayName).joined(separator: " and ")
+            }
+            if vsCity == true { clause += " vs cities" } else if vsCity == false { clause += " vs units" }
+            if vsWounded == true { clause += " vs wounded units" }
+            if inCity == true { clause += " in an own city" }
+            parts.append(clause)
+        }
+        if let moves { parts.append("+\(moves) move\(moves == 1 ? "" : "s")") }
+        if let range { parts.append("+\(range) range") }
+        if let sight { parts.append("+\(sight) sight") }
+        if rangedAfterMove == true { parts.append("fires after moving") }
+        if let freeMoveOn, !freeMoveOn.isEmpty { parts.append("no extra move cost on " + freeMoveOn.joined(separator: ", ")) }
+        if ignoresZOC == true { parts.append("ignores zones of control") }
+        if holdsZOC == true { parts.append("its zone of control holds units that ignore them") }
+        if moveAfterAttack == true { parts.append("attacking costs one move") }
+        if noRiverPenalty == true { parts.append("no river penalty attacking") }
+        if let wallDamagePct { parts.append("\(wallDamagePct)% damage to walls") }
+        return parts.isEmpty ? name : parts.joined(separator: "; ")
+    }
+}
+
+private extension UnitClass {
+    var displayName: String {
+        switch self {
+        case .civilian: "civilians"
+        case .recon: "recon"
+        case .melee: "melee"
+        case .ranged: "ranged"
+        case .antiCavalry: "anti-cavalry"
+        case .cavalry: "cavalry"
+        case .heavyCavalry: "heavy cavalry"
+        case .siege: "siege"
+        }
     }
 }

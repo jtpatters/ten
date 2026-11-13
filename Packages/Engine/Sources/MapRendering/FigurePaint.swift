@@ -361,6 +361,76 @@ enum FigurePaint {
                 head.addCurve(to: q(-0.34, -0.98), control1: q(-0.08, -0.38), control2: q(-0.3, -0.62))
                 head.closeSubpath()
                 shapes.append(head)
+            case .horseman:
+                // A lance with its pennon, slanting up to the west.
+                shapes.append(line([q(0.9, -0.9), q(-0.6, 0.6)], width: 0.13 * h))
+                let tip = CGMutablePath()
+                tip.addLines(between: [q(-0.98, 0.98), q(-0.5, 0.74), q(-0.74, 0.5)])
+                tip.closeSubpath()
+                shapes.append(tip)
+                let pennon = CGMutablePath()
+                pennon.addLines(between: [q(-0.4, 0.4), q(0.3, 0.62), q(0.0, 0.36), q(0.22, 0.12), q(-0.2, 0.2)])
+                pennon.closeSubpath()
+                shapes.append(pennon)
+            case .heavyChariot:
+                // A spoked wheel.
+                shapes.append(CGPath(ellipseIn: circle(0, 0, 0.8), transform: nil)
+                    .copy(strokingWithWidth: 0.22 * h, lineCap: .butt, lineJoin: .round, miterLimit: 4))
+                for i in 0..<4 {
+                    let a = CGFloat(i) * .pi / 4
+                    shapes.append(line([q(cos(a) * 0.8, sin(a) * 0.8), q(-cos(a) * 0.8, -sin(a) * 0.8)], width: 0.12 * h))
+                }
+                shapes.append(CGPath(ellipseIn: circle(0, 0, 0.22), transform: nil))
+            case .swordsman:
+                // Two swords crossed, points up.
+                for side in [1, -1] as [CGFloat] {
+                    shapes.append(line([q(-0.8 * side, -0.8), q(0.72 * side, 0.9)], width: 0.16 * h))
+                    shapes.append(line([q(-0.66 * side - 0.26, -0.44), q(-0.66 * side + 0.26, -0.72)], width: 0.12 * h))
+                }
+            case .manAtArms:
+                // A long axe: a haft and a broad crescent blade.
+                shapes.append(line([q(0.5, -0.98), q(-0.2, 0.9)], width: 0.14 * h))
+                let blade = CGMutablePath()
+                blade.move(to: q(-0.14, 0.86))
+                blade.addQuadCurve(to: q(-0.4, 0.0), control: q(-0.98, 0.6))
+                blade.addQuadCurve(to: q(-0.14, 0.86), control: q(-0.4, 0.5))
+                blade.closeSubpath()
+                shapes.append(blade)
+            case .crossbowman:
+                // A crossbow seen from above: the bow across, the stock along it, the bolt.
+                let bow = CGMutablePath()
+                bow.move(to: q(-0.95, 0.1))
+                bow.addQuadCurve(to: q(0.95, 0.1), control: q(0, 0.95))
+                shapes.append(bow.copy(strokingWithWidth: 0.18 * h, lineCap: .round, lineJoin: .round, miterLimit: 4))
+                shapes.append(line([q(-0.95, 0.1), q(0.95, 0.1)], width: 0.06 * h))
+                shapes.append(line([q(0, 0.9), q(0, -0.95)], width: 0.2 * h))
+            case .pikeman:
+                // Three pikes upright, heads up.
+                for x in [-0.55, 0, 0.55] as [CGFloat] {
+                    shapes.append(line([q(x, -0.95), q(x, 0.5)], width: 0.12 * h))
+                    let head = CGMutablePath()
+                    head.addLines(between: [q(x, 0.98), q(x + 0.16, 0.5), q(x - 0.16, 0.5)])
+                    head.closeSubpath()
+                    shapes.append(head)
+                }
+            case .knight:
+                // A great helm: a flat-topped bucket with a visor slit and breaths.
+                let helm = CGMutablePath()
+                helm.addRoundedRect(in: CGRect(x: q(-0.66, 0).x, y: q(0, -0.9).y, width: 1.32 * h, height: 1.7 * h),
+                                    cornerWidth: 0.3 * h, cornerHeight: 0.3 * h)
+                let slit = CGPath(rect: CGRect(x: q(-0.66, 0).x, y: q(0, 0.12).y, width: 1.32 * h, height: 0.16 * h), transform: nil)
+                shapes.append(helm.subtracting(slit))
+            case .catapult:
+                // A throwing arm on a frame, its bucket loaded.
+                shapes.append(CGPath(rect: CGRect(x: q(-0.95, 0).x, y: q(0, -0.8).y, width: 1.9 * h, height: 0.24 * h), transform: nil))
+                shapes.append(line([q(0.8, -0.6), q(-0.5, 0.6)], width: 0.14 * h))
+                shapes.append(line([q(0.1, -0.6), q(0.1, 0.1)], width: 0.14 * h))
+                shapes.append(CGPath(ellipseIn: circle(-0.62, 0.72, 0.26), transform: nil))
+            case .trebuchet:
+                // An A-frame, the long arm across it and the counterweight.
+                shapes.append(line([q(-0.7, -0.95), q(0, 0.4), q(0.7, -0.95)], width: 0.14 * h))
+                shapes.append(line([q(-0.9, 0.9), q(0.6, 0.05)], width: 0.12 * h))
+                shapes.append(CGPath(rect: CGRect(x: q(0.4, 0).x, y: q(0, -0.45).y, width: 0.5 * h, height: 0.5 * h), transform: nil))
             }
             steps.append(.glyph(shapes.map(flip), halo: h * 0.14))
         }

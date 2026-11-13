@@ -61,7 +61,7 @@ enum Scenarios {
     @MainActor static var lastNote: String?
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
-                        "rivals", "taps", "walls", "repreview", "tribal-villages"]
+                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -133,6 +133,9 @@ enum Scenarios {
         case "tribal-villages":
             foundCapital(&state, player: viewer)
             made = try tribalVillages(&state)
+        case "veterans":
+            foundCapital(&state, player: viewer)
+            made = try veterans(&state)
         default:
             throw Failure(description: "no scenario “\(name)” (try \(names.joined(separator: ", ")))")
         }
@@ -622,6 +625,28 @@ extension Scenarios {
 extension Scenarios {
     /// Four tribal villages placed by hand around the viewer's start on turn 1 (see
     /// `tribal-villages` above), and a Scout of player 1 for the rival's take.
+    /// M2 §8.2, §8.3: next to the viewer's capital, a Warrior with a promotion due that can
+    /// upgrade now (its upgrade tech known, gold in hand), and an Archer with a promotion due
+    /// whose upgrade tech is not known yet (Upgrade dimmed).
+    static func veterans(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        let centre = try home(state)
+        guard let target = state.rules.unit(.warrior).upgradesTo, let tech = state.rules.unit(target).tech else {
+            throw Failure(description: "the Warrior has no upgrade in the rules")
+        }
+        let tier = state.rules.promotionXP.first ?? 15
+        let places = spots(state, around: centre, distance: 1...1, for: .warrior, owner: viewer, toward: nil)
+        guard places.count >= 2 else { throw Failure(description: "no room beside the capital") }
+        DebugTools.learnTech(tech, player: viewer, in: &state)
+        state.players[viewer.rawValue].gold = max(state.players[viewer.rawValue].gold, 300)
+        let warrior = state.addUnit(.warrior, owner: viewer, at: places[0])
+        let archer = state.addUnit(.archer, owner: viewer, at: places[1])
+        DebugTools.setExperience(tier, of: warrior, in: &state)
+        DebugTools.setExperience(tier, of: archer, in: &state)
+        return Made(state: state, focus: .unit(warrior),
+                    note: "Warrior: Upgrade (lit) and Promote; Archer: Upgrade dimmed, Promote; Next lists Promotion Due")
+    }
+
     static func tribalVillages(_ state: inout GameState) throws -> Made {
         let viewer = PlayerID(0), enemy = PlayerID(1)
         guard state.rules.tribalVillages != nil else { throw Failure(description: "the rules have no tribal villages") }

@@ -49,6 +49,8 @@ enum AttentionItem: Hashable, Sendable {
     case capturedCity(CityID)
     /// An important notice no other kind covers, by notice id.
     case news(Int)
+    /// An own unit has the experience for a promotion (M2 §8.3).
+    case promotion(UnitID)
 
     /// The queue's order: the kind (as listed in M1 §16), then its subject.
     struct Key: Comparable {
@@ -72,6 +74,7 @@ enum AttentionItem: Hashable, Sendable {
         case let .warDeclared(id): Key(rank: 9, subject: id.rawValue)
         case let .capturedCity(id): Key(rank: 10, subject: id.rawValue)
         case let .news(id): Key(rank: 11, subject: id)
+        case let .promotion(id): Key(rank: 12, subject: id.rawValue)
         }
     }
 
@@ -90,6 +93,7 @@ enum AttentionItem: Hashable, Sendable {
         case .warDeclared: "War Declared"
         case .capturedCity: "Keep or Raze"
         case .news: "News"
+        case .promotion: "Promotion Due"
         }
     }
 
@@ -107,13 +111,14 @@ enum AttentionItem: Hashable, Sendable {
         case .warDeclared: "flame"
         case .capturedCity: "flag"
         case .news: "newspaper"
+        case .promotion: "star.circle"
         }
     }
 
     /// Items that only inform: they leave the queue once shown.
     var isInformational: Bool {
         switch self {
-        case .settlerWaiting, .productionBlocked, .upkeep, .cityUnderAttack, .bombard, .warDeclared, .news: true
+        case .settlerWaiting, .productionBlocked, .upkeep, .cityUnderAttack, .bombard, .warDeclared, .news, .promotion: true
         case .unit, .emptyQueue, .research, .peaceProposal, .capturedCity: false
         }
     }
@@ -133,6 +138,7 @@ enum AttentionItem: Hashable, Sendable {
         case let .warDeclared(id): "warDeclared \(id.rawValue)"
         case let .capturedCity(id): "capturedCity \(id.rawValue)"
         case let .news(id): "news \(id)"
+        case let .promotion(id): "promotion \(id.rawValue)"
         }
     }
 }
@@ -189,6 +195,7 @@ extension GameSession {
         items += warDeclaredBy.filter { view.isAtWar(with: $0) }.map { .warDeclared($0) }
         items += cities.filter { $0.capturedTurn == view.turn && !keptCities.contains($0.id) }.map { .capturedCity($0.id) }
         items += news.map { .news($0.id) }
+        items += view.units.filter { !view.promotionsOffered($0.id).isEmpty }.map { .promotion($0.id) }
         return items.filter { !attentionSeen.contains($0) }
     }
 
@@ -270,6 +277,10 @@ extension GameSession {
                 if let place = notice?.place { lookAt(place) }
             }
             attentionCard = .news(id)
+        case let .promotion(id):
+            select(.unit(id))
+            if let unit = view.unit(id) { lookAt(unit.position) }
+            promotingUnit = id
         }
     }
 
