@@ -183,6 +183,9 @@ public struct PlayerView: Sendable {
     /// `unit`'s range, promotions included (0 for non-ranged units).
     public func range(of unit: Unit) -> Int { state.range(of: unit) }
 
+    /// Whether it may fire after moving in the phase (siege may not, M2 §8.1, unless promoted).
+    public func firesAfterMoving(_ unit: Unit) -> Bool { state.firesAfterMoving(unit) }
+
     public func upgradeCost(_ id: UnitID) -> Int? {
         guard isMyPhase, let u = state.unit(id), u.owner == player, state.upgradeProblem(u) == nil else { return nil }
         return state.upgradeCost(of: u.type)
