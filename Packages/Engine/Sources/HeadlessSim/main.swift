@@ -226,6 +226,7 @@ struct EventCounts {
     var wars = 0, peaces = 0, eliminations = 0, citiesRevolted = 0, citiesJoined = 0
     var campsAppeared = 0, campsCleared = 0, citiesSacked = 0, rebels = 0, raiderCasualties = 0
     var envoys = 0, patronChanges = 0, quests = 0, levies = 0, minorsEliminated = 0
+    var routesStarted = 0, routesPlundered = 0
     /// The minors' players, for their eliminations.
     var minorPlayers: [PlayerID] = []
     /// The raiders' player, for their casualties.
@@ -250,6 +251,8 @@ struct EventCounts {
                 eliminations += 1
                 if minorPlayers.contains(p) { minorsEliminated += 1 }
             case .envoySent: envoys += 1
+            case .tradeRouteStarted: routesStarted += 1
+            case let .tradeRouteEnded(_, _, by): if by != nil { routesPlundered += 1 }
             case .patronChanged: patronChanges += 1
             case .questCompleted: quests += 1
             case .levied: levies += 1
@@ -267,6 +270,7 @@ struct EventCounts {
             + "\(citiesCaptured) cities captured, \(citiesRevolted) revolted, \(citiesJoined) joined, \(citiesRazed) razed, \(wars) wars declared, \(peaces) peace treaties, "
             + "\(eliminations) players eliminated"
             + (campsAppeared + rebels > 0 ? "; raiders: \(campsAppeared) camps, \(campsCleared) cleared, \(raiderCasualties) raiders killed, \(citiesSacked) cities sacked, \(rebels) rebels" : "")
+            + (routesStarted == 0 ? "" : "; trade: \(routesStarted) routes started, \(routesPlundered) plundered")
             + (minorPlayers.isEmpty ? "" : "; minors: \(envoys) envoys, \(patronChanges) Patron changes, \(quests) quests, \(levies) levies, \(minorsEliminated) conquered")
     }
 }
@@ -903,7 +907,7 @@ if options.games == 1 {
     var profile = Profile()
     var threeCities = 0, warBy80 = 0, captureBy150 = 0, rejected = 0, capHits = 0
     var raiderTotals = EventCounts()
-    var minorCount = 0, minorPatrons = 0
+    var minorCount = 0, minorPatrons = 0, aiCount = 0, aiRoutes = 0, aisWithTwoRoutes = 0, aiCapacity = 0, aiIdleTraders = 0
     var lint = Lint()
     // Against a stand-in in player 0's seat (`--p0`): games the AIs won, player 0 won or nobody
     // won; cities AIs took from player 0 and player 0 took from AIs; wars on player 0.
@@ -968,6 +972,14 @@ if options.games == 1 {
             raiderTotals.quests += report.counts.quests
             raiderTotals.minorsEliminated += report.counts.minorsEliminated
             minorCount += report.state.minors?.count ?? 0
+            for p in report.aiPlayers {
+                let routes = report.state.tradeRoutes(of: PlayerID(p)).count
+                aiCount += 1
+                aiRoutes += routes
+                aiCapacity += report.state.tradeCapacity(of: PlayerID(p))
+                aiIdleTraders += report.state.units.count { $0.owner == PlayerID(p) && $0.type == .trader }
+                if routes >= 2 { aisWithTwoRoutes += 1 }
+            }
             minorPatrons += report.state.minors?.count { $0.patron != nil && report.state.players[$0.player.rawValue].isAlive } ?? 0
             rejected += report.rejected
             capHits += report.capHits
@@ -995,6 +1007,11 @@ if options.games == 1 {
             print(String(format: "raiders (per game): camps %.2f, cleared %.2f [target ≥ 3], raiders killed %.2f, cities sacked %.2f, rebels %.2f",
                          Double(r.campsAppeared) / Double(n), Double(r.campsCleared) / Double(n), Double(r.raiderCasualties) / Double(n),
                          Double(r.citiesSacked) / Double(n), Double(r.rebels) / Double(n)))
+        }
+        if aiRoutes > 0 {
+            print(String(format: "trade: %.2f routes per AI at the end (capacity %.2f, idle Traders %.2f); %d of %d AIs with ≥ 2 [target: all by turn 80]",
+                         Double(aiRoutes) / Double(max(1, aiCount)), Double(aiCapacity) / Double(max(1, aiCount)),
+                         Double(aiIdleTraders) / Double(max(1, aiCount)), aisWithTwoRoutes, aiCount))
         }
         if minorCount > 0 {
             print(String(format: "minors: %d of %d with a Patron at the end (%.0f%%) [target ≥ 60%% by turn 100]; conquered per game %.2f [≤ 1]; envoys per game %.1f, quests per game %.1f",

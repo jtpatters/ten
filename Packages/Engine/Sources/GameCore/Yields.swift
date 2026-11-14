@@ -21,6 +21,8 @@ public enum YieldSource: Hashable, Sendable {
     case quarter(QuarterKind)
     /// Envoys at minor factions (M2 §12.2).
     case envoys
+    /// Trade routes (M2 §13).
+    case trade
 }
 
 /// A city's yields this phase with their sources (M1 §12.6).
@@ -151,6 +153,8 @@ extension GameState {
         if !government.isZero { breakdown.append((.government, government)) }
         let envoys = envoyYields(city)
         if !envoys.isZero { breakdown.append((.envoys, envoys)) }
+        let trade = tradeYields(city)
+        if !trade.isZero { breakdown.append((.trade, trade)) }
         var total = breakdown.reduce(Yields.zero) { $0 + $1.1 }
         let pct = rules.stabilityYieldPct(rules.stabilityState(city.stability ?? 0))
         if pct != 0 {

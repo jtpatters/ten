@@ -43,6 +43,7 @@ extension GameState {
             runRaiders(&fx)
         } else {
             if isMinor(player) { runMinor(player, &fx) } else { updateStability(for: player) }
+            runTrade(for: player, &fx)
             updateLoyalty(for: player, &fx)
             var gold = 0, science = 0, culture = 0
             for index in cities.indices where cities[index].owner == player {

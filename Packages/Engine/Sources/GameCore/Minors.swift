@@ -77,6 +77,8 @@ public enum MinorQuestKind: String, Codable, Hashable, Sendable, CaseIterable {
     case meetCivs
     /// Have `count` envoys at minors in all.
     case envoys
+    /// Start a trade route to the minor (M2 §13).
+    case trader
 }
 
 public struct MinorQuest: Codable, Hashable, Sendable {
@@ -407,7 +409,7 @@ extension GameState {
                 if let p = questTakers(i).first(where: { civsMet(by: $0) >= quest.count ?? 0 }) { completeQuest(i, by: p, &fx) }
             case .envoys:
                 if let p = questTakers(i).first(where: { envoysSent(by: $0) >= quest.count ?? 0 }) { completeQuest(i, by: p, &fx) }
-            case .building:
+            case .building, .trader:
                 break
             }
             if let q = minors![i].quest, turn - q.issued >= m.questInterval { minors![i].quest = nil }
@@ -431,6 +433,7 @@ extension GameState {
         let majors = players.count(where: \.isMajor)
         let met = 1 + takers.map(civsMet(by:)).max()!
         if met <= majors - 1 { options.append(MinorQuest(kind: .meetCivs, count: met, issued: turn)) }
+        if rules.trade != nil { options.append(MinorQuest(kind: .trader, issued: turn)) }
         options.append(MinorQuest(kind: .envoys, count: 1 + takers.map(envoysSent(by:)).max()!, issued: turn))
         var rng = SplitMix64(seed: seed, salts: UInt64(turn), UInt64(i), UInt64(minors![i].questsCompleted ?? 0), 0x3172)
         minors![i].quest = rng.pick(options)
@@ -452,6 +455,12 @@ extension GameState {
             && players[list[i].player.rawValue].isAlive && questTakers(i).contains(player) {
             completeQuest(i, by: player, &fx)
         }
+    }
+
+    /// `player` started a route to `minor`: it may finish its "send a Trader" quest.
+    mutating func tradeRouteStartedForQuests(to minor: PlayerID, by player: PlayerID, _ fx: inout Effects) {
+        guard let i = minorIndex(of: minor), minors![i].quest?.kind == .trader, questTakers(i).contains(player) else { return }
+        completeQuest(i, by: player, &fx)
     }
 
     /// `player` cleared the camp at `t`: it may finish "clear the camp" quests.

@@ -56,6 +56,10 @@ public enum Command: Codable, Hashable, Sendable {
     case sendEnvoy(to: PlayerID)
     /// The Patron takes a minor's military units for Gold (M2 §12.2).
     case levy(minor: PlayerID)
+    /// A Trader starts a route to `toCity` (M2 §13).
+    case startTradeRoute(unit: UnitID, toCity: CityID)
+    /// A military unit plunders an enemy trade route where it stands (M2 §13).
+    case plunder(unit: UnitID)
 }
 
 public enum CommandError: Error, Hashable, Sendable, CustomStringConvertible {
@@ -137,6 +141,9 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case questCompleted(minor: PlayerID, player: PlayerID)
     case levied(minor: PlayerID, player: PlayerID, units: Int)
     case levyEnded(minor: PlayerID, player: PlayerID)
+    case tradeRouteStarted(route: Int, owner: PlayerID, from: CityID, to: CityID)
+    /// M2 §13: nil `plunderedBy`: it ran out or broke and the Trader came home.
+    case tradeRouteEnded(route: Int, owner: PlayerID, plunderedBy: PlayerID?)
     case borderGrew(city: CityID, tile: HexCoord)
     case improvementBuilt(improvement: Improvement, at: HexCoord, owner: PlayerID)
     case playersMet(PlayerID, PlayerID)
@@ -414,6 +421,16 @@ public enum GameEngine {
         case let .levy(minor):
             if let problem = state.levyProblem(player, on: minor) { throw .rejected(reason: problem) }
             state.levy(player, on: minor, &fx)
+
+        case let .startTradeRoute(id, destination):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.tradeRouteProblem(unit, to: destination) { throw .rejected(reason: problem) }
+            state.startTradeRoute(id, to: destination, &fx)
+
+        case let .plunder(id):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.plunderProblem(unit) { throw .rejected(reason: problem) }
+            state.plunder(by: id, &fx)
         }
 
         state.checkInsights(&fx)

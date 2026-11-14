@@ -161,6 +161,9 @@ public struct GameState: Codable, Hashable, Sendable {
     public internal(set) var raiders: RaiderState?
     /// Minor factions (M2 §12), in player order; nil in a game without them.
     public internal(set) var minors: [MinorFaction]?
+    /// Trade routes by id (M2 §13); nil while there are none.
+    public internal(set) var tradeRoutes: [TradeRoute]?
+    public internal(set) var nextRouteID: Int?
     /// The world era's index (M2 §2); nil in a game whose rules have no eras (left out of saves).
     public internal(set) var worldEra: Int?
 

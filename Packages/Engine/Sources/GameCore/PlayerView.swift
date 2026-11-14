@@ -163,6 +163,24 @@ public struct PlayerView: Sendable {
     public var knownMinors: [MinorFaction] { (state.minors ?? []).filter { state.hasMet(player, $0.player) } }
     public func envoyProblem(to minor: PlayerID) -> String? { state.envoyProblem(player, to: minor) }
     public func levyProblem(on minor: PlayerID) -> String? { state.levyProblem(player, on: minor) }
+    /// Own trade routes, and those crossing a tile visible now (M2 §13).
+    public var myTradeRoutes: [TradeRoute] { state.tradeRoutes(of: player) }
+    public var visibleTradeRoutes: [TradeRoute] {
+        state.allTradeRoutes.filter { r in r.owner == player || r.path.contains { me.visible[Int($0)] } }
+    }
+    public var tradeCapacity: Int { state.tradeCapacity(of: player) }
+    public func tradeRouteProblem(_ unit: UnitID, to city: CityID) -> String? {
+        guard let u = state.unit(unit), u.owner == player else { return "not your unit" }
+        return state.tradeRouteProblem(u, to: city)
+    }
+    public func tradeRouteValue(_ unit: UnitID, to city: CityID) -> Int {
+        guard let u = state.unit(unit), u.owner == player else { return 0 }
+        return state.tradeRouteValue(u, to: city)
+    }
+    public func plunderProblem(_ unit: UnitID) -> String? {
+        guard let u = state.unit(unit), u.owner == player else { return "not your unit" }
+        return state.plunderProblem(u)
+    }
     /// The world era (M2 §3), 0 before any.
     public var worldEra: Int { state.worldEra ?? 0 }
 

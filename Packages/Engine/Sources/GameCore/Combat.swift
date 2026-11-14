@@ -561,6 +561,14 @@ extension GameState {
                 fx.touchPlayer(victim.owner)
                 continue
             }
+            if victim.type == .trader, let t = rules.trade {
+                // M2 §8.4: a captured Trader is removed and the captor gets Gold.
+                killUnit(victim.id, &fx)
+                players[captor.rawValue].gold += t.traderCaptureGold
+                fx.touchPlayer(victim.owner)
+                fx.touchPlayer(captor)
+                continue
+            }
             let def = rules.unit(victim.type)
             let type = def.capturedAs ?? victim.type
             let charges = def.capturedCharges ?? victim.charges

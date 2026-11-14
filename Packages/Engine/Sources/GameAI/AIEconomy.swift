@@ -232,6 +232,9 @@ extension AITurn {
             offer(.unit(unit))
         }
 
+        // 2d. M2 §13: Traders up to the route capacity (cheap, and a route pays for 30 turns).
+        if wantsTrader(city, v) { offer(.unit(.trader)) }
+
         // 3. Settlers.
         let enemyNear = foreignMilitaryTiles(v, enemiesOnly: true, includeRecon: true).contains { t in
             v.index(of: city.position).map { v.aiDistance(t, $0) <= ai.threatRadius } ?? false

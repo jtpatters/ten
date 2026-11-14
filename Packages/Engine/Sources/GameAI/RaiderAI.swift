@@ -110,7 +110,11 @@ struct RaiderTurn {
             return
         }
 
-        // 3. Pillage here, or move to something to pillage.
+        // 3. Plunder a trade route here (M2 §13), pillage here, or move to something to pillage.
+        if state.plunderProblem(unit) == nil {
+            issue(.plunder(unit: id))
+            return
+        }
         if let t = map.index(of: unit.position), pillageable(t) {
             issue(.pillage(unit: id))
             return

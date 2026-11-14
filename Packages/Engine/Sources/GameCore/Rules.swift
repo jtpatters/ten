@@ -76,6 +76,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public let raiders: RaiderRules?
     /// Minor factions (M2 §12); nil without the section: no minors.
     public let minors: MinorRules?
+    /// Trade routes (M2 §13); nil without the section: no routes.
+    public let trade: TradeRules?
     /// Optional (M2 §7.4): absent, tiles cannot be bought.
     public let tileBuying: TileBuyingRules?
     /// In tree order (M2 §7.1); empty in rules without civics.
@@ -153,6 +155,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         loyalty = data.loyalty
         raiders = data.raiders
         minors = data.minors
+        trade = data.trade
         tileBuying = data.tileBuying
         let civics = data.civics ?? []
         self.civics = civics
@@ -328,6 +331,7 @@ extension UnitType {
         case .quadrireme: 16
         case .cog: 17
         case .dromon: 18
+        case .trader: 19
         }
     }
 }
@@ -390,6 +394,7 @@ struct RulesetData: Codable, Hashable, Sendable {
     var loyalty: LoyaltyRules?
     var raiders: RaiderRules?
     var minors: MinorRules?
+    var trade: TradeRules?
     var tileBuying: TileBuyingRules?
     var civics: [CivicDef]?
     var governance: GovernanceRules?

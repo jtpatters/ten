@@ -118,7 +118,8 @@
         { "type": "cog", "class": "navalMelee", "cost": 160, "strength": 40, "rangedStrength": 0, "range": 0, "moves": 4, "sight": 2,
           "tech": "cartography", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [] },
         { "type": "dromon", "class": "navalRanged", "cost": 180, "vsCity": -5, "strength": 30, "rangedStrength": 45, "range": 2, "moves": 4, "sight": 2,
-          "tech": "cartography", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [] }
+          "tech": "cartography", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [] },
+        { "type": "trader", "class": "civilian", "cost": 50, "strength": 0, "rangedStrength": 0, "range": 0, "moves": 2, "sight": 2, "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [], "tech": "currency" }
     ],
     "buildings": [
         { "id": "palace", "name": "Palace", "cost": 0, "buildable": false, "palace": true,
@@ -548,6 +549,30 @@
                  "enemyUnit": -1, "enemyUnitsMax": 3, "deltaCap": 10, "founded": 100, "capturedStart": 50,
                  "flipped": 50, "flipTurns": 5, "warningTurns": 5, "defenderEvery": 10, "defenderMax": 2,
                  "defenders": ["warrior", "swordsman", "manAtArms"] },
+    "trade": {
+        "routeRange": 15,
+        "seaRangeBonus": 5,
+        "seaTech": "cartography",
+        "seaQuarter": "harbor",
+        "routeTurns": 30,
+        "capacityBase": 1,
+        "capacityBuildings": ["market"],
+        "capacityCivics": ["foreignTrade"],
+        "capacityTechs": ["guilds"],
+        "domesticFood": 2,
+        "domesticProduction": 1,
+        "domesticFoodBuildings": ["granary"],
+        "domesticProductionBuildings": ["workshop"],
+        "internationalGold": 3,
+        "internationalGoldBuildings": ["market", "bank"],
+        "scienceTechGap": 2,
+        "internationalScience": 1,
+        "destinationGold": 1,
+        "minorGold": 4,
+        "minorEnvoyTurns": 15,
+        "plunderGold": 40,
+        "traderCaptureGold": 50
+    },
     "minors": {
         "counts": [
             { "mapSize": "duel", "count": 2 },

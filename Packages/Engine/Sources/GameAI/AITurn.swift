@@ -126,6 +126,7 @@ struct AITurn {
         }
         timed("improveUnits") { $0.improveUnits() }
         timed("buyThreatDefenders") { $0.buyThreatDefenders() }
+        timed("traders") { $0.useTraders() }
         timed("moveSettlers") { $0.moveSettlers() }
         timed("moveBuilders") { $0.moveBuilders() }
         timed("explore") { $0.explore() }
