@@ -118,6 +118,46 @@ extension GameState {
         return halves / 2
     }
 
+    /// A specialist's yields in a quarter of `kind` (M2 §5.3): +2 of the quarter's yield;
+    /// Barracks +1 Production +1 Gold, Arena +1 Culture +1 Gold.
+    public func specialistYields(_ kind: QuarterKind) -> Yields {
+        switch rules.quarter(kind)?.yield {
+        case "science": Yields(science: 2)
+        case "gold": Yields(gold: 2)
+        case "production": Yields(production: 2)
+        case "culture": Yields(culture: 2)
+        case "food": Yields(food: 2)
+        default:
+            switch kind.rawValue {
+            case "barracks": Yields(production: 1, gold: 1)
+            case "arena": Yields(gold: 1, culture: 1)
+            default: .zero
+            }
+        }
+    }
+
+    /// The city's specialist slots (M2 §5.3): one per building in each unpillaged quarter, in
+    /// build order.
+    public func specialistSlots(_ city: City) -> [QuarterKind] {
+        guard let quarters = city.quarters else { return [] }
+        return quarters.flatMap { q -> [QuarterKind] in
+            guard !q.isPillaged else { return [] }
+            let n = city.buildings.count { rules.building($0)?.quarter == q.kind }
+            return [QuarterKind](repeating: q.kind, count: n)
+        }
+    }
+
+    /// The city's specialists that still have a slot (a slot lost since citizens were last
+    /// assigned yields nothing).
+    func activeSpecialists(_ city: City) -> [QuarterKind] {
+        var slots = specialistSlots(city)
+        return (city.specialists ?? []).filter { kind in
+            guard let i = slots.firstIndex(of: kind) else { return false }
+            slots.remove(at: i)
+            return true
+        }
+    }
+
     /// The adjacency yields of a city's quarters (pillaged ones give none).
     func quarterYields(_ city: City) -> [(QuarterKind, Yields)] {
         guard let quarters = city.quarters else { return [] }

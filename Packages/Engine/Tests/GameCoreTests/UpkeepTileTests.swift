@@ -33,6 +33,30 @@ import Testing
         expectSound(state)
     }
 
+    @Test func aScienceFocusedCityPutsACitizenInTheCampus() throws {
+        var state = makeTestState(map: openMap(), gold: 0)
+        let id = addCity(&state, p0, at: hex(3, 4))
+        #expect(state.rules.building("library")?.quarter == "campus")
+        updateCity(&state, id) {
+            $0.population = 3
+            $0.focus = .science
+            $0.buildings = ($0.buildings + ["library"]).sorted()
+            $0.quarters = [CityQuarter(kind: "campus", tile: hex(4, 4))]
+        }
+        let index = state.cityIndex(id)!
+        state.assignCitizens(index)
+        let city = state.cities[index]
+        #expect(state.specialistSlots(city) == ["campus"])
+        #expect(city.specialists == ["campus"] && city.workedTiles.count == 2)
+        let yields = state.cityYields(city)
+        #expect(yields.breakdown.contains { $0.source == .specialists && $0.yields == Yields(science: 2) })
+        expectSound(state)
+
+        updateCity(&state, id) { $0.focus = .food }
+        state.assignCitizens(index)
+        #expect(state.cities[index].specialists == nil && state.cities[index].workedTiles.count == 3)
+    }
+
     @Test func aCityBuysATileNextToItsTerritory() throws {
         var state = makeTestState(map: openMap(), gold: 60)
         let id = addCity(&state, p0, at: hex(3, 4))

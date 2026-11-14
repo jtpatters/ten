@@ -8,6 +8,8 @@ public enum YieldSource: Hashable, Sendable {
     case workedTiles
     /// Citizens with no tile to work.
     case unemployed
+    /// Citizens in quarters' specialist slots (M2 §5.3).
+    case specialists
     /// +1 Science per `populationPerScience` citizens.
     case population
     case building(BuildingID)
@@ -129,8 +131,11 @@ extension GameState {
         var tiles = Yields.zero
         for hex in city.workedTiles { tiles += tileYields(map.index(of: hex)!, for: city.owner) }
         if !tiles.isZero { breakdown.append((.workedTiles, tiles)) }
+        let specialists = activeSpecialists(city)
+        let specialistYield = specialists.reduce(Yields.zero) { $0 + specialistYields($1) }
+        if !specialistYield.isZero { breakdown.append((.specialists, specialistYield)) }
         let c = rules.constants.city
-        let unemployed = max(0, city.population - city.workedTiles.count)
+        let unemployed = max(0, city.population - city.workedTiles.count - specialists.count)
         if unemployed > 0 { breakdown.append((.unemployed, Yields(production: unemployed * c.unemployedProduction))) }
         let science = city.population / c.populationPerScience
         if science > 0 { breakdown.append((.population, Yields(science: science))) }
@@ -164,8 +169,8 @@ extension GameState {
     /// at or above the focus floor; when none does, the tile with the most Food (ties: weighted
     /// value, then distance, then tile index). Other ties: closer to the centre, then lower
     /// tile index. Free tiles: owned by this city within the work radius, workable, not the
-    /// centre, no enemy unit on them, not worked by another city. Citizens without a tile are
-    /// unemployed.
+    /// centre, no enemy unit on them, not worked by another city. Specialist slots (M2 §5.3)
+    /// are candidates too. Citizens without a tile or slot are unemployed.
     mutating func assignCitizens(_ cityIndex: Int) {
         let city = cities[cityIndex]
         let focus = rules.focus(city.focus)
@@ -182,6 +187,14 @@ extension GameState {
                   !candidates.contains(where: { $0.tile == t }) else { return }
             let y = tileYields(t, for: city.owner)
             candidates.append(Candidate(tile: t, yields: y, value: focus.value(y), distance: map.distance(index: t, centreIndex)))
+        }
+        // Specialist slots (M2 §5.3) compete like tiles, after every tile on ties.
+        let slots = specialistSlots(city)
+        for (n, kind) in slots.enumerated() {
+            let y = specialistYields(kind)
+            guard !y.isZero else { continue }
+            candidates.append(Candidate(tile: map.tileCount + n, yields: y, value: focus.value(y),
+                                        distance: rules.constants.city.workRadius + 1))
         }
         // Best first: value, then closer, then lower index.
         candidates.sort { a, b in
@@ -211,7 +224,9 @@ extension GameState {
             chosen.append(candidates[i].tile)
             food += candidates[i].yields.food
         }
-        cities[cityIndex].workedTiles = chosen.sorted().map { map.coord(at: $0) }
+        cities[cityIndex].workedTiles = chosen.filter { $0 < map.tileCount }.sorted().map { map.coord(at: $0) }
+        let specialists = chosen.filter { $0 >= map.tileCount }.sorted().map { slots[$0 - map.tileCount] }
+        cities[cityIndex].specialists = specialists.isEmpty ? nil : specialists
     }
 
     /// Tiles with a unit of a player `player` is at war with.
