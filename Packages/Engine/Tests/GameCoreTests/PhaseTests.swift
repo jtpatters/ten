@@ -20,7 +20,7 @@ import Testing
             #expect(units.map(\.type) == [.settler, .warrior, .scout])
             #expect(units[0].position == start && units[1].position == start)
             #expect(state.map.distance(units[2].position, start) == 1)
-            #expect(units.allSatisfy { $0.movesLeft == state.rules.unit($0.type).moves && $0.hp == 100 })
+            #expect(units.allSatisfy { $0.movesLeft == state.maxMoves(of: $0) && $0.hp == 100 })
             #expect(units.first { $0.type == .builder } == nil)
             #expect(player.explored.setCount > 0)
         }
@@ -64,10 +64,10 @@ import Testing
         try apply(.moveUnit(unit: mine, to: hex(2, 0)), &state)
         state.updateUnit(theirs) { $0.movesLeft = 0 }
         try apply(.endTurn, &state)
-        #expect(state.unit(theirs)!.movesLeft == 2)
+        #expect(state.unit(theirs)!.movesLeft == state.rules.points(2))
         #expect(state.unit(mine)!.movesLeft == 0)
         try apply(.endTurn, &state)
-        #expect(state.unit(mine)!.movesLeft == 2)
+        #expect(state.unit(mine)!.movesLeft == state.rules.points(2))
     }
 
     /// A player with no cities and no Settlers is eliminated after the command (M1 §10);

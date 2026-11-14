@@ -16,11 +16,11 @@ import Testing
         let field = view.movementField(for: scout)
         func cost(_ h: HexCoord) -> Int32 { field[tile(state, h)] }
         #expect(field.count == state.map.tileCount)
-        #expect(cost(hex(3, 0)) == 0 && cost(hex(4, 0)) == 1 && cost(hex(2, 0)) == 1)
-        #expect(cost(hex(5, 0)) == 2) // enters the zone with a move left: the turn ends there
-        #expect(cost(hex(6, 0)) == 4) // 1 point wasted at (5,0)
-        #expect(cost(hex(7, 0)) == 7) // 2 more wasted at (6,0)
-        #expect(cost(hex(9, 0)) == 9 && cost(hex(10, 0)) == 10)
+        #expect(cost(hex(3, 0)) == 0 && cost(hex(4, 0)) == 3 && cost(hex(2, 0)) == 3)
+        #expect(cost(hex(5, 0)) == 6) // enters the zone with a move left: the turn ends there
+        #expect(cost(hex(6, 0)) == 12) // 1 point wasted at (5,0)
+        #expect(cost(hex(7, 0)) == 21) // 2 more wasted at (6,0)
+        #expect(cost(hex(9, 0)) == 27 && cost(hex(10, 0)) == 30)
         #expect(cost(hex(4, 1)) == -1) // a known mountain
         #expect(cost(hex(5, 1)) == -1) // the enemy
 
@@ -28,17 +28,17 @@ import Testing
         var peace = state
         peace.updateRelation(PlayerID(0), PlayerID(1)) { $0.stance = .peace }
         let free = peace.view(for: PlayerID(0)).movementField(for: scout)
-        #expect(free[tile(peace, hex(6, 0))] == 3 && free[tile(peace, hex(7, 0))] == 4 && free[tile(peace, hex(10, 0))] == 7)
+        #expect(free[tile(peace, hex(6, 0))] == 9 && free[tile(peace, hex(7, 0))] == 12 && free[tile(peace, hex(10, 0))] == 21)
 
         // A limit stops the search; other players' units have no field.
-        let near = view.movementField(for: scout, limit: 3)
-        #expect(near[tile(state, hex(6, 0))] == -1 && near[tile(state, hex(5, 0))] == 2)
+        let near = view.movementField(for: scout, limit: 9)
+        #expect(near[tile(state, hex(6, 0))] == -1 && near[tile(state, hex(5, 0))] == 6)
         #expect(view.movementField(for: parkedSettler(of: PlayerID(1))).isEmpty)
 
         // A unit stopped by a zone of control plans from next turn.
         try apply(.moveUnit(unit: scout, to: hex(5, 0)), &state)
         let stopped = state.view(for: PlayerID(0)).movementField(for: scout)
-        #expect(stopped[tile(state, hex(5, 0))] == 0 && stopped[tile(state, hex(6, 0))] == 1)
+        #expect(stopped[tile(state, hex(5, 0))] == 0 && stopped[tile(state, hex(6, 0))] == 3)
     }
 
     /// Steps over land as the player knows it: explored impassable tiles block, unexplored
@@ -154,7 +154,7 @@ import Testing
         #expect(view.combatPreview(attacker: .unit(w), target: hex(4, 1), from: hex(3, 1)) == nil)
         #expect(view.dangerMap().allSatisfy { $0 == 0 })
         #expect(view.garrison(of: city) == nil)
-        #expect(view.movementField(for: w)[tile(fogged, hex(4, 1))] == 1) // as if empty, and no zone of control
+        #expect(view.movementField(for: w)[tile(fogged, hex(4, 1))] == 3) // as if empty, and no zone of control
         #expect(throws: CommandError.rejected(reason: "no enemy there")) { try apply(.attack(unit: w, target: hex(4, 1)), &fogged) }
     }
 

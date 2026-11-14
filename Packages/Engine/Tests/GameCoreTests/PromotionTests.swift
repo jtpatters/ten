@@ -27,7 +27,7 @@ import Testing
         let horse = state.addUnit(.horseman, owner: PlayerID(0), at: hex(3, 3))
         state.updateUnit(horse) { $0.promotions = ["caparison", "pursuit"] }
         state.startPhase(ofUnit: horse)
-        #expect(state.unit(horse)!.movesLeft == 5)
+        #expect(state.unit(horse)!.movesLeft == state.rules.points(5))
     }
 
     @Test func rangeSightAndCrewPromotions() {
@@ -68,7 +68,7 @@ import Testing
         let plain = state.moveCost(from: a, to: b, .east, free: state.freeMove(state.unit(scout)!))
         state.updateUnit(scout) { $0.promotions = ["alpine"] }
         let alpine = state.moveCost(from: a, to: b, .east, free: state.freeMove(state.unit(scout)!))
-        #expect(plain == 2 && alpine == 1)
+        #expect(plain == state.rules.points(2) && alpine == state.rules.points(1))
     }
 
     @Test func pursuitIgnoresZonesOfControlExceptSquare() {
@@ -91,7 +91,7 @@ import Testing
         let moves = state.unit(scout)!.movesLeft
         try apply(.attack(unit: scout, target: hex(5, 3)), &state)
         let after = try #require(state.unit(scout))
-        #expect(after.movesLeft == moves - 1 && after.attacked == true)
+        #expect(after.movesLeft == moves - state.rules.movePoints && after.attacked == true)
         #expect(throws: CommandError.self) { try apply(.attack(unit: scout, target: hex(5, 3)), &state) }
         state.startPhase(ofUnit: scout)
         #expect(state.unit(scout)!.attacked == nil)

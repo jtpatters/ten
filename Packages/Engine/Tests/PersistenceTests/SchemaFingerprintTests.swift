@@ -31,9 +31,11 @@ import Testing
     /// of the fingerprint and required in the fixture.
     static let additivePaths: [UInt16: [String]] = [
         // M2 2.1a: the world era and Insight credit (M2 §2, §6.2).
-        // M2 2.1c: map resources and strategic stockpiles (M2 §3.1).
-        1: ["map.tiles[].resource", "players[].insights", "players[].memory.tribalVillages", "players[].stockpile", "players[].techCredit",
-            "tribalVillages", "tribalVillages.gifts", "tribalVillages.sites", "units[].attacked", "units[].promotions", "worldEra"],
+        // M2 2.1c: map resources and strategic stockpiles (M2 §3.1), roads and pillage (§3.3).
+        1: ["map.tiles[].pillaged", "map.tiles[].resource", "map.tiles[].road", "players[].insights", "players[].memory.tileRoad",
+            "players[].memory.tileRoad.count", "players[].memory.tileRoad.words", "players[].memory.tribalVillages", "players[].stockpile",
+            "players[].techCredit", "tribalVillages", "tribalVillages.gifts", "tribalVillages.sites", "units[].attacked",
+            "units[].promotions", "worldEra"],
     ]
 
     /// The sorted key paths of a value's JSON encoding: object keys joined with ".", array
@@ -93,7 +95,7 @@ import Testing
                      "players[].researchTarget", "players[].originalCapital.rawValue", "players[].capital.rawValue",
                      "players[].memory.cities[].wallHP", "players[].memory.units[].turnSeen", "map.tiles[].improvement",
                      "tribalVillages.sites", "tribalVillages.gifts", "players[].memory.tribalVillages", "map.tiles[].resource",
-                     "players[].stockpile"] {
+                     "players[].stockpile", "map.tiles[].road", "map.tiles[].pillaged", "players[].memory.tileRoad"] {
             #expect(all.contains(path), "the fixture does not set \(path)")
         }
     }

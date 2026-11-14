@@ -366,10 +366,13 @@ struct GameReport {
         let rules = state.rules
         var placed: [ResourceKind: Int] = [:]
         var built = [Int](repeating: 0, count: Improvement.allCases.count)
+        var roads = 0, pillaged = 0
         for t in state.map.tiles.indices {
             let tile = state.map.tiles[t]
             if let r = tile.resource, let def = rules.resource(r) { placed[def.kind, default: 0] += 1 }
             if let i = tile.improvement { built[Int(i.rawValue) - 1] += 1 }
+            if tile.hasRoad { roads += 1 }
+            if tile.isPillaged { pillaged += 1 }
         }
         let improvements = Improvement.allCases.enumerated().filter { built[$0.offset] > 0 }
             .map { "\(String(describing: $0.element)) \(built[$0.offset])" }.joined(separator: ", ")
@@ -381,7 +384,7 @@ struct GameReport {
         }.joined(separator: ", ")
         return "resources: \(placed[.bonus, default: 0]) bonus, \(placed[.luxury, default: 0]) luxury, "
             + "\(placed[.strategic, default: 0]) strategic; improvements " + (improvements.isEmpty ? "none" : improvements)
-            + "; stock/sources " + stocks
+            + "; roads \(roads), pillaged \(pillaged); stock/sources " + stocks
     }
 
     func playerLine(_ player: Player) -> String {

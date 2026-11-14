@@ -71,14 +71,14 @@ import Testing
         #expect(view.unexploredTiles(within: def.sight, of: tile(state, far)) == 4)
         // Costs as a movement field gives them: the near goal this phase, the far one in 3 turns.
         var field = [Int32](repeating: -1, count: state.map.tileCount)
-        field[tile(state, near)] = 3
-        field[tile(state, far)] = 9
+        field[tile(state, near)] = 9
+        field[tile(state, far)] = 27
         let unit = try #require(state.unit(scout))
         let frontier = [tile(state, near), tile(state, far)]
         func goal(_ tilesPerTurn: Int) -> Int? {
             view.exploreGoal(unit, field: field, frontier: frontier, claimed: [], tuning: ExploreTuning(tilesPerTurn: tilesPerTurn))
         }
-        // 16 a turn: near 3×16 − 1×3 = 45, far 9×16 − 4×3 = 132. 1 a turn: 0 against −3.
+        // 16 a turn: near 9×16 − 1×9 = 135, far 27×16 − 4×9 = 396. 1 a turn: 0 against −9.
         #expect(goal(16) == tile(state, near))
         #expect(goal(1) == tile(state, far))
         // A goal it cannot stop on does not count.
@@ -416,23 +416,23 @@ import Testing
         let unit = try #require(state.unit(scout))
         let frontier = [tile(state, near), tile(state, far)]
         var field = [Int32](repeating: -1, count: state.map.tileCount)
-        field[tile(state, near)] = 3
+        field[tile(state, near)] = 9
         func goal(current: HexCoord?, keep: Int = 1) -> Int? {
             view.exploreGoal(unit, field: field, frontier: frontier, claimed: [], current: current.map { tile(state, $0) },
                              tuning: ExploreTuning(tilesPerTurn: 16, keepGoalTurns: keep))
         }
-        // A turn is 3 moves × 16 = 48 points. Near: 3×16 − 1×3 = 45. Far in 6 points: 6×16 −
-        // 4×3 = 84, within a turn of 45: kept. Far in 9: 132, more than a turn worse: dropped.
-        field[tile(state, far)] = 6
+        // A turn is 9 points × 16 = 144. Near: 9×16 − 1×9 = 135. Far in 18 points: 18×16 −
+        // 4×9 = 252, within a turn of 135: kept. Far in 27: 396, more than a turn worse: dropped.
+        field[tile(state, far)] = 18
         #expect(goal(current: nil) == tile(state, near))
         #expect(goal(current: far) == tile(state, far))
         #expect(goal(current: far, keep: 0) == tile(state, near))
-        field[tile(state, far)] = 9
+        field[tile(state, far)] = 27
         #expect(goal(current: far) == tile(state, near))
         // Out of reach, or no longer frontier: chosen afresh.
         field[tile(state, far)] = -1
         #expect(goal(current: far) == tile(state, near))
-        field[tile(state, far)] = 6
+        field[tile(state, far)] = 18
         #expect(view.exploreGoal(unit, field: field, frontier: [tile(state, near)], claimed: [], current: tile(state, far),
                                  tuning: .standard) == tile(state, near))
     }
@@ -713,7 +713,7 @@ import Testing
         let view = state.view(for: me)
         let field = view.movementField(for: scout)
         let cost = field[tile(state, village)]
-        try #require(cost > 0 && cost <= 3 * Int32(state.rules.unit(.scout).moves))
+        try #require(cost > 0 && cost <= Int32(state.rules.points(3 * state.rules.unit(.scout).moves)))
         let nearestFrontier = try #require(view.aiFrontier().filter { field[$0] > 0 }.map { field[$0] }.min())
         try #require(nearestFrontier < cost)
         let step = view.exploreStep(for: scout)
@@ -739,7 +739,7 @@ import Testing
         let village = hex(14, 7) // 10 tiles east: 10 points, beyond three turns' 9
         let (state, scout) = try tribalVillageScene(explored: 16, villages: [village])
         let view = state.view(for: me)
-        try #require(view.movementField(for: scout)[tile(state, village)] == 10)
+        try #require(view.movementField(for: scout)[tile(state, village)] == 30)
         let step = view.exploreStep(for: scout)
         #expect(goal(of: step).map { view.aiFrontier().contains(tile(state, $0)) } == true, "\(step)")
         #expect(goal(of: view.exploreStep(for: scout, knownEnemies: [], claimed: [], tuning: seeking(4))) == village)

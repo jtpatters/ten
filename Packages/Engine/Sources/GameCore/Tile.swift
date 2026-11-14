@@ -49,6 +49,13 @@ public struct Tile: Codable, Hashable, Sendable {
     public var improvement: Improvement?
     /// Placed by MapGen; never changes (M2 §3.1). Nil = none (left out of saves).
     public var resource: Resource?
+    /// A road (M2 §3.3); nil = none (left out of saves).
+    public var road: Bool?
+    /// The improvement was pillaged: it yields nothing until repaired (M2 §3.3); nil = not.
+    public var pillaged: Bool?
+
+    public var hasRoad: Bool { road == true }
+    public var isPillaged: Bool { pillaged == true }
 
     public init(terrain: Terrain, elevation: Elevation = .flat, feature: Feature = .none, riverEdges: UInt8 = 0,
                 improvement: Improvement? = nil, resource: Resource? = nil) {

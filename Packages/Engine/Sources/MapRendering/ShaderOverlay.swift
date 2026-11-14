@@ -200,6 +200,14 @@ fragment float4 overlay_fragment(OverlayOut in [[stage_in]], constant Uniforms& 
         c = float4(kRouteShadow * a, a);
     } else if (style == 4 || style == 5) {
         c = overlayDashes(in.params, px, time, style == 5);
+    } else if (style == 8) {
+        // A road: packed earth with darker worn edges and a faint rut down the middle.
+        float x = abs(in.params.x);
+        float a = 1.0 - smoothstep(1.0 - 2.0 * aaAcross, 1.0, x);
+        float3 earth = mix(float3(0.74, 0.62, 0.44), float3(0.48, 0.37, 0.25), smoothstep(0.55, 0.85, x));
+        earth *= 1.0 - 0.12 * (1.0 - smoothstep(0.08, 0.2, x));
+        c = float4(earth * a * 0.92, a * 0.92);
+        c = mix(c, applyExploredFog(c), saturate(in.aux.y));
     } else {
         c = in.params;
     }

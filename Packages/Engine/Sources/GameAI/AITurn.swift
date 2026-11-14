@@ -125,6 +125,7 @@ struct AITurn {
         timed("moveBuilders") { $0.moveBuilders() }
         timed("explore") { $0.explore() }
         timed("moveMilitary") { $0.moveMilitary() }
+        if atWar { timed("pillage") { $0.pillage() } }
         timed("secureCivilians") { $0.secureCivilians() }
         timed("manageCities") { $0.manageCities() }
         timed("fortifyNewUnits") { $0.fortifyNewUnits() }
@@ -285,7 +286,7 @@ struct AITurn {
     /// Units bought this phase (after the military moved) fortify where they appear.
     mutating func fortifyNewUnits() {
         for unit in view.units where !unit.type.isCivilian && !acted.contains(unit.id) && unit.activity == .none
-            && unit.destination == nil && !unit.zocStopped && unit.movesLeft == rules.unit(unit.type).moves {
+            && unit.destination == nil && !unit.zocStopped && unit.movesLeft == rules.unit(unit.type).moves * rules.movePoints {
             guard live else { return }
             fortify(unit)
         }

@@ -258,7 +258,7 @@ struct Observer {
             if t.count > 2 { t.removeFirst() }
             trail[unit.id] = t
             if !unit.type.isCivilian, unit.activity == .none, unit.destination == nil, !unit.zocStopped,
-               unit.movesLeft == state.rules.unit(unit.type).moves {
+               unit.movesLeft == state.rules.unit(unit.type).moves * state.rules.movePoints {
                 lint[p].idle += 1
                 if lintDetail {
                     say(turn, player, "idle \(unit.type.rawValue) \(unit.id) at \(unit.position) \(unit.hp) HP")
@@ -307,7 +307,7 @@ struct Observer {
                   !state.units.contains(where: { $0.owner == player && !$0.type.isCivilian && $0.position == unit.position }) else { continue }
             for enemy in enemies where state.map.distance(enemy.position, unit.position) <= state.rules.unit(enemy.type).moves {
                 var fresh = enemy
-                fresh.movesLeft = state.rules.unit(enemy.type).moves
+                fresh.movesLeft = state.rules.unit(enemy.type).moves * state.rules.movePoints
                 fresh.zocStopped = false
                 guard Pathfinder.reachableTiles(for: fresh, in: state).contains(unit.position) else { continue }
                 if unit.type == .settler { lint[player.rawValue].capturableSettlers += 1 } else { lint[player.rawValue].capturableBuilders += 1 }

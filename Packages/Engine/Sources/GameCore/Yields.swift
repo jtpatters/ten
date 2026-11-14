@@ -58,7 +58,7 @@ extension Ruleset {
             y.gold += f.gold
         }
         if tile.riverEdges != 0 { y.gold += river.gold }
-        if !isCityCentre, let improvement = tile.improvement {
+        if !isCityCentre, !tile.isPillaged, let improvement = tile.improvement {
             let def = self.improvement(improvement)
             y.food += def.food
             y.production += def.production

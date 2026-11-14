@@ -510,8 +510,8 @@ extension AITurn {
             if v.units(at: city.position).contains(where: { $0.owner == player && !$0.type.isCivilian }) { continue }
             var best: (cost: Int32, unit: UnitID)?
             for u in freeFighters(v) {
-                let f = field(u.id, within: ai.garrisonMaxMoveCost)
-                guard f[c] > 0, Int(f[c]) <= ai.garrisonMaxMoveCost else { continue }
+                let f = field(u.id, within: rules.points(ai.garrisonMaxMoveCost))
+                guard f[c] > 0, Int(f[c]) <= rules.points(ai.garrisonMaxMoveCost) else { continue }
                 if let b = best, (b.cost, b.unit) <= (f[c], u.id) { continue }
                 best = (f[c], u.id)
             }
@@ -541,9 +541,9 @@ extension AITurn {
                 let v = view
                 var best: (cost: Int32, unit: UnitID)?
                 for u in freeFighters(v) {
-                    let f = field(u.id, within: ai.garrisonMaxMoveCost)
+                    let f = field(u.id, within: rules.points(ai.garrisonMaxMoveCost))
                     let cost = v.aiNeighbors(of: c).compactMap { f[$0] > 0 ? f[$0] : nil }.min() ?? -1
-                    guard cost > 0, Int(cost) <= ai.garrisonMaxMoveCost else { continue }
+                    guard cost > 0, Int(cost) <= rules.points(ai.garrisonMaxMoveCost) else { continue }
                     if let b = best, (b.cost, b.unit) <= (cost, u.id) { continue }
                     best = (cost, u.id)
                 }
@@ -674,6 +674,18 @@ extension AITurn {
         let field = v.aiTerrainCostField(from: cities.map(\.position))
         homeFieldCache = (ids, field)
         return field
+    }
+
+    /// M2 §3.3: at war, each own military unit (id order) with moves left on an enemy tile it may
+    /// pillage pillages it (the wounded heal by it), unless it guards a civilian there.
+    mutating func pillage() {
+        for unit in view.units where !unit.type.isCivilian && unit.movesLeft > 0 {
+            let v = view
+            guard live, let u = v.unit(unit.id),
+                  v.unitActions(for: u.id).contains(where: { $0.kind == .pillage && $0.isAvailable }),
+                  !v.units(at: u.position).contains(where: { $0.owner == player && $0.type.isCivilian }) else { continue }
+            issue(.pillage(unit: u.id))
+        }
     }
 
     /// Garrisons fortify.

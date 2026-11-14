@@ -45,7 +45,7 @@ extension GameState {
             check(players.indices.contains(unit.owner.rawValue) && players[unit.owner.rawValue].isAlive, "\(unit.id) of a dead player")
             check(rules.isPassable(map.tiles[t]), "\(unit.id) on impassable \(unit.position)")
             check(unit.hp > 0 && unit.hp <= rules.constants.healing.maxHP, "\(unit.id) hp \(unit.hp)")
-            check(unit.movesLeft >= 0 && unit.movesLeft <= rules.unit(unit.type).moves + promotionMoves(unit), "\(unit.id) moves \(unit.movesLeft)")
+            check(unit.movesLeft >= 0 && unit.movesLeft <= maxMoves(of: unit), "\(unit.id) moves \(unit.movesLeft)")
             check(occupant[t] == -1 || occupant[t] == unit.owner.rawValue, "units of two players on \(unit.position)")
             occupant[t] = unit.owner.rawValue
             if unit.type.isCivilian { civilian[t] += 1 } else { military[t] += 1 }
@@ -142,7 +142,8 @@ extension GameState {
             check(p.memory.tileOwner.count == count && p.memory.tileImprovement.count == count, "\(p.id) memory size")
             var staleTiles = 0
             p.visible.forEachIndex { t in
-                if p.memory.tileOwner[t] != territory[t] || p.memory.tileImprovement[t] != (map.tiles[t].improvement?.rawValue ?? 0) {
+                if p.memory.tileOwner[t] != territory[t] || p.memory.tileImprovement[t] != (map.tiles[t].improvement?.rawValue ?? 0)
+                    || p.memory.remembersRoad(t) != map.tiles[t].hasRoad {
                     staleTiles += 1
                 }
             }

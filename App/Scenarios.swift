@@ -61,7 +61,7 @@ enum Scenarios {
     @MainActor static var lastNote: String?
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
-                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources"]
+                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -139,6 +139,9 @@ enum Scenarios {
         case "resources":
             foundCapital(&state, player: viewer)
             made = try resources(&state)
+        case "roads":
+            foundCapital(&state, player: viewer)
+            made = try roads(&state)
         default:
             throw Failure(description: "no scenario “\(name)” (try \(names.joined(separator: ", ")))")
         }
@@ -686,6 +689,41 @@ extension Scenarios {
         return Made(state: state, focus: .unit(builder),
                     note: "Quarry on Stone at \(text(places[0])), Plantation on Wine at \(text(places[1])), Iron at \(text(places[2])), "
                         + "Horses at \(text(places[3])); the Builder on Deer at \(text(places[4])) offers a Camp")
+    }
+
+    /// M2 §3.3: `resources`, plus roads laid by hand from the capital out through its land and
+    /// two tiles beyond, and the Quarry pillaged; The Wheel learnt, so the Builder's card
+    /// offers a Road.
+    static func roads(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        var made = try resources(&state)
+        state = made.state
+        DebugTools.learnTech("theWheel", player: viewer, in: &state)
+        let centre = try home(state)
+        let map = state.map
+        var line = [centre]
+        var at = centre
+        for direction in [HexDirection.allCases[0], HexDirection.allCases[0], HexDirection.allCases[1], HexDirection.allCases[0]] {
+            guard let next = map.normalize(at.neighbor(direction)), state.rules.isPassable(map[next]), !map[next].terrain.isWater else { break }
+            line.append(next)
+            at = next
+        }
+        for direction in HexDirection.allCases.dropFirst(3).prefix(2) {
+            if let next = map.normalize(centre.neighbor(direction)), state.rules.isPassable(map[next]) { line.append(next) }
+        }
+        // Laid by Builders, so every player's memory of the tiles follows (`buildRoad`).
+        for hex in line where !state.map[hex].hasRoad {
+            let builder = state.addUnit(.builder, owner: viewer, at: hex)
+            _ = try? GameEngine.apply(.buildRoad(unit: builder), by: viewer, to: &state)
+            _ = try? GameEngine.apply(.disband(unit: builder), by: viewer, to: &state)
+        }
+        if let quarry = state.map.tiles.indices.first(where: { state.map.tiles[$0].improvement == .quarry }) {
+            state.map[index: quarry].pillaged = true
+        }
+        DebugTools.refreshAllKnowledge(in: &state)
+        made.state = state
+        made.note = "roads on " + line.map { "\($0.q) \($0.r)" }.joined(separator: ", ") + "; the Quarry pillaged; " + (made.note ?? "")
+        return made
     }
 
     static func tribalVillages(_ state: inout GameState) throws -> Made {

@@ -378,6 +378,41 @@ extension AITurn {
         bestImprovement(at: v.coord(at: t), v)
     }
 
+    /// M2 §3.3: the tiles a road between each own city (after the first, id order) and the nearest
+    /// earlier one (within roadMaxDistance tiles) still needs, along the cheapest known-terrain
+    /// route: explored land, own or unowned, without a remembered road and not a city centre.
+    /// Empty without the road tech.
+    func roadWork(_ v: PlayerView) -> [Int] {
+        guard let roads = rules.roads, v.me.knows(roads.tech) else { return [] }
+        let cities = v.cities.sorted { $0.id.rawValue < $1.id.rawValue }
+        let centres = Set(cities.compactMap { v.index(of: $0.position) })
+        let mine = UInt8(player.rawValue + 1)
+        var result: [Int] = []
+        for (i, city) in cities.enumerated() where i > 0 {
+            guard let target = cities[..<i].min(by: { a, b in
+                (v.distance(a.position, city.position), a.id.rawValue) < (v.distance(b.position, city.position), b.id.rawValue)
+            }), v.distance(target.position, city.position) <= Self.roadMaxDistance else { continue }
+            let field = v.aiTerrainCostField(from: [target.position], limit: Self.roadMaxDistance * 4)
+            guard var t = v.index(of: city.position), field[t] > 0 else { continue }
+            while field[t] > 0 {
+                var next: Int?
+                for n in v.neighbors(of: v.coord(at: t)).compactMap({ v.index(of: $0) }) where field[n] >= 0 && field[n] < field[t] {
+                    if let b = next, (field[b], b) <= (field[n], n) { continue }
+                    next = n
+                }
+                guard let n = next else { break }
+                t = n
+                guard !centres.contains(t), v.me.explored[t], !v.me.memory.remembersRoad(t) else { continue }
+                let owner = v.me.memory.tileOwner[t]
+                guard owner == 0 || owner == mine, let tile = v.tile(at: v.coord(at: t)), tile.isLand, rules.isPassable(tile) else { continue }
+                if !result.contains(t) { result.append(t) }
+            }
+        }
+        return result
+    }
+
+    static let roadMaxDistance = 8
+
     // MARK: Purchases
 
     /// Defenders bought for threatened cities short of their quota (M1 §13: gold ≥ price +

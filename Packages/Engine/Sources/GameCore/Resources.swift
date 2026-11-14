@@ -23,7 +23,7 @@ extension GameState {
     func isImprovedSource(_ t: Int) -> Bool {
         let tile = map.tiles[t]
         guard let owner = tileOwner(t), let r = knownResource(at: t, for: owner), let def = rules.resource(r),
-              let improvement = tile.improvement else { return false }
+              let improvement = tile.improvement, !tile.isPillaged else { return false }
         return caseName(improvement) == def.improvement
     }
 
