@@ -274,6 +274,8 @@ struct GameReport {
     /// Insights fired, per player.
     var insights: [Int] = []
     var promotions = 0
+    /// The turn a player first completed the civic tree (M2 §19: 120–140).
+    var civicTreeDone: Int?
     var upgrades = 0
     /// Turns that ended with some pair of players at war.
     var turnsAtWar = 0
@@ -363,6 +365,7 @@ struct GameReport {
         return "world era: " + (eras.isEmpty ? "unchanged" : eras.joined(separator: ", "))
             + "; insights " + (fired.isEmpty ? "none" : fired.joined(separator: ", "))
             + "; promotions \(promotions), upgrades \(upgrades)"
+            + "; civic tree first done " + (civicTreeDone.map { "t\($0)" } ?? "never")
     }
 
     /// "resources: 52 bonus, 30 luxury, 24 strategic; improved 18; pasture 9, …; stock p0 horses 12/2 iron 0/0" (M2 §3.1).
@@ -452,7 +455,7 @@ struct GameReport {
         let t = tallies[player.id.rawValue]
         return "  \(player.id) \(player.name): " + (player.isAlive ? "" : "eliminated, ")
             + "\(cities.count) cities (founded \(t.founded), 3rd " + (t.thirdCityTurn.map { "t\($0)" } ?? "never") + "), "
-            + "population \(cities.reduce(0) { $0 + $1.population }), \(player.knownTechs.count) techs, "
+            + "population \(cities.reduce(0) { $0 + $1.population }), \(player.knownTechs.count) techs, \(player.knownCivics?.count ?? 0) civics, "
             + "\(state.militaryUnitCount(of: player.id)) military, "
             + "\(state.units(of: player.id).filter(\.type.isNaval).count) ships "
             + "(\(state.cities(of: player.id).filter { state.view(for: player.id).isCoastal($0) }.count) coastal cities), "
@@ -699,6 +702,10 @@ func playGame(seed: UInt64, _ o: Options, verbose: Bool) -> GameReport {
             if o.mode == .ai {
                 report.observer.endOfPhase(player, turn: turn, state: state)
                 report.early.endOfPhase(player, turn: turn, state: state)
+            }
+            if report.civicTreeDone == nil, !state.rules.civics.isEmpty,
+               state.players.contains(where: { ($0.knownCivics?.count ?? 0) == state.rules.civics.count }) {
+                report.civicTreeDone = turn
             }
             if state.turn != turn {
                 if state.players.indices.contains(where: { a in

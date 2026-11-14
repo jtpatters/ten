@@ -404,4 +404,13 @@ extension AITurn {
             issue(.setResearch(tech: next))
         }
     }
+
+    /// Civic orders (M2 §17.2): the cheapest civic whose prerequisites are done, tree order on ties.
+    mutating func chooseCivic() {
+        let v = view
+        guard v.me.studying == nil else { return }
+        let open = v.rules.civics.filter { c in !v.me.knowsCivic(c.id) && c.requires.allSatisfy(v.me.knowsCivic) }
+        guard let next = open.min(by: { $0.cost < $1.cost }) else { return }
+        issue(.setCivic(civic: next.id))
+    }
 }

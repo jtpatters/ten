@@ -30,6 +30,8 @@ public enum Command: Codable, Hashable, Sendable {
     case setFocus(city: CityID, focus: CityFocus)
     /// Research a tech, through its missing prerequisites (M1 §6).
     case setResearch(tech: TechID)
+    /// Study `civic`, through its missing prerequisites (M2 §7.1).
+    case setCivic(civic: CivicID)
     /// Declare war on a player met and at peace with (M1 §9).
     case declareWar(on: PlayerID)
     /// Propose peace to a player at war with (M1 §9); it answers in its own phase.
@@ -109,6 +111,7 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case cityJoined(city: CityID, name: String, from: PlayerID, to: PlayerID, at: HexCoord)
     case productionCompleted(city: CityID, item: ProductionItem, at: HexCoord)
     case techResearched(player: PlayerID, tech: TechID)
+    case civicCompleted(player: PlayerID, civic: CivicID)
     case borderGrew(city: CityID, tile: HexCoord)
     case improvementBuilt(improvement: Improvement, at: HexCoord, owner: PlayerID)
     case playersMet(PlayerID, PlayerID)
@@ -126,6 +129,7 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case gameOver(GameOutcome)
     /// A tech's Insight fired for `player` (M2 §6.2): `credit` science toward it.
     case insightGained(player: PlayerID, tech: TechID, credit: Int)
+    case civicInsightGained(player: PlayerID, civic: CivicID, credit: Int)
     /// The world entered era `era` (an index into the rules' eras, M2 §2).
     case worldEraAdvanced(era: Int)
     /// A unit upgraded in place (M2 §8.2).
@@ -285,6 +289,11 @@ public enum GameEngine {
             guard state.rules.tech(tech) != nil else { throw .rejected(reason: "no such tech") }
             guard !state.players[player.rawValue].knows(tech) else { throw .rejected(reason: "already known") }
             state.setResearch(tech, for: player)
+
+        case let .setCivic(civic):
+            guard state.rules.civic(civic) != nil else { throw .rejected(reason: "no such civic") }
+            guard !state.players[player.rawValue].knowsCivic(civic) else { throw .rejected(reason: "already known") }
+            state.setCivic(civic, for: player)
 
         case let .attack(id, target):
             let unit = try ownedUnit(id, by: player, in: state)

@@ -53,6 +53,16 @@ public struct Player: Codable, Hashable, Sendable {
     public internal(set) var stockpile: [Int]?
     /// What kind of player this is (M2 §12.5); nil is a major civ (left out of saves).
     public internal(set) var kind: PlayerKind?
+    /// The civic Culture goes into (M2 §7.1); nil: Culture banks as progress.
+    public internal(set) var studying: CivicID?
+    /// The civic `setCivic` asked for; `studying` walks its missing prerequisites first.
+    public internal(set) var civicTarget: CivicID?
+    /// Culture toward `studying` (or banked). Nil until the first (left out of saves).
+    public internal(set) var civicProgress: Int?
+    /// Completed civics, sorted. Nil until the first (left out of saves).
+    public internal(set) var knownCivics: [CivicID]?
+    /// Civics whose Insight fired, sorted. Nil until the first (left out of saves).
+    public internal(set) var civicInsights: [CivicID]?
 
     /// A civ that takes phases, researches and can win; not the Free Cities.
     public var isMajor: Bool { kind == nil || kind == .major }

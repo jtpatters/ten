@@ -74,9 +74,13 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public let loyalty: LoyaltyRules?
     /// Optional (M2 §7.4): absent, tiles cannot be bought.
     public let tileBuying: TileBuyingRules?
+    /// In tree order (M2 §7.1); empty in rules without civics.
+    public let civics: [CivicDef]
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
+    /// Per civic index: indices of its direct prerequisites.
+    let civicRequires: [[Int]]
     /// Per improvement ordinal, per (terrain, elevation, feature) combination: may it be built?
     private let improvementSites: [[Bool]]
 
@@ -142,6 +146,9 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         quarters = data.quarters
         loyalty = data.loyalty
         tileBuying = data.tileBuying
+        let civics = data.civics ?? []
+        self.civics = civics
+        civicRequires = civics.map { civic in civic.requires.map { r in civics.firstIndex { $0.id == r }! } }
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -187,6 +194,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public func tech(_ id: TechID) -> TechDef? { techs.first { $0.id == id } }
     /// Position in tree order.
     public func techIndex(_ id: TechID) -> Int? { techs.firstIndex { $0.id == id } }
+    public func civic(_ id: CivicID) -> CivicDef? { civics.first { $0.id == id } }
+    public func civicIndex(_ id: CivicID) -> Int? { civics.firstIndex { $0.id == id } }
     public func civ(_ id: CivID) -> CivDef? { civs.first { $0.id == id } }
 
     /// A quarter's cost in world era `worldEra` (M2 §5.3): its flat cost, or base + perEra × era.
@@ -369,6 +378,7 @@ struct RulesetData: Codable, Hashable, Sendable {
     /// Optional (M2 §5.5, §12.5): absent, cities have no Loyalty and there are no Free Cities.
     var loyalty: LoyaltyRules?
     var tileBuying: TileBuyingRules?
+    var civics: [CivicDef]?
 }
 
 /// What a resource is for (M2 §3.1).
@@ -771,6 +781,16 @@ public struct TechDef: Codable, Hashable, Sendable {
     public let insight: InsightDef?
 }
 
+/// A civic (M2 §7.1): researched with Culture like a tech with Science.
+public struct CivicDef: Codable, Hashable, Sendable {
+    public let id: CivicID
+    public let name: String
+    public let cost: Int
+    public let requires: [CivicID]
+    public let era: String?
+    public let insight: InsightDef?
+}
+
 /// An era (M2 §2). The rules' `eras` are in order: index 0 is the first era.
 /// A promotion (M2 §8.3): offered to units of `classes` at `tier`. Strength applies in a fight
 /// matching every condition given (`when` "attack"/"defend", `ranged`, the other side's class in
@@ -843,6 +863,16 @@ public enum InsightKind: String, Codable, Hashable, Sendable, CaseIterable {
     case killWith
     /// An own city with wall HP left survives an attack.
     case cityDefended
+    /// Own `count` quarters (of kind `target`, if given).
+    case ownQuarters
+    /// Have an own city of population `count`.
+    case cityPopulation
+    /// Have `count` own cities in Unrest or worse.
+    case cityInUnrest
+    /// Another player declared war on you.
+    case warDeclaredOn
+    /// Own `count` military units.
+    case ownMilitaryUnits
 }
 
 public struct InsightDef: Codable, Hashable, Sendable {
@@ -1287,6 +1317,22 @@ extension RulesetData {
             }
         }
         if let cycle = techCycle() { problems.append("techs: cycle through \(cycle)") }
+        let civicIDs = (civics ?? []).map(\.id)
+        check(Set(civicIDs).count == civicIDs.count, "civics: duplicate ids")
+        for (i, civic) in (civics ?? []).enumerated() {
+            check(civic.cost > 0, "civic \(civic.id): cost must be positive")
+            if let insight = civic.insight { problems += insightProblems(insight, "civic \(civic.id)") }
+            for r in civic.requires {
+                guard let j = civicIDs.firstIndex(of: r) else {
+                    problems.append("civic \(civic.id): unknown prerequisite \(r)")
+                    continue
+                }
+                check(j < i, "civic \(civic.id): prerequisite \(r) must come earlier (tree order)")
+            }
+        }
+        for q in quarters?.kinds ?? [] {
+            if let c = q.civic { check(civicIDs.contains(CivicID(c)) || civics == nil, "quarter \(q.id): unknown civic \(c)") }
+        }
         // Eras (M2 §2): every tech names a known era when the rules have eras, none otherwise;
         // eras never go back in tree order.
         let eraIDs = (eras ?? []).map(\.id)
@@ -1474,11 +1520,12 @@ extension RulesetData {
     /// Problems with an Insight's arguments (M2 §6.2).
     private func insightProblems(_ insight: InsightDef, _ context: String) -> [String] {
         var problems: [String] = []
-        let needsCount: Set<InsightKind> = [.ownCoastalCities, .meetPlayers, .ownCities, .buildImprovements, .ownBuildings, .ownUnits]
+        let needsCount: Set<InsightKind> = [.ownCoastalCities, .meetPlayers, .ownCities, .buildImprovements, .ownBuildings, .ownUnits,
+                                            .ownQuarters, .cityPopulation, .cityInUnrest, .ownMilitaryUnits]
         if needsCount.contains(insight.kind), (insight.count ?? 0) < 1 { problems.append("\(context): insight needs a count ≥ 1") }
         switch insight.kind {
         case .buildImprovements:
-            if !Improvement.allCases.contains(where: { caseName($0) == insight.target }) {
+            if insight.target != nil, !Improvement.allCases.contains(where: { caseName($0) == insight.target }) {
                 problems.append("\(context): insight improvement \(insight.target ?? "nil") unknown")
             }
         case .ownBuildings:
@@ -1489,7 +1536,10 @@ extension RulesetData {
             if UnitType(rawValue: insight.target ?? "") == nil { problems.append("\(context): insight unit \(insight.target ?? "nil") unknown") }
         case .killWith:
             if (insight.classes ?? []).isEmpty { problems.append("\(context): insight needs classes") }
-        case .ownCoastalCities, .meetPlayers, .ownCities, .cityDefended:
+        case .ownQuarters:
+            if let t = insight.target, !(quarters?.kinds ?? []).contains(where: { $0.id.rawValue == t }) { problems.append("\(context): insight quarter \(t) unknown") }
+        case .ownCoastalCities, .meetPlayers, .ownCities, .cityDefended, .cityPopulation, .cityInUnrest, .warDeclaredOn,
+             .ownMilitaryUnits:
             break
         }
         if insight.text.isEmpty { problems.append("\(context): insight text is empty") }

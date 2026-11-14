@@ -38,7 +38,8 @@ extension GameState {
     /// Each event marks the kinds it can affect for the players it concerns; only those are
     /// evaluated, from the state after the command.
     mutating func checkInsights(_ fx: inout Effects) {
-        guard let progression = rules.progression, rules.techs.contains(where: { $0.insight != nil }) else { return }
+        guard let progression = rules.progression,
+              rules.techs.contains(where: { $0.insight != nil }) || rules.civics.contains(where: { $0.insight != nil }) else { return }
         var dirty = [Set<InsightKind>](repeating: [], count: players.count)
         var kills = [[(by: UnitClass, of: UnitClass)]](repeating: [], count: players.count)
         var defended = [Bool](repeating: false, count: players.count)
@@ -56,14 +57,20 @@ extension GameState {
                 mark(b, .meetPlayers)
             case let .cityFounded(_, _, owner, _):
                 mark(owner, .ownCities, .ownCoastalCities)
+            case let .warDeclared(_, on):
+                mark(on, .warDeclaredOn)
+            case let .cityGrew(city, _, _):
+                if let owner = self.city(city)?.owner { mark(owner, .cityPopulation) }
+            case let .phaseStarted(_, player):
+                mark(player, .cityInUnrest)
             case let .cityCaptured(_, _, _, to, _):
                 mark(to, .ownCities, .ownCoastalCities, .ownBuildings)
             case let .improvementBuilt(_, _, owner):
                 mark(owner, .buildImprovements)
             case let .productionCompleted(city, _, _):
-                if let owner = self.city(city)?.owner { mark(owner, .ownBuildings, .ownUnits) }
+                if let owner = self.city(city)?.owner { mark(owner, .ownBuildings, .ownUnits, .ownQuarters, .ownMilitaryUnits) }
             case let .unitCreated(_, _, owner, _):
-                mark(owner, .ownUnits)
+                mark(owner, .ownUnits, .ownMilitaryUnits)
             case let .unitCaptured(_, _, _, _, to, _):
                 mark(to, .ownUnits)
             case let .combat(.unit(attacker), .unit(defender), _, _, _, _, _):
@@ -100,6 +107,15 @@ extension GameState {
                 players[p].insights = ((players[p].insights ?? []) + [tech.id]).sorted()
                 fx.emit(.insightGained(player: PlayerID(p), tech: tech.id, credit: credit), .owner(PlayerID(p)))
             }
+            for civic in rules.civics {
+                guard let insight = civic.insight, dirty[p].contains(insight.kind), !players[p].knowsCivic(civic.id),
+                      players[p].civicInsights?.contains(civic.id) != true else { continue }
+                let fired = insight.kind == .warDeclaredOn || insightCount(insight, for: PlayerID(p)) >= (insight.count ?? 1)
+                guard fired else { continue }
+                players[p].civicInsights = ((players[p].civicInsights ?? []) + [civic.id]).sorted()
+                let credit = civic.cost * progression.insightPct / 100
+                fx.emit(.civicInsightGained(player: PlayerID(p), civic: civic.id, credit: credit), .owner(PlayerID(p)))
+            }
         }
     }
 
@@ -117,9 +133,10 @@ extension GameState {
                 }
             }
         case .buildImprovements:
-            guard let kind = Improvement.allCases.first(where: { caseName($0) == insight.target }) else { return 0 }
+            let kind = Improvement.allCases.first { caseName($0) == insight.target }
+            guard kind != nil || insight.target == nil else { return 0 }
             return map.tiles.indices.count { t in
-                map.tiles[t].improvement == kind && tileCity[t] > 0 && city(CityID(Int(tileCity[t]) - 1))?.owner == player
+                map.tiles[t].improvement != nil && (kind == nil || map.tiles[t].improvement == kind) && tileCity[t] > 0 && city(CityID(Int(tileCity[t]) - 1))?.owner == player
             }
         case .ownBuildings:
             let id = BuildingID(stringLiteral: insight.target ?? "")
@@ -127,7 +144,22 @@ extension GameState {
         case .ownUnits:
             guard let type = UnitType(rawValue: insight.target ?? "") else { return 0 }
             return units.count { $0.owner == player && $0.type == type }
-        case .killWith, .cityDefended:
+        case .ownQuarters:
+            return cities.reduce(0) { n, city in
+                guard city.owner == player else { return n }
+                return n + (city.quarters ?? []).count { insight.target == nil || $0.kind.rawValue == insight.target }
+            }
+        case .cityPopulation:
+            return cities.filter { $0.owner == player }.map(\.population).max() ?? 0
+        case .cityInUnrest:
+            return cities.count { city in
+                guard city.owner == player, let value = city.stability else { return false }
+                let state = rules.stabilityState(value)
+                return state == .unrest || state == .revolt
+            }
+        case .ownMilitaryUnits:
+            return units.count { $0.owner == player && rules.unit($0.type).isMilitary }
+        case .killWith, .cityDefended, .warDeclaredOn:
             return 0
         }
     }

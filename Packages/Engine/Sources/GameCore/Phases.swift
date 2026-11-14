@@ -41,7 +41,7 @@ extension GameState {
 
         updateStability(for: player)
         updateLoyalty(for: player, &fx)
-        var gold = 0, science = 0
+        var gold = 0, science = 0, culture = 0
         for index in cities.indices where cities[index].owner == player {
             assignCitizens(index)
             let yields = cityYields(cities[index])
@@ -53,10 +53,12 @@ extension GameState {
             assignCitizens(index)
             gold += yields.total.gold
             science += yields.total.science
+            culture += yields.total.culture
         }
 
         let shortfall = runGold(for: player, income: gold, &fx)
         runResearch(for: player, science: max(0, science - shortfall), &fx)
+        if players[player.rawValue].isMajor { runCivics(for: player, culture: culture, &fx) }
         runStockpiles(for: player)
 
         let ids = units.compactMap { $0.owner == player ? $0.id : nil }

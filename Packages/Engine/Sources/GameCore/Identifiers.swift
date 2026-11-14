@@ -15,6 +15,19 @@ public struct CityID: Hashable, Codable, Sendable, Comparable, CustomStringConve
 // Buildings, techs and civs are defined by the rules data, so their IDs are strings (the
 // data's keys). Each encodes as a plain JSON string and orders by its raw value.
 
+public struct CivicID: Hashable, Codable, Sendable, Comparable, ExpressibleByStringLiteral, CustomStringConvertible {
+    public let rawValue: String
+    public init(_ rawValue: String) { self.rawValue = rawValue }
+    public init(stringLiteral value: String) { self.init(value) }
+    public init(from decoder: Decoder) throws { rawValue = try decoder.singleValueContainer().decode(String.self) }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+    public static func < (a: CivicID, b: CivicID) -> Bool { a.rawValue < b.rawValue }
+    public var description: String { rawValue }
+}
+
 public struct TechID: Hashable, Codable, Sendable, Comparable, ExpressibleByStringLiteral, CustomStringConvertible {
     public let rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }

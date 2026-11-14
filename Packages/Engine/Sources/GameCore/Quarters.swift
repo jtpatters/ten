@@ -37,7 +37,9 @@ extension GameState {
         guard let def = rules.quarter(kind) else { return "no such quarter" }
         if quarter(kind, of: city) != nil { return "already built" }
         if let tech = def.tech, !players[city.owner.rawValue].knows(tech) { return "needs \(techName(tech))" }
-        if def.civic != nil { return "needs a civic" }
+        if let civic = def.civic.map({ CivicID($0) }), !players[city.owner.rawValue].knowsCivic(civic) {
+            return "needs \(rules.civic(civic)?.name ?? "a civic")"
+        }
         if countsTowardCap(kind), cappedQuarterCount(city) >= quarterCap(of: city) {
             return "needs population \(quarterCap(of: city) * (rules.quarters?.populationPerQuarter ?? 3))"
         }

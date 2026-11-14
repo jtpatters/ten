@@ -147,6 +147,9 @@ extension GameState {
             check(p.gold >= 0, "\(p.id) gold \(p.gold)")
             check(p.knownTechs == p.knownTechs.sorted() && Set(p.knownTechs).count == p.knownTechs.count, "\(p.id) techs not sorted")
             check(p.knownTechs.allSatisfy { rules.tech($0) != nil }, "\(p.id) knows an unknown tech")
+            let civics = p.knownCivics ?? []
+            check(civics == civics.sorted() && Set(civics).count == civics.count, "\(p.id) civics not sorted")
+            check(civics.allSatisfy { rules.civic($0) != nil }, "\(p.id) knows an unknown civic")
             if let current = p.researching { check(!p.knows(current), "\(p.id) researches a known tech") }
             let palaces = cities.filter { $0.owner == p.id && $0.has(palace) }
             check(palaces.count <= 1, "\(p.id) has \(palaces.count) palaces")
