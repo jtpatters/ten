@@ -205,7 +205,7 @@ public struct PlayerView: Sendable {
 
     public func upgradeCost(_ id: UnitID) -> Int? {
         guard isMyPhase, let u = state.unit(id), u.owner == player, state.upgradeProblem(u) == nil else { return nil }
-        return state.upgradeCost(of: u.type)
+        return state.upgradeCost(of: u.type, for: player)
     }
 
     public func unit(_ id: UnitID) -> Unit? {
@@ -335,7 +335,7 @@ public struct PlayerView: Sendable {
             let cost = rules.cost(of: item)
             var turns = production > 0 ? max(1, (max(0, cost - stored) + production - 1) / production) : nil
             if case .building = item, let row = queue.first(where: { $0.item == item }) { turns = row.turns }
-            let price = state.purchasePrice(of: item)
+            let price = state.purchasePrice(of: item, for: player)
             var queueProblem = state.itemProblem(item, in: city)
             if queueProblem == nil {
                 if city.queue.count >= maxQueue { queueProblem = "queue full" }

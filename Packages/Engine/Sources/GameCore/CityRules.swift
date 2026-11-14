@@ -183,7 +183,7 @@ extension GameState {
             return
         }
         let item = city.queue[slot].item
-        let cost = cost(of: city.queue[slot])
+        let cost = cost(of: city.queue[slot], owner: city.owner)
         let progress = city.queue[slot].progress + production + city.storedProgress
         cities[index].storedProgress = 0
         guard progress >= cost else {
@@ -252,11 +252,15 @@ extension GameState {
     }
 
     /// The production a queue entry needs: a quarter's fixed cost, else the rules'.
-    public func cost(of entry: QueueEntry) -> Int { entry.cost ?? rules.cost(of: entry.item) }
+    public func cost(of entry: QueueEntry, owner: PlayerID? = nil) -> Int {
+        entry.cost ?? owner.map { productionCost(of: entry.item, for: $0) } ?? rules.cost(of: entry.item)
+    }
 
-    /// The gold price of an item (M1 §5).
-    public func purchasePrice(of item: ProductionItem) -> Int {
-        rules.cost(of: item) * rules.constants.production.purchaseCostMultiplier
+    /// The gold price of an item (M1 §5), with `player`'s cost cuts and buying discount (M2 §7).
+    public func purchasePrice(of item: ProductionItem, for player: PlayerID? = nil) -> Int {
+        guard let player else { return rules.cost(of: item) * rules.constants.production.purchaseCostMultiplier }
+        let price = productionCost(of: item, for: player) * rules.constants.production.purchaseCostMultiplier
+        return price - price * min(90, bonus(\.buyPct, for: player)) / 100
     }
 
     // MARK: Growth

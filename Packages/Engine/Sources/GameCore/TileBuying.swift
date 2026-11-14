@@ -4,7 +4,8 @@ extension GameState {
     /// What `city`'s next tile costs; nil when the rules have no tile buying.
     public func tilePrice(for city: City) -> Int? {
         guard let t = rules.tileBuying else { return nil }
-        return t.base + t.perTile * (city.tilesBought ?? 0)
+        let price = t.base + t.perTile * (city.tilesBought ?? 0)
+        return price - price * min(90, bonus(\.tileBuyPct, for: city.owner)) / 100
     }
 
     /// Why `city` cannot buy `tile` (nil: it can, given the Gold): the tile must be unowned,

@@ -68,10 +68,11 @@ extension GameState {
             improvement = i
             map[index: t].pillaged = true
             let maxHP = rules.constants.healing.maxHP
+            let pct = 100 + bonus(\.pillageBonusPct, for: unit.owner)
             if unit.hp < maxHP {
-                healed = min(roads.pillageHeal, maxHP - unit.hp)
+                healed = min(roads.pillageHeal * pct / 100, maxHP - unit.hp)
             } else {
-                gold = roads.pillageGold
+                gold = roads.pillageGold * pct / 100
                 players[unit.owner.rawValue].gold += gold
                 fx.touchPlayer(unit.owner)
             }

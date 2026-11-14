@@ -15,6 +15,8 @@ public enum YieldSource: Hashable, Sendable {
     case building(BuildingID)
     /// The city's Stability state (M2 §5.2): a percentage of every yield but Food.
     case stability
+    /// The government and policies (M2 §7.2–7.3).
+    case government
     /// A quarter's adjacency bonus (M2 §5.3).
     case quarter(QuarterKind)
 }
@@ -143,6 +145,8 @@ extension GameState {
             if let def = rules.building(id), !def.yields.isZero { breakdown.append((.building(id), def.yields)) }
         }
         for (kind, yields) in quarterYields(city) { breakdown.append((.quarter(kind), yields)) }
+        let government = governmentYields(city)
+        if !government.isZero { breakdown.append((.government, government)) }
         var total = breakdown.reduce(Yields.zero) { $0 + $1.1 }
         let pct = rules.stabilityYieldPct(rules.stabilityState(city.stability ?? 0))
         if pct != 0 {

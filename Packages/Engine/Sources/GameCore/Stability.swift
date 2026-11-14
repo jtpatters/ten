@@ -15,7 +15,9 @@ public struct HousingBreakdown: Hashable, Sendable {
     /// From worked Farms, Pastures, Plantations and Camps.
     public var improvements: Int
     public var quarters = 0
-    public var total: Int { base + buildings + improvements + quarters }
+    /// From the government and policies (M2 §7.2–7.3).
+    public var government = 0
+    public var total: Int { base + buildings + improvements + quarters + government }
 }
 
 /// A city's Stability by source (M2 §5.2): supply minus need and penalties.
@@ -28,11 +30,13 @@ public struct StabilityBreakdown: Hashable, Sendable {
     public var occupied = 0
     /// From Arenas in reach (M2 §5.2).
     public var quarters = 0
+    /// From the government and policies (M2 §7.2–7.3).
+    public var government = 0
 
     public init() {}
 
     /// Supply − need − penalties (the penalties are negative or 0).
-    public var total: Int { buildings + luxuries + quarters - need + empireSize + overcrowding + occupied }
+    public var total: Int { buildings + luxuries + quarters + government - need + empireSize + overcrowding + occupied }
 }
 
 extension Ruleset {
@@ -80,8 +84,13 @@ extension GameState {
             guard let def = rules.quarter(q.kind) else { continue }
             quarters += (fresh ? nil : def.housingNoFreshWater) ?? def.housing ?? 0
         }
+        var government = 0
+        if city.buildings.contains(where: { (rules.building($0)?.wallHP ?? 0) > 0 }) {
+            government += bonus(\.wallsHousing, for: city.owner)
+        }
+        if (city.quarters?.count ?? 0) >= 2 { government += bonus(\.quartersHousing, for: city.owner) }
         return HousingBreakdown(base: base, buildings: buildings, improvements: improved / max(1, h.improvedTilesPerHousing),
-                                quarters: quarters)
+                                quarters: quarters, government: government)
     }
 
     /// Percent of a positive food surplus that goes into the store (M2 §5.1, §5.2).
@@ -105,6 +114,7 @@ extension GameState {
         let own = cities.indices.filter { cities[$0].owner == player }
         let empire = own.count > s.freeCities ? -((own.count - s.freeCities) / max(1, s.citiesPerPenalty)) : 0
         var result: [Int: StabilityBreakdown] = [:]
+        let quarterStability = bonus(\.quarterStability, for: player), garrisonStability = bonus(\.garrisonStability, for: player)
         for i in own {
             let city = cities[i]
             var b = StabilityBreakdown()
@@ -118,6 +128,8 @@ extension GameState {
             b.empireSize = empire
             b.overcrowding = -max(0, city.population - housing(of: city).total)
             if let captured = city.capturedTurn, turn - captured <= s.occupiedTurns { b.occupied = s.occupied }
+            if !(city.quarters ?? []).isEmpty { b.government += quarterStability }
+            if garrisonStability != 0, hasGarrison(city) { b.government += garrisonStability }
             result[i] = b
         }
         let sources = improvedSources(of: player)

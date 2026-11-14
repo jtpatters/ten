@@ -101,3 +101,100 @@ extension PlayerView {
     public func policyChangeCost(to ids: [String]) -> Int { state.policyChangeCost(to: ids, for: player) }
     public func policiesProblem(_ ids: [String]) -> String? { state.policiesProblem(ids, for: player) }
 }
+
+// MARK: - Effects (M2 §4.3, §7.2–7.3)
+
+extension GameState {
+    /// The % cut `player`'s government and policies give the production cost of `item` (max 90).
+    public func costCutPct(_ item: ProductionItem, for player: PlayerID) -> Int {
+        let pct = bonuses(of: player).reduce(0) { sum, b in
+            sum + (b.costCuts ?? []).reduce(0) { $0 + (cutApplies($1, to: item) ? $1.pct : 0) }
+        }
+        return min(90, pct)
+    }
+
+    func cutApplies(_ cut: CostCut, to item: ProductionItem) -> Bool {
+        switch item {
+        case let .unit(type):
+            if let units = cut.units { return units.contains(type) }
+            let def = rules.unit(type)
+            guard let classes = cut.classes, classes.contains(def.unitClass) else { return false }
+            guard let maxEra = cut.maxEra else { return true }
+            func era(_ id: String?) -> Int { id.flatMap { e in rules.eras.firstIndex { $0.id == e } } ?? 0 }
+            return era(def.tech.flatMap { rules.tech($0)?.era }) <= era(maxEra)
+        case let .building(id):
+            if let buildings = cut.buildings { return buildings.contains(id.rawValue) }
+            return cut.centre == true && cut.units == nil && cut.classes == nil && rules.building(id)?.quarter == nil
+        case .quarter:
+            return false
+        }
+    }
+
+    /// The production `item` costs `player`, after cost cuts.
+    public func productionCost(of item: ProductionItem, for player: PlayerID) -> Int {
+        let cost = rules.cost(of: item)
+        return cost - cost * costCutPct(item, for: player) / 100
+    }
+
+    /// Yields a city gets from its owner's government and policies.
+    func governmentYields(_ city: City) -> Yields {
+        let bonuses = bonuses(of: city.owner)
+        guard !bonuses.isEmpty else { return .zero }
+        let quarters = (city.quarters ?? []).filter { !$0.isPillaged }.count
+        var y = Yields(production: bonuses.reduce(0) { $0 + ($1.cityProduction ?? 0) },
+                       culture: quarters * bonuses.reduce(0) { $0 + ($1.quarterCulture ?? 0) })
+        if players[city.owner.rawValue].capital == city.id {
+            for b in bonuses { if let c = b.capitalYields { y += c } }
+        }
+        return y
+    }
+
+    func hasGarrison(_ city: City) -> Bool {
+        units.contains { $0.position == city.position && $0.owner == city.owner && !$0.type.isCivilian }
+    }
+
+    /// Strength from the owner's government and policies: class bonuses, and in enemy territory.
+    func governmentStrength(of unit: Unit) -> Int {
+        let bonuses = bonuses(of: unit.owner)
+        guard !bonuses.isEmpty else { return 0 }
+        let cls = rules.unit(unit.type).unitClass
+        var s = bonuses.reduce(0) { sum, b in
+            sum + (b.strength ?? []).reduce(0) { $0 + ($1.classes.contains(cls) ? $1.amount : 0) }
+        }
+        let territory = bonuses.reduce(0) { $0 + ($1.enemyTerritoryStrength ?? 0) }
+        if territory != 0, let t = map.index(of: unit.position), let owner = tileOwner(t),
+           owner != unit.owner, isAtWar(owner, unit.owner) {
+            s += territory
+        }
+        return s
+    }
+
+    /// Influence per turn (M2 §4.3): the Palace, the government and policies.
+    public func influenceIncome(of player: PlayerID) -> Int {
+        guard let g = rules.governance, players[player.rawValue].isMajor else { return 0 }
+        let palace = players[player.rawValue].capital != nil ? g.palaceInfluence : 0
+        let cities = cities.reduce(0) { $0 + ($1.owner == player ? 1 : 0) }
+        return palace + bonus(\.influence, for: player) + bonus(\.influencePerFourCities, for: player) * (cities / 4)
+    }
+
+    /// Influence needed for `player`'s next envoy token.
+    public func envoyThreshold(for player: PlayerID) -> Int {
+        guard let g = rules.governance else { return 0 }
+        return min(g.envoyMax, g.envoyBase + g.envoyStep * (players[player.rawValue].envoysEarned ?? 0))
+    }
+
+    /// At the end of a major civ's phase: adds the turn's Influence and turns it into envoy tokens.
+    mutating func runInfluence(for player: PlayerID, _ fx: inout Effects) {
+        guard rules.governance != nil else { return }
+        let p = player.rawValue
+        var influence = (players[p].influence ?? 0) + influenceIncome(of: player)
+        while influence >= envoyThreshold(for: player), envoyThreshold(for: player) > 0 {
+            influence -= envoyThreshold(for: player)
+            players[p].envoysEarned = (players[p].envoysEarned ?? 0) + 1
+            players[p].envoyTokens = (players[p].envoyTokens ?? 0) + 1
+            fx.emit(.envoyEarned(player: player, tokens: players[p].envoyTokens!), .owner(player))
+        }
+        players[p].influence = influence
+        fx.touchPlayer(player)
+    }
+}

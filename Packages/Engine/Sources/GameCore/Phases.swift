@@ -58,7 +58,10 @@ extension GameState {
 
         let shortfall = runGold(for: player, income: gold, &fx)
         runResearch(for: player, science: max(0, science - shortfall), &fx)
-        if players[player.rawValue].isMajor { runCivics(for: player, culture: culture, &fx) }
+        if players[player.rawValue].isMajor {
+            runCivics(for: player, culture: culture, &fx)
+            runInfluence(for: player, &fx)
+        }
         runStockpiles(for: player)
 
         let ids = units.compactMap { $0.owner == player ? $0.id : nil }

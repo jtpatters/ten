@@ -1668,6 +1668,12 @@ public struct GovernanceRules: Codable, Hashable, Sendable {
     public let policySwapGoldPerEra: Int
     /// A paid government change costs this many turns of Gold income, rounded to 10.
     public let govChangeTurnsOfGold: Int
+    /// Influence per turn from the Palace (M2 §4.3).
+    public let palaceInfluence: Int
+    /// Influence for the next envoy token: base + step × tokens earned, at most max.
+    public let envoyBase: Int
+    public let envoyStep: Int
+    public let envoyMax: Int
     public let governments: [GovernmentDef]
     public let policies: [PolicyDef]
 }

@@ -117,7 +117,8 @@ extension GameState {
                 if match { halves += a.halves }
             }
         }
-        return halves / 2
+        let doubled = bonuses(of: owner).contains { $0.adjacencyDouble?.contains(kind.rawValue) == true }
+        return halves / 2 * (doubled ? 2 : 1)
     }
 
     /// A specialist's yields in a quarter of `kind` (M2 §5.3): +2 of the quarter's yield;

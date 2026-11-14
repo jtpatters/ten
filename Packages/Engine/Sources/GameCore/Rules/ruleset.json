@@ -192,6 +192,7 @@
     ],
     "governance": {
         "defaultGovernment": "despotism", "policySwapGold": 50, "policySwapGoldPerEra": 10, "govChangeTurnsOfGold": 5,
+        "palaceInfluence": 1, "envoyBase": 25, "envoyStep": 5, "envoyMax": 60,
         "governments": [
             {"id": "despotism", "name": "Despotism", "slots": [0, 0, 0, 1]},
             {"id": "chiefdom", "name": "Chiefdom", "civic": "codeOfLaws", "slots": [1, 1, 0, 0], "bonuses": {"influence": 1}},

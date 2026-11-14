@@ -166,7 +166,7 @@ extension PlayerView {
         // population (food comes first) and the production has reached its cost.
         let fillLimit = state.waitingHeadFillLimit(city)
         return city.queue.enumerated().map { index, entry in
-            let cost = state.cost(of: entry)
+            let cost = state.cost(of: entry, owner: city.owner)
             var wait = productionWait(entry.item, in: city)
             if index == 0, let limit = fillLimit, case let .unit(type) = entry.item {
                 let def = rules.unit(type)
@@ -289,7 +289,7 @@ extension PlayerView {
                   let entry = city.queue.first(where: { productionWait($0.item, in: city) == nil }),
                   case let .unit(type) = entry.item, !type.isCivilian else { return count }
             let production = state.cityYields(city).total.production
-            return entry.progress + city.storedProgress + production >= state.cost(of: entry) ? count + 1 : count
+            return entry.progress + city.storedProgress + production >= state.cost(of: entry, owner: city.owner) ? count + 1 : count
         }
     }
 

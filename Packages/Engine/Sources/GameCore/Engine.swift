@@ -116,6 +116,8 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case productionCompleted(city: CityID, item: ProductionItem, at: HexCoord)
     case techResearched(player: PlayerID, tech: TechID)
     case civicCompleted(player: PlayerID, civic: CivicID)
+    /// M2 §4.3: Influence reached the envoy threshold; `tokens` is the new total.
+    case envoyEarned(player: PlayerID, tokens: Int)
     case borderGrew(city: CityID, tile: HexCoord)
     case improvementBuilt(improvement: Improvement, at: HexCoord, owner: PlayerID)
     case playersMet(PlayerID, PlayerID)
@@ -272,7 +274,7 @@ public enum GameEngine {
             if let problem = state.itemProblem(item, in: city) ?? state.completionProblem(item, in: city) {
                 throw .rejected(reason: problem)
             }
-            let price = state.purchasePrice(of: item)
+            let price = state.purchasePrice(of: item, for: player)
             guard state.players[player.rawValue].gold >= price else { throw .rejected(reason: "needs \(price) gold") }
             state.purchase(item, inCity: index, price: price, &fx)
 
@@ -309,6 +311,7 @@ public enum GameEngine {
                 throw .rejected(reason: "not enough gold")
             }
             state.setGovernment(government, for: player)
+            fx.touchPlayer(player)
 
         case let .setPolicies(policies):
             if let problem = state.policiesProblem(policies, for: player) { throw .rejected(reason: problem) }
@@ -316,6 +319,7 @@ public enum GameEngine {
                 throw .rejected(reason: "not enough gold")
             }
             state.setPolicies(policies, for: player)
+            fx.touchPlayer(player)
 
         case let .attack(id, target):
             let unit = try ownedUnit(id, by: player, in: state)
