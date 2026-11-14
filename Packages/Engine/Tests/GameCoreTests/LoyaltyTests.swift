@@ -30,6 +30,19 @@ import Testing
         expectSound(state)
     }
 
+    /// The Free Cities research nothing, so they neither hold back the world era nor count
+    /// as a war for the civs' war-time resource use.
+    @Test func theFreeCitiesStayOutOfTheWorldEraAndWarChecks() {
+        var (state, _, _) = world()
+        for i in state.rules.techs.indices where state.rules.techEras[i] == 0 {
+            state.learn(state.rules.techs[i].id, player: p0)
+        }
+        var fx = Effects()
+        state.advanceWorldEraIfDue(&fx)
+        #expect(state.worldEra == 1)
+        #expect(!state.isAtWarWithAnyone(p0) && !state.isAtWarWithAnyone(p1))
+    }
+
     @Test func aFoundedCityStartsLoyalAndHoldsNearItsCapital() throws {
         let (state, _, _) = world()
         let capital = try #require(state.cities.first { $0.position == hex(1, 4) })

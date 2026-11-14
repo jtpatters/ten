@@ -10,7 +10,7 @@ extension GameState {
     /// the world left.
     mutating func advanceWorldEraIfDue(_ fx: inout Effects) {
         guard let era = worldEra, let progression = rules.progression, era + 1 < rules.eras.count else { return }
-        let living = players.indices.filter { players[$0].isAlive }
+        let living = players.indices.filter { players[$0].isAlive && players[$0].isMajor }
         guard !living.isEmpty else { return }
         let current = rules.techs.indices.filter { rules.techEras[$0] == era }
         let total = current.reduce(0) { $0 + rules.techs[$1].cost }

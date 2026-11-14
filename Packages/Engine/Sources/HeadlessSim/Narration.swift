@@ -134,7 +134,7 @@ struct Observer {
         target[p] = report.target
         advancing[p] = report.advancing
         for note in report.notes { say(turn, player, note) }
-        let atWarNow = state.players.contains { $0.id != player && $0.isAlive && state.isAtWar(player, $0.id) }
+        let atWarNow = state.players.contains { $0.id != player && $0.isAlive && $0.isMajor && state.isAtWar(player, $0.id) }
         for id in report.escortRequests where settlerBorn[id] != nil {
             settlerWaited[id, default: 0] += 1
             lint[p].settlerWaits += 1
@@ -143,7 +143,7 @@ struct Observer {
                 let view = state.view(for: player)
                 let inCity = state.cities.contains { $0.position == unit.position }
                 let closed = view.index(of: unit.position).map { view.aiClosedToMilitary()[$0] } ?? false
-                let atWar = view.players.contains { $0.id != player && $0.isAlive && view.isAtWar(with: $0.id) }
+                let atWar = view.players.contains { $0.id != player && $0.isAlive && $0.isMajor && view.isAtWar(with: $0.id) }
                 let foreign = view.visibleForeignUnits.filter { !$0.type.isCivilian }
                     .min { (view.distance($0.position, unit.position), $0.id) < (view.distance($1.position, unit.position), $1.id) }
                 // Free fighters: non-recon military units that are no city's garrison (the
@@ -333,7 +333,7 @@ struct Observer {
     /// p3d: what a new Settler's owner knows about the war around it (`--lint-detail`).
     func settlerContext(_ owner: PlayerID, _ at: HexCoord, _ state: GameState) -> String {
         let view = state.view(for: owner)
-        let atWar = view.players.contains { $0.id != owner && $0.isAlive && view.isAtWar(with: $0.id) }
+        let atWar = view.players.contains { $0.id != owner && $0.isAlive && $0.isMajor && view.isAtWar(with: $0.id) }
         let city = view.cities.first { $0.position == at }
         let visible = view.visibleForeignUnits.filter { !$0.type.isCivilian && view.isAtWar(with: $0.owner) }
             .map { view.distance($0.position, at) }.min()

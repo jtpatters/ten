@@ -381,7 +381,7 @@ struct GameReport {
         let improvements = Improvement.allCases.enumerated().filter { built[$0.offset] > 0 }
             .map { "\(String(describing: $0.element)) \(built[$0.offset])" }.joined(separator: ", ")
         let strategic = Resource.allCases.filter { rules.resource($0)?.kind == .strategic }
-        let stocks = state.players.filter(\.isAlive).map { player in
+        let stocks = state.players.filter { $0.isAlive && $0.isMajor }.map { player in
             let sources = state.improvedSources(of: player.id)
             return "\(player.id) " + strategic.map { "\(String(describing: $0)) \(player.stock($0))/\(sources[Int($0.rawValue) - 1])" }
                 .joined(separator: " ")
@@ -807,7 +807,7 @@ if options.games == 1 {
         }
         if options.profile { report.profile.print() }
         print("AI ms per phase from turn 140: \(report.aiLate.summary)")
-        for player in state.players { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
+        for player in state.players where player.isMajor { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
     }
 
     // Knowledge cost on the final state (M1 §12.7 budget: visibility + memory ≤ 0.2 ms per
@@ -899,7 +899,7 @@ if options.games == 1 {
             for player in report.state.players { print(report.playerLine(player)) }
             for rejection in report.rejections.prefix(5) { print("  rejected: \(rejection)") }
             if options.mode == .ai {
-                for player in report.state.players { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
+                for player in report.state.players where player.isMajor { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
                 for p in report.aiPlayers { lint.merge(report.observer.lint[p]) }
             }
             if options.mode == .ai, options.p0 != .ai {
