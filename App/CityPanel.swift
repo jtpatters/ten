@@ -464,6 +464,7 @@ struct ItemIcon: View {
             case "waterMill": "water.waves"
             default: "building.2"
             }
+        case .quarter: "square.grid.3x3"
         }
     }
 }
@@ -776,6 +777,7 @@ private struct YieldBreakdown: View {
         case .unemployed: "Without a tile (\(max(0, city.population - city.workedTiles.count)))"
         case .population: "Population"
         case let .building(id): rules.building(id)?.name ?? id.rawValue.capitalized
+        case let .quarter(kind): rules.quarter(kind)?.name ?? kind.rawValue.capitalized
         case .stability: "Stability"
         }
     }
