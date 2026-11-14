@@ -122,17 +122,23 @@
     ],
     "buildings": [
         { "id": "palace", "name": "Palace", "cost": 0, "buildable": false, "palace": true,
-          "food": 0, "production": 2, "gold": 3, "science": 3, "culture": 1, "wallHP": 0, "cityStrength": 0 },
+          "food": 0, "production": 2, "gold": 3, "science": 3, "culture": 1, "wallHP": 0, "cityStrength": 0,
+          "housing": 1, "stability": 1 },
         { "id": "monument", "name": "Monument", "cost": 30, "buildable": true, "palace": false,
-          "food": 0, "production": 0, "gold": 0, "science": 0, "culture": 2, "wallHP": 0, "cityStrength": 0 },
+          "food": 0, "production": 0, "gold": 0, "science": 0, "culture": 2, "wallHP": 0, "cityStrength": 0,
+          "stability": 1 },
         { "id": "granary", "name": "Granary", "cost": 55, "tech": "pottery", "buildable": true, "palace": false,
-          "food": 2, "production": 0, "gold": 0, "science": 0, "culture": 0, "wallHP": 0, "cityStrength": 0 },
+          "food": 2, "production": 0, "gold": 0, "science": 0, "culture": 0, "wallHP": 0, "cityStrength": 0,
+          "housing": 2 },
         { "id": "library", "name": "Library", "cost": 70, "tech": "writing", "buildable": true, "palace": false,
           "food": 0, "production": 0, "gold": 0, "science": 3, "culture": 0, "wallHP": 0, "cityStrength": 0 },
         { "id": "walls", "name": "Walls", "cost": 60, "tech": "masonry", "buildable": true, "palace": false,
           "food": 0, "production": 0, "gold": 0, "science": 0, "culture": 0, "wallHP": 100, "cityStrength": 5 },
         { "id": "market", "name": "Market", "cost": 80, "tech": "currency", "buildable": true, "palace": false,
-          "food": 0, "production": 0, "gold": 3, "science": 0, "culture": 0, "wallHP": 0, "cityStrength": 0 }
+          "food": 0, "production": 0, "gold": 3, "science": 0, "culture": 0, "wallHP": 0, "cityStrength": 0 },
+        { "id": "waterMill", "name": "Water Mill", "cost": 80, "tech": "theWheel", "buildable": true, "palace": false,
+          "food": 1, "production": 1, "gold": 0, "science": 0, "culture": 0, "wallHP": 0, "cityStrength": 0,
+          "requiresRiver": true }
     ],
     "techs": [
         { "id": "pottery", "name": "Pottery", "era": "ancient", "cost": 25, "requires": [] },
@@ -414,5 +420,10 @@
     "embark": { "coastTech": "sailing", "oceanTech": "cartography", "strength": 10, "moves": 3, "sight": 2, "navalHealInCity": 20 },
     "stockpile": { "perSource": 2, "cap": 20, "capBonus": 10, "capBonusEra": 2, "unitCost": 10, "warUsePerUnit": 1,
                    "shortageStrength": -5, "bonusPer1000Land": 32, "luxuryPer1000Land": 18, "strategicPer1000Land": 14,
-                   "clusterMin": 2, "clusterMax": 4 }
+                   "clusterMin": 2, "clusterMax": 4 },
+    "housing": { "base": 2, "coast": 3, "freshWater": 5, "improvements": ["farm", "pasture", "plantation", "camp"],
+                 "improvedTilesPerHousing": 2, "belowPct": 100, "nearPct": 50, "atPct": 25, "noGrowthAbove": 4 },
+    "stability": { "needDivisor": 2, "luxuryCities": 4, "freeCities": 4, "citiesPerPenalty": 4, "occupied": -2,
+                   "occupiedTurns": 10, "thriving": 3, "thrivingPct": 10, "restlessPct": -10, "unrest": -3,
+                   "unrestPct": -25, "revolt": -5 }
 }

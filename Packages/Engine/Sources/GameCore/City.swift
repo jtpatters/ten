@@ -40,6 +40,9 @@ public struct City: Codable, Hashable, Sendable, Identifiable {
     public var workedTiles: [HexCoord]
     /// The turn the city last changed hands (nil = never).
     public var capturedTurn: Int?
+    /// Stability as of the owner's last phase start (M2 §5.2); nil without Stability rules or
+    /// before the first.
+    public var stability: Int?
 
     init(id: CityID, name: String, owner: PlayerID, position: HexCoord, turn: Int, hp: Int) {
         self.id = id
@@ -62,6 +65,7 @@ public struct City: Codable, Hashable, Sendable, Identifiable {
         self.bombarded = false
         self.workedTiles = []
         self.capturedTurn = nil
+        self.stability = nil
     }
 
     public func has(_ building: BuildingID) -> Bool { buildings.contains(building) }

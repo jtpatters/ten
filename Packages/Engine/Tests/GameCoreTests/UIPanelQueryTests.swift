@@ -196,7 +196,8 @@ import Testing
         let city = addCity(&state, me, at: hex(3, 3))
         // Its founding production (M1 §5) cleared: the first Settler is built from the phase's
         // production alone, slowly enough for the city to grow meanwhile.
-        updateCity(&state, city) { $0.population = 2; $0.storedProgress = 0 }
+        // A Granary: Housing enough for full growth (M2 §5.1).
+        updateCity(&state, city) { $0.population = 2; $0.storedProgress = 0; $0.buildings.append("granary") }
         state.assignCitizens(state.cityIndex(city)!)
         let growth = try #require(state.view(for: me).growth(of: city))
         try #require(growth.surplus > 0)
