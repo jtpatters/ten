@@ -14,6 +14,7 @@ extension GameState {
         check(players.indices.contains(currentPlayer.rawValue), "current player \(currentPlayer) does not exist")
         if outcome == nil, players.indices.contains(currentPlayer.rawValue) {
             check(players[currentPlayer.rawValue].isAlive, "current player \(currentPlayer) is eliminated")
+            check(players[currentPlayer.rawValue].isMajor, "current player \(currentPlayer) takes no phases")
         }
         check(relations.count == players.count * (players.count - 1) / 2, "relation count")
         var k = 0
@@ -25,7 +26,9 @@ extension GameState {
         }
         check(tileCity.count == count, "territory size")
         for r in relations {
-            if r.stance == .war { check(r.met, "\(r.a) and \(r.b) at war without having met") }
+            let free = !players[r.a.rawValue].isMajor || !players[r.b.rawValue].isMajor
+            if free { check(r.stance == .war && r.proposalFrom == nil, "\(r.a)-\(r.b): the Free Cities at peace") }
+            if r.stance == .war, !free { check(r.met, "\(r.a) and \(r.b) at war without having met") }
             if let from = r.proposalFrom {
                 check(r.stance == .war && r.involves(from), "\(r.a)-\(r.b): peace proposal at peace or from a third player")
             }
@@ -92,6 +95,11 @@ extension GameState {
             check(map.tiles[centre].improvement == nil, "\(city.id) centre improved")
             let quarters = city.quarters ?? []
             check(city.quarters?.isEmpty != true, "\(city.id) empty quarter list")
+            if let loyalty = city.loyalty { check((0...100).contains(loyalty), "\(city.id) loyalty \(loyalty)") }
+            if city.freeCityLeader != nil || city.freeCityTurns != nil {
+                check(city.owner == freeCities && city.freeCityLeader != nil && (city.freeCityTurns ?? 0) > 0,
+                      "\(city.id) Free City state on a civ's city")
+            }
             check(Set(quarters.map(\.kind)).count == quarters.count && Set(quarters.map(\.tile)).count == quarters.count,
                   "\(city.id) quarters not unique")
             for q in quarters {
@@ -144,7 +152,11 @@ extension GameState {
             if let capital = p.capital { check(palaces.first?.id == capital, "\(p.id) capital is not the palace city") }
             // A player with cities has a capital (the Palace moves when it is lost, M1 §5).
             let hasCities = cities.contains { $0.owner == p.id }
-            check(hasCities == (p.capital != nil), "\(p.id) has \(hasCities ? "cities but no capital" : "a capital but no city")")
+            if p.isMajor {
+                check(hasCities == (p.capital != nil), "\(p.id) has \(hasCities ? "cities but no capital" : "a capital but no city")")
+            } else {
+                check(p.capital == nil && palaces.isEmpty && p.id == freeCities, "\(p.id) Free Cities with a capital")
+            }
             check(p.visible.count == count && p.explored.count == count, "\(p.id) bitset size")
             check(p.visible == fresh[i], "\(p.id) visibility is stale")
             check(p.explored.isSuperset(of: p.visible), "\(p.id) sees unexplored tiles")

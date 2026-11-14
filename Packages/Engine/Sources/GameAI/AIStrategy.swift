@@ -117,7 +117,7 @@ extension AITurn {
         var plan = Plan()
         let forces = forces(v)
         plan.army = forces.power
-        let others = v.players.filter { $0.isAlive && $0.id != player }.map(\.id)
+        let others = v.players.filter { $0.isAlive && $0.isMajor && $0.id != player }.map(\.id)
         plan.enemies = others.filter { v.isAtWar(with: $0) }
         plan.threatened = threatenedCities(v)
         // Good sites matter while the AI may still found cities: below its maximum, or with

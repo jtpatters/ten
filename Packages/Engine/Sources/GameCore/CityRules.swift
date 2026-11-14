@@ -41,6 +41,7 @@ extension GameState {
         var city = City(id: id, name: nextCityName(for: player), owner: player, position: hex, turn: turn,
                         hp: rules.constants.city.maxHP)
         city.storedProgress = rules.constants.city.foundingProduction
+        city.loyalty = rules.loyalty?.founded
         players[player.rawValue].citiesNamed += 1
         if players[player.rawValue].originalCapital == nil {
             players[player.rawValue].originalCapital = id

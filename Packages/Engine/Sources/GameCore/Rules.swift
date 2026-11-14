@@ -71,6 +71,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     /// Quarters (M2 §5.3); nil without the section: no quarters, and buildings needing one
     /// cannot be built.
     public let quarters: QuarterRules?
+    public let loyalty: LoyaltyRules?
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
@@ -131,6 +132,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         housing = data.housing
         stability = data.stability
         quarters = data.quarters
+        loyalty = data.loyalty
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -353,6 +355,8 @@ struct RulesetData: Codable, Hashable, Sendable {
     var housing: HousingRules?
     var stability: StabilityRules?
     var quarters: QuarterRules?
+    /// Optional (M2 §5.5, §12.5): absent, cities have no Loyalty and there are no Free Cities.
+    var loyalty: LoyaltyRules?
 }
 
 /// What a resource is for (M2 §3.1).

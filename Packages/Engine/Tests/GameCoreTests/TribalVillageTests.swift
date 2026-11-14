@@ -760,7 +760,7 @@ private func side(of t: Int, _ steps: [[Int]]) -> (start: Int, steps: Int, margi
                                       civs: Array(rules.civs.map(\.id).reversed()), mapSizeName: size.rawValue,
                                       placeTribalVillages: true)
         #expect(DebugTools.tribalVillages(in: other) == sites.map(\.hex), "\(label)")
-        #expect(game.tribalVillages?.gifts == [Int](repeating: 0, count: starts.count), "\(label)")
+        #expect(game.tribalVillages?.gifts == [Int](repeating: 0, count: game.players.count), "\(label)")
         expectSound(game)
 
         // Equal own-side counts, by tag.
