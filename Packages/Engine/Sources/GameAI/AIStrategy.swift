@@ -406,6 +406,38 @@ extension AITurn {
     }
 
     /// Civic orders (M2 §17.2): the cheapest civic whose prerequisites are done, tree order on ties.
+    /// The government with the most slots (later in the list on ties), when free or cheap.
+    mutating func chooseGovernment() {
+        let v = view
+        guard let current = v.government, let all = v.rules.governance?.governments else { return }
+        func score(_ g: GovernmentDef) -> Int { g.slots.reduce(0, +) * 100 + (all.firstIndex(of: g) ?? 0) }
+        guard let best = v.availableGovernments.max(by: { score($0) < score($1) }),
+              score(best) > score(current) else { return }
+        let cost = v.governmentChangeCost(to: best.id)
+        guard cost == 0 || cost * 2 <= v.me.gold else { return }
+        issue(.setGovernment(government: best.id))
+    }
+
+    /// Fills slots by `aiWeight`; outside a free-change turn only fills empty slots.
+    mutating func choosePolicies() {
+        let v = view
+        guard let gov = v.government else { return }
+        let ranked = v.availablePolicies.sorted { ($0.aiWeight ?? 0, $1.id) > ($1.aiWeight ?? 0, $0.id) }
+        let current = v.policies
+        var pick: [PolicyDef] = []
+        if v.isFreeChangeTurn {
+            for p in ranked where gov.fits(pick + [p]) { pick.append(p) }
+            guard Set(pick.map(\.id)) != Set(current.map(\.id)) else { return }
+        } else {
+            pick = current
+            for p in ranked where !pick.contains(p) && gov.fits(pick + [p]) { pick.append(p) }
+            guard pick.count > current.count else { return }
+        }
+        let cost = v.policyChangeCost(to: pick.map(\.id))
+        guard cost == 0 || cost * 3 <= v.me.gold else { return }
+        issue(.setPolicies(policies: pick.map(\.id)))
+    }
+
     mutating func chooseCivic() {
         let v = view
         guard v.me.studying == nil else { return }

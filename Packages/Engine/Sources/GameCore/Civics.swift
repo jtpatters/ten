@@ -57,5 +57,11 @@ extension GameState {
         let p = player.rawValue
         guard !players[p].knowsCivic(civic) else { return }
         players[p].knownCivics = ((players[p].knownCivics ?? []) + [civic]).sorted()
+        guard rules.governance != nil else { return }
+        players[p].freeChangeTurn = turn
+        let open = Set(availablePolicies(for: player).map(\.id))
+        if let slotted = players[p].policies, !slotted.allSatisfy(open.contains) {
+            players[p].policies = slotted.filter(open.contains)
+        }
     }
 }

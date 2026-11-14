@@ -150,6 +150,14 @@ extension GameState {
             let civics = p.knownCivics ?? []
             check(civics == civics.sorted() && Set(civics).count == civics.count, "\(p.id) civics not sorted")
             check(civics.allSatisfy { rules.civic($0) != nil }, "\(p.id) knows an unknown civic")
+            if let id = p.government { check(rules.government(id) != nil, "\(p.id) has an unknown government") }
+            let adopted = p.governmentsAdopted ?? []
+            check(adopted == adopted.sorted() && Set(adopted).count == adopted.count, "\(p.id) governments not sorted")
+            if let slotted = p.policies {
+                let defs = slotted.compactMap(rules.policy)
+                check(defs.count == slotted.count && Set(slotted).count == slotted.count, "\(p.id) has bad policies")
+                if let gov = government(of: p.id) { check(gov.fits(defs), "\(p.id) policies overflow their slots") }
+            }
             if let current = p.researching { check(!p.knows(current), "\(p.id) researches a known tech") }
             let palaces = cities.filter { $0.owner == p.id && $0.has(palace) }
             check(palaces.count <= 1, "\(p.id) has \(palaces.count) palaces")

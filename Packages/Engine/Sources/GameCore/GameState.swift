@@ -63,6 +63,14 @@ public struct Player: Codable, Hashable, Sendable {
     public internal(set) var knownCivics: [CivicID]?
     /// Civics whose Insight fired, sorted. Nil until the first (left out of saves).
     public internal(set) var civicInsights: [CivicID]?
+    /// nil: the rules' default government (M2 §7.2).
+    public internal(set) var government: String?
+    /// Sorted; governments adopted at least once (the default is implied).
+    public internal(set) var governmentsAdopted: [String]?
+    /// Slotted policy ids.
+    public internal(set) var policies: [String]?
+    /// The turn a civic last completed: government and policy changes are free on it.
+    public internal(set) var freeChangeTurn: Int?
 
     /// A civ that takes phases, researches and can win; not the Free Cities.
     public var isMajor: Bool { kind == nil || kind == .major }

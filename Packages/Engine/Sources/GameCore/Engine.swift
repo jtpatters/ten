@@ -32,6 +32,10 @@ public enum Command: Codable, Hashable, Sendable {
     case setResearch(tech: TechID)
     /// Study `civic`, through its missing prerequisites (M2 §7.1).
     case setCivic(civic: CivicID)
+    /// M2 §7.2.
+    case setGovernment(government: String)
+    /// M2 §7.3: the full set of slotted policies.
+    case setPolicies(policies: [String])
     /// Declare war on a player met and at peace with (M1 §9).
     case declareWar(on: PlayerID)
     /// Propose peace to a player at war with (M1 §9); it answers in its own phase.
@@ -294,6 +298,24 @@ public enum GameEngine {
             guard state.rules.civic(civic) != nil else { throw .rejected(reason: "no such civic") }
             guard !state.players[player.rawValue].knowsCivic(civic) else { throw .rejected(reason: "already known") }
             state.setCivic(civic, for: player)
+
+        case let .setGovernment(government):
+            guard state.rules.government(government) != nil else { throw .rejected(reason: "no such government") }
+            guard state.availableGovernments(for: player).contains(where: { $0.id == government }) else {
+                throw .rejected(reason: "government not available")
+            }
+            guard state.government(of: player)?.id != government else { throw .rejected(reason: "already the government") }
+            guard state.players[player.rawValue].gold >= state.governmentChangeCost(to: government, for: player) else {
+                throw .rejected(reason: "not enough gold")
+            }
+            state.setGovernment(government, for: player)
+
+        case let .setPolicies(policies):
+            if let problem = state.policiesProblem(policies, for: player) { throw .rejected(reason: problem) }
+            guard state.players[player.rawValue].gold >= state.policyChangeCost(to: policies, for: player) else {
+                throw .rejected(reason: "not enough gold")
+            }
+            state.setPolicies(policies, for: player)
 
         case let .attack(id, target):
             let unit = try ownedUnit(id, by: player, in: state)
