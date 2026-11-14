@@ -93,6 +93,8 @@ public struct UpkeepForecast: Hashable, Sendable {
     public var disbanded: Int
     /// Military units that complete at that phase start, before upkeep is paid (counted).
     public var completing: Int = 0
+    /// Upkeep the treasury cannot pay even after disbanding; the phase's science falls by it (M2 §5.4).
+    public var shortfall: Int = 0
 }
 
 extension PlayerView {
@@ -266,13 +268,14 @@ extension PlayerView {
         let completing = militaryUnitsCompleting()
         var military = income.militaryUnits + completing
         let gold = me.gold + income.gold
-        func upkeep(_ units: Int) -> Int { max(0, units - free) * perUnit }
+        func upkeep(_ units: Int) -> Int { max(0, units - free) * perUnit + income.buildings }
         var disbanded = 0
         while gold - upkeep(military) < 0, military > free {
             military -= 1
             disbanded += 1
         }
-        return UpkeepForecast(goldAfter: max(0, gold - upkeep(military)), disbanded: disbanded, completing: completing)
+        return UpkeepForecast(goldAfter: max(0, gold - upkeep(military)), disbanded: disbanded, completing: completing,
+                              shortfall: max(0, upkeep(military) - gold))
     }
 
     /// Own cities whose next production completes a military unit at the player's next phase
@@ -424,4 +427,41 @@ extension PlayerView {
 
     /// The Free Cities faction, when the game has one (M2 §12.5).
     public var freeCities: PlayerID? { state.freeCities }
+}
+
+/// A city's specialists (M2 §5.3): its slots (one per building in each unpillaged quarter),
+/// the citizens filling them, and what those yield.
+public struct CitySpecialists: Hashable, Sendable {
+    public var slots: [QuarterKind]
+    public var filled: [QuarterKind]
+    public var yields: Yields
+}
+
+/// A city's next tile (M2 §7.4): its price, the tiles it could buy, and why it cannot buy one
+/// now (nil: it can).
+public struct TilePurchase: Hashable, Sendable {
+    public var price: Int
+    public var tiles: [HexCoord]
+    public var problem: String?
+}
+
+extension PlayerView {
+    /// An own city's specialists; nil when it has no slot and no specialist.
+    public func specialists(of id: CityID) -> CitySpecialists? {
+        guard let city = city(id), city.owner == player else { return nil }
+        let slots = state.specialistSlots(city)
+        let filled = state.activeSpecialists(city)
+        guard !slots.isEmpty || !filled.isEmpty else { return nil }
+        return CitySpecialists(slots: slots, filled: filled,
+                               yields: filled.reduce(Yields.zero) { $0 + state.specialistYields($1) })
+    }
+
+    /// An own city's tile buying; nil without the rules or for another's city.
+    public func tilePurchase(of id: CityID) -> TilePurchase? {
+        guard let city = city(id), city.owner == player, let price = state.tilePrice(for: city) else { return nil }
+        let tiles = state.purchasableTiles(for: city)
+        let gold = me.gold
+        let problem: String? = tiles.isEmpty ? "no tile to buy" : gold < price ? "needs \(price) Gold (have \(gold))" : nil
+        return TilePurchase(price: price, tiles: tiles, problem: problem)
+    }
 }

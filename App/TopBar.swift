@@ -213,10 +213,17 @@ struct GoldBreakdown: View {
             row("From cities", YieldChip.signed(income.gold))
             let paid = max(0, income.militaryUnits - income.freeUnits)
             row("Unit upkeep (\(paid) of \(income.militaryUnits) military paid)", income.upkeep == 0 ? "0" : "−\(income.upkeep)")
+            row("Buildings and quarters", income.buildings == 0 ? "0" : "−\(income.buildings)")
             Divider().overlay(HUD.inkFaint)
             row("Per turn", YieldChip.signed(income.net), bold: true, tint: income.net < 0 ? HUD.danger : HUD.ink)
             if income.net < 0, view.me.gold + income.net < 0 {
                 Label("Without gold for upkeep, units will be disbanded.", systemImage: "exclamationmark.triangle.fill")
+                    .font(HUD.body(.caption))
+                    .foregroundStyle(HUD.danger)
+            }
+            let shortfall = view.upkeepForecast().shortfall
+            if shortfall > 0 {
+                Label("−\(shortfall) Science: can't pay upkeep.", systemImage: "exclamationmark.triangle.fill")
                     .font(HUD.body(.caption))
                     .foregroundStyle(HUD.danger)
             }

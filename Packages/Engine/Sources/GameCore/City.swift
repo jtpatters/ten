@@ -67,6 +67,10 @@ public struct City: Codable, Hashable, Sendable, Identifiable {
     /// A Free City's leading civ by pressure and for how many consecutive turns (M2 §5.5).
     public var freeCityLeader: PlayerID?
     public var freeCityTurns: Int?
+    /// Tiles bought with Gold (M2 §7.4); nil = none.
+    public var tilesBought: Int?
+    /// Citizens in specialist slots (M2 §5.3), one entry each, by quarter; nil = none.
+    public var specialists: [QuarterKind]?
 
     init(id: CityID, name: String, owner: PlayerID, position: HexCoord, turn: Int, hp: Int) {
         self.id = id

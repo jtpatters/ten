@@ -275,13 +275,18 @@ struct CityPanel: View {
 
     @ViewBuilder
     private func citizens(_ view: PlayerView) -> some View {
-        let unemployed = max(0, city.population - city.workedTiles.count)
+        let specialists = view.specialists(of: city.id)
+        let unemployed = max(0, city.population - city.workedTiles.count - (specialists?.filled.count ?? 0))
         VStack(alignment: .leading, spacing: HUD.Space.s) {
             SectionHeader(title: "Citizens")
             FocusPicker(focus: city.focus, readOnly: readOnly) { session.setFocus($0, of: city.id) }
             Text(workedText(unemployed: unemployed))
                 .font(HUD.body(.caption))
                 .foregroundStyle(HUD.inkSoft)
+            if let specialists { SpecialistRow(specialists: specialists, rules: view.rules) }
+            if let purchase = view.tilePurchase(of: city.id) {
+                BuyTileButton(purchase: purchase, readOnly: readOnly) { session.beginBuyTile(in: city.id) }
+            }
         }
     }
 
@@ -352,6 +357,7 @@ struct CityPanel: View {
         }
         if let housing = def.housing, housing != 0 { parts.append("\(YieldChip.signed(housing)) Housing") }
         if let stability = def.stability, stability != 0 { parts.append("\(YieldChip.signed(stability)) Stability") }
+        if let upkeep = def.upkeep, upkeep > 0 { parts.append("−\(upkeep) Gold") }
         if def.wallHP > 0 {
             parts.append("Wall \(city.wallHP)/\(def.wallHP)")
             if def.cityStrength > 0 { parts.append("+\(def.cityStrength) City Strength") }
@@ -718,6 +724,8 @@ private struct FocusPicker: View {
         case .food: YieldChip.Kind.food.systemImage
         case .production: YieldChip.Kind.production.systemImage
         case .gold: YieldChip.Kind.gold.systemImage
+        case .science: YieldChip.Kind.science.systemImage
+        case .culture: YieldChip.Kind.culture.systemImage
         }
     }
 
@@ -727,6 +735,8 @@ private struct FocusPicker: View {
         case .food: HUD.Yield.food
         case .production: HUD.Yield.production
         case .gold: HUD.Yield.gold
+        case .science: HUD.Yield.science
+        case .culture: HUD.Yield.culture
         }
     }
 }
@@ -794,7 +804,8 @@ private struct YieldBreakdown: View {
         switch source {
         case .centre: "City centre"
         case .workedTiles: "Worked tiles (\(city.workedTiles.count))"
-        case .unemployed: "Without a tile (\(max(0, city.population - city.workedTiles.count)))"
+        case .unemployed: "Without a tile (\(max(0, city.population - city.workedTiles.count - (city.specialists?.count ?? 0))))"
+        case .specialists: "Specialists (\(city.specialists?.count ?? 0))"
         case .population: "Population"
         case let .building(id): rules.building(id)?.name ?? id.rawValue.capitalized
         case let .quarter(kind): rules.quarter(kind)?.name ?? kind.rawValue.capitalized
@@ -1337,6 +1348,7 @@ private struct BuiltQuarterList: View {
         }
         if let housing = def.housing { parts.append("\(YieldChip.signed(housing)) Housing") }
         if let stability = def.stability { parts.append("\(YieldChip.signed(stability)) Stability") }
+        if let upkeep = view.rules.quarters?.upkeep, upkeep > 0 { parts.append("−\(upkeep) Gold") }
         return parts.isEmpty ? "—" : parts.joined(separator: " · ")
     }
 }
@@ -1425,6 +1437,56 @@ struct LoyaltyRow: View {
                 .font(HUD.body(.caption).monospacedDigit())
                 .foregroundStyle(value < 0 ? HUD.danger : value == 0 ? HUD.inkFaint : HUD.ink)
                 .gridColumnAlignment(.trailing)
+        }
+    }
+}
+
+/// The city's specialists (M2 §5.3): "Specialists 1/2 · +2 Science", and which quarters hold the slots.
+private struct SpecialistRow: View {
+    let specialists: CitySpecialists
+    let rules: Ruleset
+
+    var body: some View {
+        let y = specialists.yields
+        let gains = [(y.food, "Food"), (y.production, "Production"), (y.gold, "Gold"), (y.science, "Science"), (y.culture, "Culture")]
+            .filter { $0.0 != 0 }.map { "\(YieldChip.signed($0.0)) \($0.1)" }
+        let kinds = Array(Set(specialists.slots)).sorted { $0.rawValue < $1.rawValue }
+        HStack(spacing: HUD.Space.s) {
+            Image(systemName: "person.crop.circle.badge.checkmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(HUD.Yield.science)
+            VStack(alignment: .leading, spacing: 1) {
+                Text((["Specialists \(specialists.filled.count)/\(specialists.slots.count)"] + gains).joined(separator: " · "))
+                    .font(HUD.body(.subheadline).weight(.semibold))
+                Text("Slots in " + kinds.map { rules.quarter($0)?.name ?? $0.rawValue.capitalized }.joined(separator: ", ")
+                     + "; citizens fill them by the city's focus.")
+                    .font(HUD.body(.caption))
+                    .foregroundStyle(HUD.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Buy tile (M2 §7.4): starts the tile choice on the map; disabled, with the reason, when the
+/// city cannot buy one.
+private struct BuyTileButton: View {
+    let purchase: TilePurchase
+    let readOnly: Bool
+    let action: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Button(action: action) {
+                Label("Buy tile (\(purchase.price) Gold)", systemImage: "square.dashed").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(BronzeButtonStyle())
+            .disabled(readOnly || purchase.problem != nil)
+            .opacity(readOnly || purchase.problem != nil ? 0.6 : 1)
+            .accessibilityHint("Choose an unowned tile next to the city's land on the map.")
+            if let problem = purchase.problem {
+                Text("Can't buy: \(problem)").font(HUD.body(.caption)).foregroundStyle(HUD.danger)
+            }
         }
     }
 }

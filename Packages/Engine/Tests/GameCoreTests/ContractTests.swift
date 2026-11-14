@@ -85,7 +85,7 @@ func validationProblems(_ change: (inout [String: Any]) -> Void) throws -> [Stri
         let healing: [Int] = [c.healing.ownCity, c.healing.ownTerritory, c.healing.neutral, c.healing.foreign]
         #expect(healing == [20, 15, 10, 5])
         #expect(c.knowledge.sightingMaxAge == 20 && c.turnLimit == 250)
-        #expect(rules.focuses.map(\.foodFloor) == [2, 2, 0, 0])
+        #expect(rules.focuses.map(\.foodFloor) == [2, 2, 0, 0, 0, 0])
         #expect(rules.aiMaxCities(mapSize: "duel") == 6 && rules.aiMaxCities(mapSize: "large") == 12)
     }
 

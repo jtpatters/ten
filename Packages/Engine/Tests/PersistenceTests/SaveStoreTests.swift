@@ -91,6 +91,9 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
         #expect(loaded.state.players.map(\.kind) == state.players.map(\.kind))
         #expect(loaded.state.freeCities == state.freeCities)
         #expect(loaded.state.cities.map(\.loyalty) == state.cities.map(\.loyalty))
+        #expect(state.cities.contains { $0.tilesBought != nil } && state.cities.contains { $0.specialists?.isEmpty == false })
+        #expect(loaded.state.cities.map(\.tilesBought) == state.cities.map(\.tilesBought))
+        #expect(loaded.state.cities.map(\.specialists) == state.cities.map(\.specialists))
         #expect(loaded.state.cities.map(\.freeCityLeader) == state.cities.map(\.freeCityLeader))
         #expect(loaded.state.cities.map(\.freeCityTurns) == state.cities.map(\.freeCityTurns))
             // The loaded game answers the same questions.

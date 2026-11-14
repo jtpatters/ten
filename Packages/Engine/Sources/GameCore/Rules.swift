@@ -72,6 +72,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     /// cannot be built.
     public let quarters: QuarterRules?
     public let loyalty: LoyaltyRules?
+    /// Optional (M2 §7.4): absent, tiles cannot be bought.
+    public let tileBuying: TileBuyingRules?
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
@@ -114,7 +116,13 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         buildings = data.buildings
         techs = data.techs
         civs = data.civs
-        focuses = CityFocus.allCases.map { f in data.focuses.first { $0.focus == f }! }
+        // Rules without the M2 focuses (M1) give Science and Culture the Balanced weights.
+        let balanced = data.focuses.first { $0.focus == .balanced }!
+        focuses = CityFocus.allCases.map { f in
+            data.focuses.first { $0.focus == f }
+                ?? FocusDef(focus: f, food: balanced.food, production: balanced.production, gold: balanced.gold,
+                            science: balanced.science, culture: balanced.culture, foodFloor: balanced.foodFloor)
+        }
         constants = data.constants
         ai = data.ai
         tribalVillages = data.tribalVillages
@@ -133,6 +141,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         stability = data.stability
         quarters = data.quarters
         loyalty = data.loyalty
+        tileBuying = data.tileBuying
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -316,6 +325,8 @@ extension CityFocus {
         case .food: 1
         case .production: 2
         case .gold: 3
+        case .science: 4
+        case .culture: 5
         }
     }
 }
@@ -357,6 +368,7 @@ struct RulesetData: Codable, Hashable, Sendable {
     var quarters: QuarterRules?
     /// Optional (M2 §5.5, §12.5): absent, cities have no Loyalty and there are no Free Cities.
     var loyalty: LoyaltyRules?
+    var tileBuying: TileBuyingRules?
 }
 
 /// What a resource is for (M2 §3.1).
@@ -467,7 +479,17 @@ public struct QuarterRules: Codable, Hashable, Sendable {
     public let radius: Int
     /// At most 1 + population / `populationPerQuarter` quarters (`capExempt` kinds aside).
     public let populationPerQuarter: Int
+    /// Gold per turn for each quarter (M2 §5.4); nil = none.
+    public let upkeep: Int?
     public let kinds: [QuarterDef]
+}
+
+/// Buying tiles (M2 §7.4): an unowned tile within `radius` of the centre that touches the city's
+/// territory, for `base + perTile × tiles this city bought` Gold.
+public struct TileBuyingRules: Codable, Hashable, Sendable {
+    public let base: Int
+    public let perTile: Int
+    public let radius: Int
 }
 
 /// A quarter kind (M2 §5.3).
@@ -732,6 +754,8 @@ public struct BuildingDef: Codable, Hashable, Sendable {
     /// Only in a city with this building (Castle: Walls); never with `excludes` (Barracks, Stable).
     public let requires: BuildingID?
     public let excludes: BuildingID?
+    /// Gold per turn (M2 §5.4); nil = none (Palace, Monument).
+    public let upkeep: Int?
 
     public var yields: Yields { Yields(food: food, production: production, gold: gold, science: science, culture: culture) }
 }
@@ -1242,7 +1266,9 @@ extension RulesetData {
         }
         for focus in CityFocus.allCases {
             let n = focuses.filter { $0.focus == focus }.count
-            check(n == 1, "focuses: \(focus) has \(n) definitions")
+            // The M2 focuses may be absent (M1 rules): they take the Balanced weights.
+            let optional = focus == .science || focus == .culture
+            check(n == 1 || (optional && n == 0), "focuses: \(focus) has \(n) definitions")
         }
 
         // Techs: unique, known prerequisites listed earlier (tree order), acyclic.

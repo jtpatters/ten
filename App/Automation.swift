@@ -285,6 +285,16 @@ final class AutomationInbox {
             guard let placing = session.quarterPlacing else { return session.message ?? "placing none" }
             let sites = session.quarterSites().map { "\($0.tile.q) \($0.tile.r) +\($0.adjacency)" }
             return "placing \(placing.kind.rawValue): " + sites.joined(separator: ", ")
+        case "buytile":
+            // buytile [cancel]: the selected city's Buy tile (its tile choice on the map), or
+            // leaving it; the result gives the price and the marked tiles.
+            guard let city = session.selectedCity else { throw Failure(description: "no city selected") }
+            if args.first == "cancel" { session.endBuyTile() } else { session.beginBuyTile(in: city.id) }
+            try await Task.sleep(for: .milliseconds(300))
+            guard let id = session.tileBuying, let purchase = session.view.tilePurchase(of: id) else {
+                return session.message ?? "buying none"
+            }
+            return "buying for \(purchase.price): " + purchase.tiles.map { "\($0.q) \($0.r)" }.joined(separator: ", ")
         case "keep", "raze":
             guard case let .capture(id)? = session.attentionCard else { throw Failure(description: "no Keep/Raze card") }
             if verb == "keep" { session.keepCity(id) } else { session.askToRaze(id) }
@@ -803,6 +813,7 @@ final class AutomationInbox {
             "cityPanel": optional(session.selectedCity.map { _ in "\(session.cityPanelRequest.focus)" }),
             "bombardTargeting": optional(session.bombardTargeting?.rawValue),
             "quarterPlacing": optional(session.quarterPlacing.map { "\($0.city.rawValue) \($0.kind.rawValue)" }),
+            "tileBuying": optional(session.tileBuying?.rawValue),
             "endTurnPrompt": optional(session.endTurnPrompt),
             "pendingPurchase": optional(session.pendingPurchase.map { "\($0.name) \($0.price)" }),
             "pendingRaze": optional(session.pendingRaze?.rawValue),

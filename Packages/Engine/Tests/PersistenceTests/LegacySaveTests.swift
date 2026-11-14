@@ -81,9 +81,12 @@ struct LegacySave {
         json.removeValue(forKey: "quarters")
         // M2 2.2c Loyalty and the Free Cities (M2 §5.5, §12.5).
         json.removeValue(forKey: "loyalty")
+        // M2 2.2d buying tiles (M2 §7.4), building upkeep (M2 §5.4) and the Science and Culture focuses.
+        json.removeValue(forKey: "tileBuying")
+        json["focuses"] = (json["focuses"] as? [[String: Any]] ?? []).filter { !["science", "culture"].contains($0["focus"] as? String ?? "") }
         let m1Buildings = ["palace", "monument", "granary", "walls", "library", "market"]
         json["buildings"] = (json["buildings"] as? [[String: Any]] ?? []).filter { m1Buildings.contains($0["id"] as? String ?? "") }
-            .map { b in b.filter { !["housing", "stability", "requiresRiver", "quarter", "requires", "excludes"].contains($0.key) } }
+            .map { b in b.filter { !["housing", "stability", "requiresRiver", "quarter", "requires", "excludes", "upkeep"].contains($0.key) } }
         let improvements = json["improvements"] as? [[String: Any]] ?? []
         json["improvements"] = improvements.prefix(3).map { imp in imp.filter { !["resources", "techBonuses"].contains($0.key) } }
         for key in ["tribalVillages", "eras", "progression", "promotions", "promotionXP"] { json.removeValue(forKey: key) }

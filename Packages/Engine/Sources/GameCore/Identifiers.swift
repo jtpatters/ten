@@ -80,7 +80,7 @@ public enum ProductionItem: Hashable, Codable, Sendable {
 
 /// How a city's citizens pick the tiles they work (M1 §4).
 public enum CityFocus: String, Codable, Hashable, Sendable, CaseIterable {
-    case balanced, food, production, gold
+    case balanced, food, production, gold, science, culture
 }
 
 // MARK: Combat

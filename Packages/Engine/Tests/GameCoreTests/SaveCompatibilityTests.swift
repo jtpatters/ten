@@ -50,6 +50,8 @@ enum SaveFixture {
         let c1 = addCity(&state, PlayerID(1), at: hex(7, 2))
         let c2 = addCity(&state, PlayerID(2), at: hex(5, 4))
         let c3 = addCity(&state, PlayerID(1), at: hex(9, 4))
+        let c4 = addCity(&state, PlayerID(1), at: hex(1, 1))
+        let c5 = addCity(&state, PlayerID(1), at: hex(7, 4))
 
         // Units: every type and activity.
         let settler = state.addUnit(.settler, owner: PlayerID(0), at: hex(2, 2))
@@ -114,6 +116,9 @@ enum SaveFixture {
             c.buildings = ["monument"]
         }
         updateCity(&state, c3) { $0.focus = .balanced }
+        // The M2 focuses (M2 §5.6).
+        updateCity(&state, c4) { $0.focus = .science }
+        updateCity(&state, c5) { $0.focus = .culture }
         state.players[2].capital = nil
         for index in state.cities.indices { state.assignCitizens(index) }
 

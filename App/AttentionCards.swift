@@ -339,6 +339,32 @@ struct QuarterHintCard: View {
     }
 }
 
+/// Buying a tile (M2 §7.4): for which city, at what price, and Cancel.
+struct BuyTileHintCard: View {
+    let session: GameSession
+    let city: CityID
+
+    var body: some View {
+        let name = session.view.city(city)?.name ?? "the city"
+        let purchase = session.view.tilePurchase(of: city)
+        let tiles = purchase?.tiles.count ?? 0
+        HStack(spacing: HUD.Space.m) {
+            Image(systemName: "square.dashed").font(.system(size: 18, weight: .semibold)).foregroundStyle(HUD.Yield.gold)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Buy a tile for \(name) · \(purchase?.price ?? 0) Gold").font(HUD.title(.subheadline))
+                Text(tiles == 1 ? "Tap the marked tile." : "Tap one of the \(tiles) marked tiles.")
+                    .font(HUD.body(.caption))
+                    .foregroundStyle(HUD.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: HUD.Space.s)
+            Button("Cancel") { session.endBuyTile() }
+                .buttonStyle(ParchmentButtonStyle())
+        }
+        .hudCard()
+    }
+}
+
 /// Next (Space): what the attention queue visits next, with how many items are pending, or End
 /// Turn when none is; "Waiting for <civ>" in another player's phase. While items are pending,
 /// the hourglass beside it (and its menu) ends the turn at once (asking once per game).
