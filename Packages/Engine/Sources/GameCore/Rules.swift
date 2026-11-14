@@ -58,6 +58,10 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public let resources: [ResourceDef]
     /// Strategic stockpiles (M2 §3.1); nil without the section.
     public let stockpile: StockpileRules?
+    /// Roads and pillage (M2 §3.3); nil without the section.
+    public let roads: RoadRules?
+    /// Internal move points per move: every move and move cost is multiplied by it (M2 §3.3).
+    public var movePoints: Int { roads?.movePoints ?? 1 }
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
@@ -113,6 +117,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         promotionXP = data.promotionXP ?? []
         resources = data.resources.map { list in Resource.allCases.map { c in list.first { $0.name == caseName(c) }! } } ?? []
         stockpile = data.stockpile
+        roads = data.roads
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -316,6 +321,7 @@ struct RulesetData: Codable, Hashable, Sendable {
     /// Optional (M2 §3.1): absent, maps have no resources and nothing needs one.
     var resources: [ResourceDef]?
     var stockpile: StockpileRules?
+    var roads: RoadRules?
 }
 
 /// What a resource is for (M2 §3.1).
@@ -360,6 +366,21 @@ public struct StockpileRules: Codable, Hashable, Sendable {
     public let strategicPer1000Land: Int
     public let clusterMin: Int
     public let clusterMax: Int
+}
+
+/// Roads and pillage (M2 §3.3).
+public struct RoadRules: Codable, Hashable, Sendable {
+    /// Move points per M1 move.
+    public let movePoints: Int
+    /// Move points for a step from a road tile to a road tile.
+    public let roadCost: Int
+    /// A Builder may build roads with it.
+    public let tech: TechID
+    /// Road steps ignore river crossings with it.
+    public let riverTech: TechID
+    /// Pillaging an improvement gives this much Gold, or heals this much when wounded.
+    public let pillageGold: Int
+    public let pillageHeal: Int
 }
 
 /// Yields of one source (M1 §4). Integer only.

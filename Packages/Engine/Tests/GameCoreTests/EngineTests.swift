@@ -62,7 +62,7 @@ import Testing
         map[index: b].riverEdges |= 1 << HexDirection.west.rawValue
         var state = makeTestState(map: map)
         let id = state.addUnit(.warrior, owner: PlayerID(0), at: hex(1, 1))
-        #expect(state.moveCost(from: a, to: b, .east) == 2)
+        #expect(state.moveCost(from: a, to: b, .east) == state.rules.points(2))
         let path = try #require(Pathfinder.findPath(for: state.unit(id)!, to: hex(3, 1), in: state))
         #expect(path.steps.map(\.turn) == [1, 2])
     }
@@ -109,7 +109,7 @@ import Testing
         #expect(path.steps.map(\.turn) == [1, 2, 2])
         try apply(.moveUnit(unit: id, to: hex(3, 0)), &state)
         #expect(state.unit(id)!.position == hex(1, 0))
-        #expect(state.unit(id)!.movesLeft == 1)
+        #expect(state.unit(id)!.movesLeft == state.rules.points(1))
         #expect(state.unit(id)!.destination == hex(3, 0))
         try nextTurn(&state)
         #expect(state.unit(id)!.position == hex(3, 0))

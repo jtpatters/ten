@@ -64,13 +64,14 @@ extension AITurn {
             acted.insert(id)
             // Good sites lie within settleMaxMoveCost: a movement field cut off there is exact
             // for them (and much cheaper than a whole one on a big map).
-            let near = field(id, within: ai.settleMaxMoveCost)
+            let near = field(id, within: rules.points(ai.settleMaxMoveCost))
             var best: (value: Int, cost: Int, tile: Int)?
             for site in sites {
                 let cost = Int(near[site.tile])
-                guard cost >= 0, cost <= ai.settleMaxMoveCost,
+                guard cost >= 0, cost <= rules.points(ai.settleMaxMoveCost),
                       !chosen.contains(where: { v.aiDistance($0, site.tile) <= ai.settleSiteSpacing }) else { continue }
-                let value = site.score - ai.settleCostPenalty * cost - (towardRival.map { $0.penalty(site.tile, v) } ?? 0)
+                // Scores count per move; `cost` is in move points (M2 §3.3).
+                let value = (site.score - (towardRival.map { $0.penalty(site.tile, v) } ?? 0)) * rules.movePoints - ai.settleCostPenalty * cost
                 if let b = best, (b.value, -b.cost, -b.tile) >= (value, -cost, -site.tile) { continue }
                 best = (value, cost, site.tile)
             }
@@ -81,10 +82,10 @@ extension AITurn {
                 let f = field(id)
                 for site in sites {
                     let cost = Int(f[site.tile])
-                    guard cost > ai.settleMaxMoveCost,
+                    guard cost > rules.points(ai.settleMaxMoveCost),
                           !chosen.contains(where: { v.aiDistance($0, site.tile) <= ai.settleSiteSpacing }) else { continue }
                     if let b = best, (b.cost, b.tile) <= (cost, site.tile) { continue }
-                    best = (site.score - ai.settleCostPenalty * cost, cost, site.tile)
+                    best = (site.score * rules.movePoints - ai.settleCostPenalty * cost, cost, site.tile)
                 }
             }
             guard let best else {
@@ -185,7 +186,7 @@ extension AITurn {
                 }
                 return best
             }
-            var choice = pick(field(id, within: ai.builderMaxMoveCost))
+            var choice = pick(field(id, within: rules.points(ai.builderMaxMoveCost)))
             if choice == nil { choice = pick(field(id)) }
             guard let best = choice else {
                 parkInNearestCity(unit)
@@ -405,7 +406,7 @@ extension AITurn {
             } else {
                 // The cheapest frontier tile: when one lies within a few turns' moves, a field
                 // cut off there finds the same tile as a whole one, for much less.
-                let horizon = 3 * rules.unit(unit.type).moves
+                let horizon = 3 * rules.unit(unit.type).moves * rules.movePoints
                 let near = field(id, within: horizon)
                 target = goals(near).filter { near[$0] <= horizon }.min { (near[$0], $0) < (near[$1], $1) }
                 if target == nil {
@@ -438,7 +439,7 @@ extension AITurn {
         let v = view
         let known = v.knownTribalVillages
         guard !known.isEmpty, let here = v.index(of: unit.position) else { return false }
-        let moves = rules.unit(unit.type).moves
+        let moves = rules.unit(unit.type).moves * rules.movePoints
         let limit: Int? = anyDistance ? nil : seek * moves
         // A step costs at least a move point: one more than `limit` tiles away is beyond it,
         // and with none nearer no field is needed.

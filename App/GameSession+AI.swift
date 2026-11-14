@@ -339,6 +339,7 @@ extension GameSession {
         case let .combat(_, _, from, to, _, _, _): [from, to]
         case let .cityFounded(_, _, _, at), let .cityCaptured(_, _, _, _, at), let .cityRazed(_, _, _, at): [at]
         case let .improvementBuilt(_, at, _): [at]
+        case let .roadBuilt(at, _), let .tilePillaged(at, _, _, _, _, _, _): [at]
         case let .unitUpgraded(_, _, _, _, at), let .unitPromoted(_, _, _, at): [at]
         // Growth, borders and production happen quietly; the rest has no place.
         default: []

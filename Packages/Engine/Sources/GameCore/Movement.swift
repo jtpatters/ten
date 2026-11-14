@@ -43,6 +43,9 @@ struct MoveKnowledge {
     /// Per elevation / feature raw value: no extra move cost for this unit (promotions).
     let freeElevation: [Bool]
     let freeFeature: [Bool]
+    /// Remembered roads (M2 §3.3) and whether road steps ignore rivers for this player.
+    let roads: TileBitSet
+    let bridges: Bool
 
     init(state: GameState, unit: Unit) {
         let me = state.players[unit.owner.rawValue]
@@ -90,6 +93,8 @@ struct MoveKnowledge {
         self.ownCities = ownCities
         self.zoc = zoc
         (freeElevation, freeFeature) = state.freeMove(unit)
+        roads = me.memory.tileRoad ?? TileBitSet(count: count)
+        bridges = state.rules.roads.map { me.knows($0.riverTech) } ?? false
     }
 
     /// The unit may enter (and pass through) tile `t`, as far as its player knows.
@@ -123,8 +128,29 @@ struct MoveKnowledge {
         } else {
             river = false
         }
-        if river { cost += rules.river.crossingMoveCost }
-        return cost
+        return rules.stepPoints(cost, crossesRiver: river, road: roads[from] && roads[to], bridges: bridges)
+    }
+}
+
+extension Ruleset {
+    /// Move points for one step (M2 §3.3): the M1 cost `terrain` (plus the river crossing) ×
+    /// `movePoints`; from a road tile to a road tile `roadCost`, plus the crossing unless
+    /// `bridges`.
+    @inline(__always)
+    func stepPoints(_ terrain: Int, crossesRiver: Bool, road: Bool, bridges: Bool) -> Int {
+        let crossing = crossesRiver ? river.crossingMoveCost * movePoints : 0
+        if road, let roads { return roads.roadCost + (bridges ? 0 : crossing) }
+        return terrain * movePoints + crossing
+    }
+
+    /// `moves` M1 moves in move points: what movement fields and `movesLeft` count.
+    public func points(_ moves: Int) -> Int { moves * movePoints }
+
+    /// Move points as moves for display (M2 §3.3): "2", "1⅓", "⅔".
+    public func movesText(_ points: Int) -> String {
+        let whole = points / movePoints, part = points % movePoints
+        let fraction = part == 0 ? "" : movePoints == 3 ? (part == 1 ? "⅓" : "⅔") : "+\(part)/\(movePoints)"
+        return whole == 0 && !fraction.isEmpty ? fraction : "\(whole)" + fraction
     }
 }
 
@@ -132,14 +158,15 @@ extension GameState {
     // MARK: The real world
 
     /// Movement points for a land unit to step from tile `from` to its neighbor `to`.
-    func moveCost(from: Int, to: Int, _ direction: HexDirection,
+    func moveCost(from: Int, to: Int, _ direction: HexDirection, owner: PlayerID? = nil,
                   free: (elevations: [Bool], features: [Bool])? = nil) -> Int {
         let tile = map.tiles[to]
         var cost = 1
         if free?.elevations[Int(tile.elevation.rawValue)] != true { cost += rules.elevation(tile.elevation).moveCost }
         if free?.features[Int(tile.feature.rawValue)] != true, !(rules.feature(tile.feature).removedByCity && city(atTile: to) != nil) { cost += rules.feature(tile.feature).moveCost }
-        if map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0 { cost += rules.river.crossingMoveCost }
-        return cost
+        let river = map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0
+        let bridges = rules.roads.flatMap { r in owner.map { players[$0.rawValue].knows(r.riverTech) } } ?? false
+        return rules.stepPoints(cost, crossesRiver: river, road: map.tiles[from].hasRoad && tile.hasRoad, bridges: bridges)
     }
 
     /// Whether `unit` may enter (or pass through) tile `t`: passable, no foreign unit (except
@@ -230,7 +257,7 @@ extension GameState {
                 interrupted = true
                 break
             }
-            let after = movesLeft - min(movesLeft, moveCost(from: here, to: next, direction, free: free))
+            let after = movesLeft - min(movesLeft, moveCost(from: here, to: next, direction, owner: start.owner, free: free))
             let stoppable = mayStop(next, start)
             let inZOC = zoc?[next] ?? false
             if after == 0 || inZOC, !stoppable {

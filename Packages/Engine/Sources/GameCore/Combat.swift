@@ -410,8 +410,9 @@ extension GameState {
         // Attacking ends the attacker's moves (one move for a skirmisher, M2 §8.3) and clears
         // its activity and orders.
         let skirmish = promotionDefs(attacker).contains { $0.moveAfterAttack == true }
+        let move = rules.movePoints
         updateUnit(id) { u in
-            u.movesLeft = skirmish ? max(0, u.movesLeft - 1) : 0
+            u.movesLeft = skirmish ? max(0, u.movesLeft - move) : 0
             if skirmish { u.attacked = true }
             u.activity = .none
             u.destination = nil

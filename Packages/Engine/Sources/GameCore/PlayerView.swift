@@ -80,6 +80,8 @@ public enum UnitActionKind: String, Hashable, Sendable, CaseIterable {
     case foundCity, buildFarm, buildMine, buildPasture, fortify, sleep, wake, skip, cancelOrders, disband
     // M2 §4.1.
     case buildQuarry, buildPlantation, buildCamp, buildFishingBoats, buildLumberMill
+    // M2 §3.3.
+    case buildRoad, pillage
 }
 
 /// An action of the unit card (M1 §12.6, §16).
@@ -231,6 +233,8 @@ public struct PlayerView: Sendable {
         guard let t = index(of: hex), me.explored[t] else { return nil }
         var tile = state.map.tiles[t]
         tile.improvement = Improvement(rawValue: me.memory.tileImprovement[t])
+        tile.road = me.memory.remembersRoad(t) ? true : nil
+        if !me.visible[t] { tile.pillaged = nil }
         tile.resource = state.knownResource(at: t, for: player)
         return tile
     }
@@ -398,6 +402,8 @@ public struct PlayerView: Sendable {
                 add(kind, .buildImprovement(unit: id, improvement: improvement), state.improvementProblem(improvement, by: unit))
             }
         }
+        if def.charges > 0, rules.roads != nil { add(.buildRoad, .buildRoad(unit: id), state.roadProblem(unit)) }
+        if def.isMilitary, rules.roads != nil { add(.pillage, .pillage(unit: id), state.pillageProblem(unit)) }
         if def.isMilitary { add(.fortify, .fortify(unit: id), GameEngine.activityProblem(.fortify, unit)) }
         add(.sleep, .sleep(unit: id), GameEngine.activityProblem(.sleep, unit))
         add(.wake, .wake(unit: id), GameEngine.activityProblem(.wake, unit))
@@ -453,6 +459,8 @@ public struct PlayerView: Sendable {
             var tile = state.map.tiles[t]
             guard rules.isWorkable(tile) else { return }
             tile.improvement = Improvement(rawValue: me.memory.tileImprovement[t])
+            tile.road = me.memory.remembersRoad(t) ? true : nil
+            if !me.visible[t] { tile.pillaged = nil }
             let y = rules.tileYields(tile, knows: knows, isCityCentre: t == centre)
             score += s.foodWeight * y.food + s.productionWeight * y.production + s.goldWeight * y.gold
         }

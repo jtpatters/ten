@@ -228,7 +228,7 @@ public struct GameState: Codable, Hashable, Sendable {
         let id = UnitID(nextUnitID)
         nextUnitID += 1
         units.append(Unit(id: id, owner: owner, type: type, position: map.normalize(position)!,
-                          movesLeft: movesLeft ?? def.moves, charges: charges ?? def.charges, hp: rules.constants.healing.maxHP))
+                          movesLeft: movesLeft ?? def.moves * rules.movePoints, charges: charges ?? def.charges, hp: rules.constants.healing.maxHP))
         return id
     }
 

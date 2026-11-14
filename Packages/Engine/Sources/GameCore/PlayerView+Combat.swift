@@ -305,10 +305,8 @@ extension PlayerView {
                 cost += rules.feature(tile.feature).moveCost
             }
         }
-        if me.explored[from], state.map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0 {
-            cost += rules.river.crossingMoveCost
-        }
-        return cost
+        let river = me.explored[from] && state.map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0
+        return rules.stepPoints(cost, crossesRiver: river, road: me.memory.remembersRoad(from) && me.memory.remembersRoad(to), bridges: true)
     }
 
     /// A city's garrison (M1 §13): its lowest-id military unit on the city tile. For an own

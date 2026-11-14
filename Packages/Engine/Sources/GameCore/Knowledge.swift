@@ -43,6 +43,9 @@ public struct PlayerMemory: Codable, Hashable, Sendable {
     /// Tribal villages seen and not seen gone since (M1 §7.7): tile indices, sorted and unique;
     /// nil when there are none (never empty), so the key is absent from saves without them.
     public internal(set) var tribalVillages: [Int32]?
+    /// Roads last seen (M2 §3.4); nil when none (never empty), so the key is absent from saves
+    /// without them.
+    public internal(set) var tileRoad: TileBitSet?
 
     public init(tileCount: Int) {
         tileOwner = Array(repeating: 0, count: tileCount)
@@ -50,6 +53,18 @@ public struct PlayerMemory: Codable, Hashable, Sendable {
         cities = []
         units = []
         tribalVillages = nil
+    }
+
+    public func remembersRoad(_ t: Int) -> Bool { tileRoad?[t] ?? false }
+
+    mutating func rememberRoad(at t: Int, _ road: Bool) {
+        if road {
+            if tileRoad == nil { tileRoad = TileBitSet(count: tileOwner.count) }
+            tileRoad![t] = true
+        } else if tileRoad?[t] == true {
+            tileRoad![t] = false
+            if tileRoad!.isEmpty { tileRoad = nil }
+        }
     }
 
     public func city(_ id: CityID) -> CitySighting? {
@@ -164,6 +179,9 @@ extension GameState {
         if players[p.rawValue].memory.tileOwner[t] != owner { players[p.rawValue].memory.tileOwner[t] = owner }
         if players[p.rawValue].memory.tileImprovement[t] != improvement {
             players[p.rawValue].memory.tileImprovement[t] = improvement
+        }
+        if map.tiles[t].hasRoad != players[p.rawValue].memory.remembersRoad(t) {
+            players[p.rawValue].memory.rememberRoad(at: t, map.tiles[t].hasRoad)
         }
         if tribalVillages != nil || players[p.rawValue].memory.tribalVillages != nil {
             players[p.rawValue].memory.rememberTribalVillage(at: t, standing: holdsTribalVillage(t))

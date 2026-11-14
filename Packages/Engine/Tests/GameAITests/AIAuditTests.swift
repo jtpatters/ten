@@ -864,7 +864,7 @@ private func attacks(_ command: Command, by id: UnitID) -> Bool {
         refreshKnowledge(&state)
         try #require(state.map.distance(taken, target) <= state.rules.unit(.archer).range)
         var turn = planned(state)
-        let moves = state.rules.unit(.archer).moves
+        let moves = state.maxMoves(of: state.unit(archer)!)
         let hit = turn.attack(archer, AttackOption(target: target, defender: .unit(foe), from: taken, moveCost: 1))
         #expect(!hit)
         #expect(!turn.acted.contains(archer))

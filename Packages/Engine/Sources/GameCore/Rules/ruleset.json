@@ -397,6 +397,7 @@
         { "name": "iron", "displayName": "Iron", "kind": "strategic", "food": 0, "production": 1, "gold": 0, "culture": 0,
           "improvement": "mine", "revealedBy": "bronzeWorking", "sites": [ { "terrains": ["grassland", "plains", "desert"], "elevations": ["flat", "hills"], "features": ["none"] } ] }
     ],
+    "roads": { "movePoints": 3, "roadCost": 1, "tech": "theWheel", "riverTech": "engineering", "pillageGold": 25, "pillageHeal": 50 },
     "stockpile": { "perSource": 2, "cap": 20, "capBonus": 10, "capBonusEra": 2, "unitCost": 10, "warUsePerUnit": 1,
                    "shortageStrength": -5, "bonusPer1000Land": 32, "luxuryPer1000Land": 18, "strategicPer1000Land": 14,
                    "clusterMin": 2, "clusterMax": 4 }

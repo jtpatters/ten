@@ -59,7 +59,8 @@ extension GameState {
         let t = map.index(of: unit.position)!
         guard tileOwner(t) == unit.owner else { return "tile not in your territory" }
         guard city(atTile: t) == nil else { return "not on a city centre" }
-        guard map.tiles[t].improvement == nil else { return "tile already improved" }
+        let repair = map.tiles[t].isPillaged && map.tiles[t].improvement == improvement
+        guard map.tiles[t].improvement == nil || repair else { return "tile already improved" }
         guard rules.allowsImprovement(improvement, on: map.tiles[t], resource: knownResource(at: t, for: unit.owner)) else { return "\(def.displayName) not allowed here" }
         if let tech = def.tech, !players[unit.owner.rawValue].knows(tech) { return "needs \(techName(tech))" }
         return nil
@@ -71,6 +72,7 @@ extension GameState {
         guard let unit = unit(id) else { return }
         let t = map.index(of: unit.position)!
         map[index: t].improvement = improvement
+        map[index: t].pillaged = nil
         fx.touchTile(t)
         if unit.charges <= 1 {
             removeUnit(id)
@@ -107,7 +109,7 @@ extension GameState {
         guard let unit = unit(id) else { return }
         let heal = healing(for: unit)
         let wake = unit.activity == .sleeping && enemyNear(unit, within: 2)
-        let moves = rules.unit(unit.type).moves + promotionMoves(unit)
+        let moves = maxMoves(of: unit)
         let maxHP = rules.constants.healing.maxHP
         updateUnit(id) { u in
             u.zocStopped = false
@@ -192,7 +194,7 @@ extension GameState {
     }
 
     /// Its moves per phase, promotions included.
-    public func maxMoves(of unit: Unit) -> Int { rules.unit(unit.type).moves + promotionMoves(unit) }
+    public func maxMoves(of unit: Unit) -> Int { (rules.unit(unit.type).moves + promotionMoves(unit)) * rules.movePoints }
 
     /// Its range (0 for non-ranged units), promotions included.
     public func range(of unit: Unit) -> Int {

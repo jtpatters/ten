@@ -79,7 +79,7 @@ func frontierStep(_ unit: Unit, _ v: PlayerView) -> FrontierStep {
         }
         return best.map { v.coord(at: $0.tile) }
     }
-    if let goal = village(within: seek * max(1, v.rules.unit(unit.type).moves)) { return .move(goal) }
+    if let goal = village(within: seek * max(1, v.rules.unit(unit.type).moves) * v.rules.movePoints) { return .move(goal) }
     let frontier = v.aiFrontier()
     if let destination = unit.destination, let d = v.index(of: destination), frontier.contains(d) { return .going }
     if !frontier.isEmpty, unit.movesLeft > 0 {
@@ -291,7 +291,7 @@ struct NewPlayer {
             issue(.foundCity(unit: unit.id))
             return
         }
-        let field = v.movementField(for: unit.id, limit: 16)
+        let field = v.movementField(for: unit.id, limit: v.rules.points(16))
         var best: (value: Int, tile: Int)?
         for t in candidateSites(v) where !chosenSites.contains(where: { v.aiDistance($0, t) <= 3 }) {
             guard field.indices.contains(t), field[t] >= 0, let score = siteValue(t, v) else { continue }

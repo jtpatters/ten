@@ -234,7 +234,7 @@ import Testing
         #expect(!settlerActions.contains { $0.kind == .fortify })
         #expect(view.unitActions(for: builder).first { $0.kind == .buildFarm }?.problem == "tile not in your territory")
         let warriorActions = view.unitActions(for: warrior)
-        #expect(warriorActions.map(\.kind) == [.fortify, .sleep, .wake, .skip, .cancelOrders, .disband])
+        #expect(warriorActions.map(\.kind) == [.pillage, .fortify, .sleep, .wake, .skip, .cancelOrders, .disband])
         #expect(warriorActions.filter(\.isAvailable).map(\.kind) == [.fortify, .sleep, .skip, .disband])
         try apply(.endTurn, &state)
         #expect(state.view(for: PlayerID(0)).unitActions(for: warrior).allSatisfy { $0.problem == "not your turn" })

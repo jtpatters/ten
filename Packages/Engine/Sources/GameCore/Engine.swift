@@ -40,6 +40,10 @@ public enum Command: Codable, Hashable, Sendable {
     case upgrade(unit: UnitID)
     /// Take one of the promotions offered to a unit with one due (M2 §8.3).
     case promote(unit: UnitID, promotion: String)
+    /// A Builder lays a road where it stands (M2 §3.3).
+    case buildRoad(unit: UnitID)
+    /// A military unit pillages the enemy tile it stands on (M2 §3.3).
+    case pillage(unit: UnitID)
 }
 
 public enum CommandError: Error, Hashable, Sendable, CustomStringConvertible {
@@ -122,6 +126,11 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case unitUpgraded(unit: UnitID, from: UnitType, to: UnitType, owner: PlayerID, at: HexCoord)
     /// A unit took a promotion (M2 §8.3).
     case unitPromoted(unit: UnitID, promotion: String, owner: PlayerID, at: HexCoord)
+    /// A road was built (M2 §3.3).
+    case roadBuilt(at: HexCoord, owner: PlayerID)
+    /// `unit` of `by` pillaged the tile of `owner` at `at` (M2 §3.3): `improvement` (nil: the
+    /// road), with `gold` or `healed` HP to the pillager.
+    case tilePillaged(at: HexCoord, unit: UnitID, by: PlayerID, owner: PlayerID?, improvement: Improvement?, gold: Int, healed: Int)
     case phaseStarted(turn: Int, player: PlayerID)
 }
 
@@ -318,6 +327,16 @@ public enum GameEngine {
             let unit = try ownedUnit(id, by: player, in: state)
             if let problem = state.promoteProblem(unit, promotion) { throw .rejected(reason: problem) }
             state.promote(id, promotion, &fx)
+
+        case let .buildRoad(id):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.roadProblem(unit) { throw .rejected(reason: problem) }
+            state.buildRoad(by: id, &fx)
+
+        case let .pillage(id):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.pillageProblem(unit) { throw .rejected(reason: problem) }
+            state.pillage(by: id, &fx)
         }
 
         state.checkInsights(&fx)

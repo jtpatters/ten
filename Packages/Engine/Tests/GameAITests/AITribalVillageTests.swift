@@ -139,7 +139,7 @@ private func playWithTribalVillages(_ state: inout GameState, until turn: Int, c
         try place(&plain, [], lookouts: [hex(12, 9)])
         let v = state.view(for: p0)
         let cost = v.movementField(for: scout)[tile(state, village)]
-        try #require(cost > 0 && cost <= 9 && v.isKnownTribalVillage(village))
+        try #require(cost > 0 && cost <= state.rules.points(9) && v.isKnownTribalVillage(village))
         let end = try stop(v, scout, toward: village)
         playPhase(&state)
         playPhase(&plain)

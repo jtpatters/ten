@@ -285,7 +285,7 @@ struct AITurn {
     /// Units bought this phase (after the military moved) fortify where they appear.
     mutating func fortifyNewUnits() {
         for unit in view.units where !unit.type.isCivilian && !acted.contains(unit.id) && unit.activity == .none
-            && unit.destination == nil && !unit.zocStopped && unit.movesLeft == rules.unit(unit.type).moves {
+            && unit.destination == nil && !unit.zocStopped && unit.movesLeft == rules.unit(unit.type).moves * rules.movePoints {
             guard live else { return }
             fortify(unit)
         }

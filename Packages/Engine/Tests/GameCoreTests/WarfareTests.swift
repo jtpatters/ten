@@ -27,7 +27,7 @@ func corridorState() -> GameState {
         let records = try apply(.moveUnit(unit: w, to: hex(4, 1)), &state)
         #expect(events(records) == [.unitMoved(unit: w, from: hex(3, 1), path: [hex(4, 1)])])
         var unit = try #require(state.unit(w))
-        #expect(unit.position == hex(4, 1) && unit.movesLeft == 1 && unit.zocStopped && unit.destination == nil)
+        #expect(unit.position == hex(4, 1) && unit.movesLeft == state.rules.points(1) && unit.zocStopped && unit.destination == nil)
         #expect(throws: CommandError.zoneOfControl) { try apply(.moveUnit(unit: w, to: hex(3, 1)), &state) }
         let view = state.view(for: PlayerID(0))
         #expect(view.reachableTiles(for: w).isEmpty)
@@ -38,7 +38,7 @@ func corridorState() -> GameState {
 
         try nextTurn(&state)
         unit = try #require(state.unit(w))
-        #expect(!unit.zocStopped && unit.movesLeft == 2)
+        #expect(!unit.zocStopped && unit.movesLeft == state.rules.points(2))
     }
 
     /// `attackOptions` picks the cheapest tile to attack from, entering the zone of control
@@ -48,9 +48,9 @@ func corridorState() -> GameState {
         let w = state.addUnit(.warrior, owner: PlayerID(0), at: hex(2, 1))
         let enemy = state.addUnit(.warrior, owner: PlayerID(1), at: hex(4, 1))
         let options = state.view(for: PlayerID(0)).attackOptions(for: w)
-        #expect(options == [AttackOption(target: hex(4, 1), defender: .unit(enemy), from: hex(3, 1), moveCost: 1)])
+        #expect(options == [AttackOption(target: hex(4, 1), defender: .unit(enemy), from: hex(3, 1), moveCost: state.rules.points(1))])
         try apply(.moveUnit(unit: w, to: hex(3, 1)), &state)
-        #expect(state.unit(w)!.zocStopped && state.unit(w)!.movesLeft == 1)
+        #expect(state.unit(w)!.zocStopped && state.unit(w)!.movesLeft == state.rules.points(1))
         let records = try apply(.attack(unit: w, target: hex(4, 1)), &state)
         #expect(combatEvent(records)?.attacker == .unit(w))
         #expect(state.unit(w).map { $0.movesLeft == 0 } ?? true)
@@ -75,10 +75,10 @@ func corridorState() -> GameState {
         let records = try apply(.moveUnit(unit: scout, to: hex(9, 0)), &state)
         #expect(events(records) == [.unitMoved(unit: scout, from: hex(3, 0), path: [hex(4, 0), hex(5, 0)])])
         var unit = try #require(state.unit(scout))
-        #expect(unit.position == hex(5, 0) && unit.movesLeft == 1 && unit.zocStopped && unit.destination == hex(9, 0))
+        #expect(unit.position == hex(5, 0) && unit.movesLeft == state.rules.points(1) && unit.zocStopped && unit.destination == hex(9, 0))
         try nextTurn(&state)
         unit = try #require(state.unit(scout))
-        #expect(unit.position == hex(6, 0) && unit.movesLeft == 2 && unit.zocStopped && unit.destination == hex(9, 0))
+        #expect(unit.position == hex(6, 0) && unit.movesLeft == state.rules.points(2) && unit.zocStopped && unit.destination == hex(9, 0))
         try nextTurn(&state)
         unit = try #require(state.unit(scout))
         #expect(unit.position == hex(9, 0) && unit.destination == nil && !unit.zocStopped)
@@ -96,7 +96,7 @@ func corridorState() -> GameState {
         #expect(events(records) == [.unitMoved(unit: scout, from: hex(3, 0), path: [hex(4, 0), hex(5, 0)]),
                                     .moveInterrupted(unit: scout, at: hex(5, 0))])
         let unit = try #require(state.unit(scout))
-        #expect(unit.position == hex(5, 0) && unit.movesLeft == 1 && unit.zocStopped && unit.destination == nil)
+        #expect(unit.position == hex(5, 0) && unit.movesLeft == state.rules.points(1) && unit.zocStopped && unit.destination == nil)
         expectSound(state)
     }
 
@@ -107,7 +107,7 @@ func corridorState() -> GameState {
         addCity(&state, PlayerID(1), at: hex(6, 3))
         let scout = state.addUnit(.scout, owner: PlayerID(0), at: hex(3, 3))
         try apply(.moveUnit(unit: scout, to: hex(5, 3)), &state)
-        #expect(state.unit(scout)!.position == hex(5, 3) && state.unit(scout)!.zocStopped && state.unit(scout)!.movesLeft == 1)
+        #expect(state.unit(scout)!.position == hex(5, 3) && state.unit(scout)!.zocStopped && state.unit(scout)!.movesLeft == state.rules.points(1))
 
         var peace = makeTestState(map: openMap())
         let walker = peace.addUnit(.scout, owner: PlayerID(0), at: hex(3, 0))
@@ -121,7 +121,7 @@ func corridorState() -> GameState {
         try apply(.moveUnit(unit: walker, to: hex(5, 0)), &war)
         #expect(war.unit(walker)!.position == hex(4, 0) && war.unit(walker)!.zocStopped)
         try apply(.moveUnit(unit: settler, to: hex(4, 2)), &war)
-        #expect(war.unit(settler)!.zocStopped && war.unit(settler)!.movesLeft == 1)
+        #expect(war.unit(settler)!.zocStopped && war.unit(settler)!.movesLeft == state.rules.points(1))
         #expect(throws: CommandError.zoneOfControl) { try apply(.moveUnit(unit: settler, to: hex(3, 2)), &war) }
         expectSound(war)
     }
@@ -296,7 +296,7 @@ func corridorState() -> GameState {
             .unitMoved(unit: scout, from: hex(2, 1), path: [hex(3, 1), hex(4, 1)]),
             .unitCaptured(old: settler, new: builder, type: .builder, from: PlayerID(1), to: PlayerID(0), at: hex(4, 1)),
         ])
-        #expect(state.unit(settler) == nil && state.unit(scout)!.movesLeft == 1)
+        #expect(state.unit(settler) == nil && state.unit(scout)!.movesLeft == state.rules.points(1))
         let unit = try #require(state.unit(builder))
         #expect(unit.owner == PlayerID(0) && unit.type == .builder && unit.charges == 2 && unit.movesLeft == 0)
         #expect(unit.position == hex(4, 1))
