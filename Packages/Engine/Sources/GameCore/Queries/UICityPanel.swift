@@ -93,6 +93,8 @@ public struct UpkeepForecast: Hashable, Sendable {
     public var disbanded: Int
     /// Military units that complete at that phase start, before upkeep is paid (counted).
     public var completing: Int = 0
+    /// Upkeep the treasury cannot pay even after disbanding; the phase's science falls by it (M2 §5.4).
+    public var shortfall: Int = 0
 }
 
 extension PlayerView {
@@ -266,13 +268,14 @@ extension PlayerView {
         let completing = militaryUnitsCompleting()
         var military = income.militaryUnits + completing
         let gold = me.gold + income.gold
-        func upkeep(_ units: Int) -> Int { max(0, units - free) * perUnit }
+        func upkeep(_ units: Int) -> Int { max(0, units - free) * perUnit + income.buildings }
         var disbanded = 0
         while gold - upkeep(military) < 0, military > free {
             military -= 1
             disbanded += 1
         }
-        return UpkeepForecast(goldAfter: max(0, gold - upkeep(military)), disbanded: disbanded, completing: completing)
+        return UpkeepForecast(goldAfter: max(0, gold - upkeep(military)), disbanded: disbanded, completing: completing,
+                              shortfall: max(0, upkeep(military) - gold))
     }
 
     /// Own cities whose next production completes a military unit at the player's next phase

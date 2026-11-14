@@ -18,21 +18,37 @@ extension GameState {
         max(0, militaryUnitCount(of: player) - freeUnitAllowance(of: player)) * rules.constants.upkeep.goldPerUnit
     }
 
-    /// The gold step of a phase (M1 §3 step 3, §7.1): add the gold yield, then pay upkeep. While
-    /// the treasury would be negative and the player has more military units than the free
-    /// allowance, the cheapest (then highest id) is disbanded; a treasury still negative is
-    /// set to 0.
-    mutating func runGold(for player: PlayerID, income: Int, _ fx: inout Effects) {
+    /// Gold `player` pays per turn for its buildings and quarters (M2 §5.4).
+    public func buildingUpkeep(of player: PlayerID) -> Int {
+        let perQuarter = rules.quarters?.upkeep ?? 0
+        return cities.reduce(0) { sum, city in
+            guard city.owner == player else { return sum }
+            let buildings = city.buildings.reduce(0) { $0 + (rules.building($1)?.upkeep ?? 0) }
+            return sum + buildings + perQuarter * (city.quarters?.count ?? 0)
+        }
+    }
+
+    /// The gold step of a phase (M1 §3 step 3, §7.1, M2 §5.4): add the gold yield, then pay unit
+    /// and building upkeep. While the treasury would be negative and the player has more
+    /// military units than the free allowance, the cheapest (then highest id) is disbanded; a
+    /// treasury still negative is set to 0 and the shortfall returned (the phase's science
+    /// falls by it).
+    @discardableResult
+    mutating func runGold(for player: PlayerID, income: Int, _ fx: inout Effects) -> Int {
         let p = player.rawValue
         players[p].gold += income
-        while players[p].gold - upkeep(of: player) < 0, militaryUnitCount(of: player) > freeUnitAllowance(of: player) {
+        let buildings = buildingUpkeep(of: player)
+        while players[p].gold - upkeep(of: player) - buildings < 0, militaryUnitCount(of: player) > freeUnitAllowance(of: player) {
             let victim = units.filter { $0.owner == player && !$0.type.isCivilian }.min { a, b in
                 let ca = rules.unit(a.type).cost, cb = rules.unit(b.type).cost
                 return ca != cb ? ca < cb : a.id > b.id
             }!
             disband(victim.id, upkeep: true, &fx)
         }
-        players[p].gold = max(0, players[p].gold - upkeep(of: player))
+        let due = upkeep(of: player) + buildings
+        let shortfall = max(0, due - players[p].gold)
+        players[p].gold = max(0, players[p].gold - due)
+        return shortfall
     }
 
     /// Removes a unit with an `unitDisbanded` event. A disband ordered by the owner is a tile

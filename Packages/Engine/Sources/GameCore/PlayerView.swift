@@ -33,7 +33,9 @@ public struct Income: Hashable, Sendable {
     public var culture: Int
     public var militaryUnits: Int
     public var freeUnits: Int
-    public var net: Int { gold - upkeep }
+    /// Gold paid for buildings and quarters (M2 §5.4).
+    public var buildings: Int = 0
+    public var net: Int { gold - upkeep - buildings }
 }
 
 /// Something a city could produce (M1 §12.6).
@@ -309,7 +311,8 @@ public struct PlayerView: Sendable {
         var y = Yields.zero
         for city in state.cities where city.owner == player { y += state.cityYields(city).total }
         return Income(gold: y.gold, upkeep: state.upkeep(of: player), science: y.science, culture: y.culture,
-                      militaryUnits: state.militaryUnitCount(of: player), freeUnits: state.freeUnitAllowance(of: player))
+                      militaryUnits: state.militaryUnitCount(of: player), freeUnits: state.freeUnitAllowance(of: player),
+                      buildings: state.buildingUpkeep(of: player))
     }
 
     // MARK: Production

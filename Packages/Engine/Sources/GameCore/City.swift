@@ -67,6 +67,8 @@ public struct City: Codable, Hashable, Sendable, Identifiable {
     /// A Free City's leading civ by pressure and for how many consecutive turns (M2 §5.5).
     public var freeCityLeader: PlayerID?
     public var freeCityTurns: Int?
+    /// Tiles bought with Gold (M2 §7.4); nil = none.
+    public var tilesBought: Int?
 
     init(id: CityID, name: String, owner: PlayerID, position: HexCoord, turn: Int, hp: Int) {
         self.id = id

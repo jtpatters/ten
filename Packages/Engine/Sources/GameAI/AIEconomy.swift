@@ -287,10 +287,18 @@ extension AITurn {
             if let kind = def.quarter, city.quarters?.contains(where: { $0.kind == kind && !$0.isPillaged }) != true { return false }
             if let other = def.requires, !city.has(other) { return false }
             if let other = def.excludes, city.has(other) { return false }
-            return def.tech.map(v.me.knows) ?? true
+            guard def.tech.map(v.me.knows) ?? true else { return false }
+            return upkeepAffordable(def.upkeep ?? 0, pays: def.gold, v)
         case let .quarter(kind, at):
-            return v.quarterSites(kind, in: city.id).contains { $0.tile == at }
+            let gold = rules.quarters?.kinds.first { $0.id == kind }?.yield == "gold"
+            return upkeepAffordable(rules.quarters?.upkeep ?? 0, pays: gold ? .max : 0, v) && v.quarterSites(kind, in: city.id).contains { $0.tile == at }
         }
+    }
+
+    /// M2 §17.2: never queue an item whose upkeep would push net gold below 0, counting a
+    /// treasury that covers 20 turns of it; an item that pays its own upkeep (Market) is fine.
+    func upkeepAffordable(_ upkeep: Int, pays gold: Int, _ v: PlayerView) -> Bool {
+        upkeep <= gold || v.income().net + v.me.gold / 20 >= upkeep
     }
 
     /// M1 §13: never start a military unit if net gold after its upkeep would be < 0, unless at
@@ -299,7 +307,7 @@ extension AITurn {
     func militaryAffordable(_ military: Int, atWar: Bool, _ v: PlayerView) -> Bool {
         let income = v.income()
         let perUnit = rules.constants.upkeep.goldPerUnit
-        let net = income.gold - max(0, military + 1 - income.freeUnits) * perUnit
+        let net = income.gold - income.buildings - max(0, military + 1 - income.freeUnits) * perUnit
         if net >= 0 { return true }
         return atWar && v.me.gold >= ai.warGoldDeficitMultiplier * -net
     }

@@ -27,7 +27,7 @@ extension GameState {
     /// 2. Stability of its cities (M2 §5.2); its cities in id order: assign citizens → collect yields → food and growth →
     ///    production → culture and borders → healing and wall repair → clear the bombard flag
     ///    (then citizens are reassigned so the city shows what it works next);
-    /// 3. gold: the gold yield, then upkeep; 4. science;
+    /// 3. gold: the gold yield, then unit and building upkeep; 4. science, less any upkeep shortfall;
     /// 5. its units in id order: clear `zocStopped`, `fortifying` → `fortified`, clear
     ///    `skipped`, heal, restore moves, leave territory closed to them; then, in a second
     ///    pass in id order, standing move orders continue;
@@ -55,8 +55,8 @@ extension GameState {
             science += yields.total.science
         }
 
-        runGold(for: player, income: gold, &fx)
-        runResearch(for: player, science: science, &fx)
+        let shortfall = runGold(for: player, income: gold, &fx)
+        runResearch(for: player, science: max(0, science - shortfall), &fx)
         runStockpiles(for: player)
 
         let ids = units.compactMap { $0.owner == player ? $0.id : nil }

@@ -25,6 +25,8 @@ public enum Command: Codable, Hashable, Sendable {
     case setQueue(city: CityID, items: [ProductionItem])
     /// Buy an item for 3 × its production cost in Gold (M1 §5).
     case purchase(city: CityID, item: ProductionItem)
+    /// Buy an unowned tile next to a city's territory (M2 §7.4).
+    case purchaseTile(city: CityID, tile: HexCoord)
     case setFocus(city: CityID, focus: CityFocus)
     /// Research a tech, through its missing prerequisites (M1 §6).
     case setResearch(tech: TechID)
@@ -265,6 +267,14 @@ public enum GameEngine {
             let price = state.purchasePrice(of: item)
             guard state.players[player.rawValue].gold >= price else { throw .rejected(reason: "needs \(price) gold") }
             state.purchase(item, inCity: index, price: price, &fx)
+
+        case let .purchaseTile(cityID, tile):
+            let index = try ownedCity(cityID, by: player, in: state)
+            let city = state.cities[index]
+            if let problem = state.tilePurchaseProblem(tile, for: city) { throw .rejected(reason: problem) }
+            let price = state.tilePrice(for: city)!
+            guard state.players[player.rawValue].gold >= price else { throw .rejected(reason: "needs \(price) gold") }
+            state.purchaseTile(tile, inCity: index, &fx)
 
         case let .setFocus(cityID, focus):
             let index = try ownedCity(cityID, by: player, in: state)
