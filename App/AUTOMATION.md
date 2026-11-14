@@ -100,6 +100,7 @@ New Game, `newgame` and `-autostart` always place them.
 | `veterans` | Turn 1, the capital founded, with a Warrior beside it selected: 15 XP (a promotion due), its upgrade tech learnt (`DebugTools.learnTech`) and 300 Gold, so its card shows a lit Upgrade with the price and Promote; an Archer beside it, 15 XP, its upgrade tech unknown (Upgrade dimmed). Next lists both as Promotion Due, and visiting one opens its promotions. |
 | `resources` | Turn 1, the capital founded, with resources placed by hand on its own land and their techs learnt (M2 §3.1, §4.1): Stone under a built Quarry, Wine under a built Plantation, Iron and Horses unimproved (the top bar's stock chip shows both), and Deer with a Builder on it, selected (its card offers a Camp). |
 | `roads` | As `resources`, plus roads laid by hand from the capital out through its land and beyond (M2 §3.3), the Quarry pillaged (its mark on the map), and The Wheel learnt (the Builder's card offers a Road). |
+| `naval` | Sailing and Shipbuilding learnt; a Galley and a Quadrireme on the coast nearest the capital and a Warrior embarked beside them (M2 §3.2, §8.4); the Galley selected. |
 
 The `scenario` command's result ends with the scenario's note when it has one: the units and
 tiles to use next (`rivals`, `walls`, `repreview`, `tribal-villages`).
@@ -206,7 +207,7 @@ plus 0.25 s for the screen to draw.
 
 | Command | Effect | Result |
 |---|---|---|
-| `newgame [size] [seed] [civ] [fog\|nofog]` | New game (default `duel 42`, first civ, fog on); waits until idle. | `turn T, player P, U units, C cities` |
+| `newgame [size] [seed] [civ] [fog\|nofog] [pangaea\|continents\|archipelago]` | New game (default `duel 42`, first civ, fog on, Pangaea); waits until idle. | `turn T, player P, U units, C cities` |
 | `scenario <name>` | Open a scenario; waits until idle. | as above, then the scenario's note, if any |
 | `continue` | Open the newest save; waits until idle (AI phases before the human's play first). | as above |
 | `load [i]` | Open save number i of the list, newest first (default 0). | as above |

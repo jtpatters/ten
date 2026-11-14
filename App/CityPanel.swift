@@ -447,6 +447,8 @@ struct ItemIcon: View {
             case .pikeman: "arrow.up"
             case .knight: "crown.fill"
             case .trebuchet: "triangle"
+            case .galley, .cog: "sailboat"
+            case .quadrireme, .dromon: "sailboat.fill"
             }
         case let .building(id):
             switch id.rawValue {
