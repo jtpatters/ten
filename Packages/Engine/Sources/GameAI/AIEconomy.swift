@@ -181,6 +181,11 @@ extension AITurn {
             if unlocatedRival(v) != nil { offer(.unit(.scout)) }
         }
 
+        // 2a. A few ships in coastal cities after the early turns (M2 §8.4), ahead of Settlers
+        //     and the army: the quota is small, and below the defence quota and the army a
+        //     ship is never the first choice.
+        if v.turn > ai.earlyTurns, canKeepMilitary, let ship = shipToBuild(for: city, c, v) { offer(.unit(ship)) }
+
         // 2b. In prepare/war with at least armyFirstCities cities, Builders (step 4) and then
         //     the army (step 6) come before Settlers. Otherwise an AI that keeps finding sites
         //     spends its production on Settlers through prepare and has almost no army before
@@ -211,9 +216,6 @@ extension AITurn {
         if c.builders < ceilPct(cities, ai.buildersPerCityPct), !improvableWorkedTiles(v).isEmpty {
             offer(.unit(.builder))
         }
-
-        // 4b. A few ships in coastal cities after the early turns (M2 §8.4).
-        if v.turn > ai.earlyTurns, canKeepMilitary, let ship = shipToBuild(for: city, c, v) { offer(.unit(ship)) }
 
         // 5. Monument early: in the first earlyTurns turns (later it comes with the other
         //    buildings, below the army).
