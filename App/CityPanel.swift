@@ -902,6 +902,7 @@ private struct QueueRow<Handle: Gesture>: View {
         case let .population(n)? where row.receivesProduction: "Builds now, done at population \(n)"
         case let .population(n)?: "Waits for population \(n)"
         case .noRoom?: "Waits: no free tile to place it"
+        case let .resource(r, needed, have)?: "Waits: needs \(needed) \("\(r)".capitalized) (have \(have))"
         case nil: nil
         }
     }
@@ -1012,8 +1013,11 @@ private struct OptionRow: View {
     /// A Settler in a city too small for it: it would wait, and its turns count only once the
     /// city has grown.
     private var waitNote: String? {
-        guard case let .population(n)? = session.view.productionWait(option.item, in: city) else { return nil }
-        return "Waits for population \(n)"
+        switch session.view.productionWait(option.item, in: city) {
+        case let .population(n)?: return "Waits for population \(n)"
+        case let .resource(r, needed, have)?: return "Waits: needs \(needed) \("\(r)".capitalized) (have \(have))"
+        default: return nil
+        }
     }
 
     /// The amber line under the cost: why it would wait, or a Builder's city with no job for it.

@@ -18,9 +18,12 @@ enum TileBits {
     /// Byte 0: the territory owner's style index + 1 (0 none).
     static let ownerShift: UInt8 = 3
     static let ownerMask: UInt8 = 0x78
-    /// Byte 1: the `Improvement` raw value (0 none).
+    /// Byte 1: the `Improvement` raw value's low three bits (0 none); byte 0: its bit 3.
     static let improvementShift: UInt8 = 5
-    static let improvementMask: UInt8 = 0x60
+    static let improvementMask: UInt8 = 0xE0
+    static let improvementHigh: UInt8 = 0x80
+    /// Byte 2: the viewer knows the tile's resource (`setResources`).
+    static let resourceKnown: UInt8 = 0x80
     /// Byte 3: in the movement range.
     static let range: UInt8 = 0x04
     /// Byte 3: a tribal village's tile (known, or a taken one's ghost still fading): the plants
@@ -81,8 +84,16 @@ extension MapRenderer {
         let kinds = inputs.improvements
         writeTileBits(byte: 1, mask: TileBits.improvementMask) { i in
             guard i < kinds.count else { return 0 }
-            return min(kinds[i], 3) << TileBits.improvementShift
+            return (kinds[i] & 7) << TileBits.improvementShift
         }
+        writeTileBits(byte: 0, mask: TileBits.improvementHigh) { i in
+            i < kinds.count && kinds[i] & 8 != 0 ? TileBits.improvementHigh : 0
+        }
+    }
+
+    func writeResourceBits() {
+        let kinds = inputs.resources
+        writeTileBits(byte: 2, mask: TileBits.resourceKnown) { i in i < kinds.count && kinds[i] != 0 ? TileBits.resourceKnown : 0 }
     }
 
     func writeRangeBits() {
@@ -120,7 +131,7 @@ extension MapRenderer {
         if farmCentersVersion != tileVersion {
             var centers: [SIMD2<Float>] = []
             let farm = Improvement.farm.rawValue << TileBits.improvementShift
-            for i in 0..<state.map.tileCount where tileBytes[i * 4 + 1] & TileBits.improvementMask == farm && explored(i) {
+            for i in 0..<state.map.tileCount where tileBytes[i * 4 + 1] & TileBits.improvementMask == farm && tileBytes[i * 4] & TileBits.improvementHigh == 0 && explored(i) {
                 centers.append(Self.vec(layout.center(of: state.map.coord(at: i))))
             }
             farmCentersBuffer = centers.isEmpty ? nil

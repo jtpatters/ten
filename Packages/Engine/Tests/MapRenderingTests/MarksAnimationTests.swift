@@ -386,6 +386,33 @@ import simd
         #expect(frame.bands.contains(try #require(frame.sprites.firstIndex { $0.flags.y == UnitSpriteKind.selection.rawValue })))
     }
 
+    /// Resource icons (M2 §3.1) stand on every tile with a resource, placed once, and show only
+    /// where the App says the viewer knows it (`setResources`, a bit of the tile texture).
+    @Test func resourceIconsShowOnlyWhereKnown() throws {
+        let f = try Self.field()
+        var map = f.map
+        let land = try #require((0..<map.tileCount).first { map[index: $0].isLand && map[index: $0].feature == .none })
+        map[index: land].resource = .iron
+        let decor = MapRenderer.makeDecorations(map: map, layout: f.renderer.layout, atlas: f.renderer.decorAtlas)
+        let icons = decor.filter { UInt32($0.flags.w) & DecorFlags.resource != 0 }
+        #expect(Set(icons.map { Int($0.position.w) }) == Set((0..<map.tileCount).filter { map[index: $0].resource != nil }))
+        #expect(icons.allSatisfy { (UInt32($0.flags.w) >> 15) & 15 == 0 })
+        let r = f.renderer
+        #expect(r.tileBytes[land * 4 + 2] & TileBits.resourceKnown == 0)
+        var known = [UInt8](repeating: 0, count: map.tileCount)
+        known[land] = Resource.iron.rawValue
+        r.setResources(known)
+        #expect(r.tileBytes[land * 4 + 2] & TileBits.resourceKnown != 0)
+        #expect(r.tileBytes[land * 4 + 2] & 0x3F == map[index: land].riverEdges)
+        r.setResources([])
+        #expect(r.tileBytes[land * 4 + 2] & TileBits.resourceKnown == 0)
+        // An M2 improvement's raw value (8 for a Lumber Mill) spans both of its bytes.
+        var kinds = [UInt8](repeating: 0, count: map.tileCount)
+        kinds[land] = Improvement.lumberMill.rawValue
+        r.setImprovements(kinds)
+        #expect(r.tileBytes[land * 4 + 1] & TileBits.improvementMask == 0 && r.tileBytes[land * 4] & TileBits.improvementHigh != 0)
+    }
+
     /// Mine entrances (with their spoil) stand on every bare hill that could take a mine and
     /// herds on every open pasture site, placed once; each shows only while its tile has that
     /// improvement, and open-land scatter clears from farms. The decor atlas keeps its size.
@@ -394,15 +421,21 @@ import simd
         let f = try Self.field()
         let map = f.map
         let decor = MapRenderer.makeDecorations(map: map, layout: f.renderer.layout, atlas: f.renderer.decorAtlas)
-        var mines: [Int: Int] = [:], herds: [Int: Int] = [:], cluttered: [Int: Int] = [:]
+        var mines: [Int: Int] = [:], herds: [Int: Int] = [:], props: [Int: Int] = [:], cluttered: [Int: Int] = [:]
         for d in decor {
             let bits = UInt32(d.flags.w), tile = Int(d.position.w)
             if bits & DecorFlags.clears != 0 { cluttered[tile, default: 0] += 1 }
-            let needs = (bits >> 15) & 3
+            let needs = (bits >> 15) & 15
             guard needs != 0 else { continue }
-            #expect(bits & (DecorFlags.relief | DecorFlags.clears | DecorFlags.shadow) == 0)
-            if needs == UInt32(Improvement.mine.rawValue) { mines[tile, default: 0] += 1 } else { herds[tile, default: 0] += 1 }
+            #expect(bits & (DecorFlags.relief | DecorFlags.clears | DecorFlags.shadow | DecorFlags.resource) == 0)
             #expect(needs != UInt32(Improvement.farm.rawValue))
+            if needs > UInt32(Improvement.pasture.rawValue) {
+                // M2 improvements' props: one, where its improvement could stand.
+                props[tile, default: 0] += 1
+                #expect(DecorPlacer.propImprovement(on: map[index: tile])?.rawValue == UInt8(needs))
+                continue
+            }
+            if needs == UInt32(Improvement.mine.rawValue) { mines[tile, default: 0] += 1 } else { herds[tile, default: 0] += 1 }
         }
         for i in 0..<map.tileCount {
             let t = map[index: i]
@@ -414,6 +447,7 @@ import simd
             #expect(herds[i].map { (3...4).contains($0) } ?? !grazing, "tile \(i): \(herds[i] ?? 0) animals")
             #expect(mines[i] == nil || mineable)
             #expect(herds[i] == nil || grazing)
+            #expect(props[i] == (DecorPlacer.propImprovement(on: t) == nil ? nil : 1), "tile \(i): \(props[i] ?? 0) props")
         }
 
         // The decorations alone, fog off: each shows on its own improvement only.

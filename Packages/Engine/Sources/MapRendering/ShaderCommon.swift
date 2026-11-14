@@ -89,9 +89,10 @@ struct TileInfo {
 };
 
 // The tile texture (`MapRenderer.tileBytes`), per tile:
-//   r: terrain (bits 0-2), territory owner (bits 3-6: 0 none, else style index + 1)
-//   g: elevation (bits 0-1), feature (bits 2-4), improvement (bits 5-6)
-//   b: river edges (bits 0-5)
+//   r: terrain (bits 0-2), territory owner (bits 3-6: 0 none, else style index + 1),
+//      improvement bit 3 (bit 7)
+//   g: elevation (bits 0-1), feature (bits 2-4), improvement bits 0-2 (bits 5-7)
+//   b: river edges (bits 0-5), the viewer knows the tile's resource (bit 7)
 //   a: fog level (bits 0-1: 0 visible, 1 explored, 2 unexplored), movement range (bit 2),
 //      a tribal village (bit 3: the plants standing on the tile hide), settler score tier
 //      (bits 4-6: 0 none, 1-7), city centre (bit 7: decorations hide there)
@@ -102,6 +103,10 @@ constant uint kTileRangeBit = 0x04u;
 constant uint kTileTribalVillageBit = 0x08u;
 constant uint kTileScoreShift = 4u;
 constant uint kTileCityBit = 0x80u;
+constant uint kTileResourceBit = 0x80u; // in b
+
+// The `Improvement` raw value of a tile texel (0 none).
+static uint tileImprovement(uint4 v) { return ((v.g >> 5) & 7u) | ((v.r >> 7) << 3); }
 
 static TileInfo fetchTile(texture2d<uint, access::read> tiles, int q, int r, constant Uniforms& u) {
     TileInfo t;
@@ -125,8 +130,8 @@ static TileInfo fetchTile(texture2d<uint, access::read> tiles, int q, int r, con
     t.owner = (v.r >> 3) & 15u;
     t.elevation = v.g & 3u;
     t.feature = (v.g >> 2) & 7u;
-    t.improvement = (v.g >> 5) & 3u;
-    t.rivers = v.b;
+    t.improvement = tileImprovement(v);
+    t.rivers = v.b & 63u;
     t.fog = v.a & kTileFogMask;
     t.marks = v.a;
     return t;

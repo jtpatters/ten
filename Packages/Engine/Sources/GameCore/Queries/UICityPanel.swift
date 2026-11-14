@@ -23,6 +23,9 @@ public enum ProductionWait: Hashable, Sendable {
     case population(Int)
     /// A unit with no tile to appear on (M1 §5 Spawning).
     case noRoom
+    /// A unit that needs `needed` of a strategic resource the stockpile has only `have` of
+    /// (M2 §3.1).
+    case resource(Resource, needed: Int, have: Int)
 }
 
 /// One entry of an own city's queue as the city panel shows it.
@@ -110,6 +113,9 @@ extension PlayerView {
         if city.population < def.minPopulation { return .population(def.minPopulation) }
         // Own tiles are always visible to their owner, so this reads nothing hidden.
         if state.spawnTile(for: type, in: city) == nil { return .noRoom }
+        if let r = state.resourceNeeded(by: type), let s = rules.stockpile, me.stock(r) < s.unitCost {
+            return .resource(r, needed: s.unitCost, have: me.stock(r))
+        }
         return nil
     }
 

@@ -5,8 +5,9 @@ extension Shaders {
     /// edge (0 = none), or -(index + 1) for sprites shown only while that tile is unexplored;
     /// flags.w: packed `DecorFlags` (wind bits 0-1, level-of-detail class bits 2-3, random byte
     /// bits 4-11, cast shadow bit 12, grows-at-strategic-zoom bit 13, relief bit 14: a neighbour's
-/// relief reaching onto a city centre stays; bits 15-16: shown only on a tile with that
-/// improvement; bit 17: open-land clutter, hidden on farms and mines and thinned on pastures).
+/// relief reaching onto a city centre stays; bits 15-18: shown only on a tile with that
+/// improvement; bit 19: open-land clutter, hidden on farms and mines and thinned on pastures;
+/// bit 20: a resource icon, shown only while the viewer knows the tile's resource).
 /// A tribal village's tile hides its own plants and their shadows (`kTileTribalVillageBit`).
     static let decorSource = #"""
 struct DecorOut {
@@ -22,7 +23,8 @@ constant uint kDecorShadowBit = 1u << 12;
 constant uint kDecorGrowsBit = 1u << 13;
 constant uint kDecorReliefBit = 1u << 14;
 constant uint kDecorNeedsShift = 15u;
-constant uint kDecorClearsBit = 1u << 17;
+constant uint kDecorClearsBit = 1u << 19;
+constant uint kDecorResourceBit = 1u << 20;
 // Cast shadows: the cool blue-violet of the art bible's shade, fading to 35% at the tip (the
 // shadow family every pass shares).
 constant float3 kDecorShadow = float3(0.10, 0.10, 0.20);
@@ -84,8 +86,9 @@ vertex DecorOut decor_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
         uint level = own & kTileFogMask;
         // Improvements as the viewer knows them: mines and herds show only on their own;
         // open-land clutter clears from farms and mines and thins out on pastures.
-        uint improvement = (texel.g >> 5) & 3u, needs = (bits >> kDecorNeedsShift) & 3u;
+        uint improvement = tileImprovement(texel), needs = (bits >> kDecorNeedsShift) & 15u;
         hidden = hidden || (needs != 0u && improvement != needs);
+        hidden = hidden || ((bits & kDecorResourceBit) != 0u && (texel.b & kTileResourceBit) == 0u);
         if ((bits & kDecorClearsBit) != 0u && improvement != 0u) hidden = hidden || improvement != 3u || random < 0.55;
         // A city centre clears its own tile of everything, hills included: the settlement
         // stands where plants, rocks and mounds were (a mound in front of the hall would stand
