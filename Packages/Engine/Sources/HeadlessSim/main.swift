@@ -421,10 +421,10 @@ struct GameReport {
             for b in state.stabilityBreakdowns(for: player.id).values {
                 sum.buildings += b.buildings; sum.luxuries += b.luxuries; sum.need += b.need
                 sum.empireSize += b.empireSize; sum.overcrowding += b.overcrowding; sum.occupied += b.occupied
-                sum.quarters += b.quarters
+                sum.quarters += b.quarters; sum.government += b.government
             }
         }
-        return "buildings \(sum.buildings), luxuries \(sum.luxuries), quarters \(sum.quarters), need −\(sum.need), "
+        return "buildings \(sum.buildings), luxuries \(sum.luxuries), quarters \(sum.quarters), government \(sum.government), need −\(sum.need), "
             + "empire \(sum.empireSize), overcrowding \(sum.overcrowding), occupied \(sum.occupied)"
     }
 
