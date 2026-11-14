@@ -222,8 +222,6 @@ struct StartView: View {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Why the seed field cannot start a game (letters typed on a hardware keyboard, a number
-    /// too large), or nil. An empty field is fine: a random seed.
     /// What each land pattern makes (M2 §3.5).
     static func scriptNote(_ script: MapScript) -> String {
         switch script {
@@ -233,6 +231,8 @@ struct StartView: View {
         }
     }
 
+    /// Why the seed field cannot start a game (letters typed on a hardware keyboard, a number
+    /// too large), or nil. An empty field is fine: a random seed.
     static func seedProblem(_ text: String) -> String? {
         let trimmed = trimmedSeed(text)
         guard !trimmed.isEmpty, UInt64(trimmed) == nil else { return nil }
