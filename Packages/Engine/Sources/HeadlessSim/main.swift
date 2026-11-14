@@ -269,6 +269,8 @@ struct GameReport {
     var eraTurns: [(era: Int, turn: Int)] = []
     /// Insights fired, per player.
     var insights: [Int] = []
+    var promotions = 0
+    var upgrades = 0
     /// Turns that ended with some pair of players at war.
     var turnsAtWar = 0
     var commands = Timings(), phases = Timings(), ai = Timings()
@@ -316,6 +318,8 @@ struct GameReport {
             case let .warDeclared(by, on): wars.append((turn, by, on))
             case let .peaceSigned(a, b): peaces.append((turn, a, b))
             case let .worldEraAdvanced(era): eraTurns.append((era, turn))
+            case .unitPromoted: promotions += 1
+            case .unitUpgraded: upgrades += 1
             case let .insightGained(player, _, _):
                 if insights.count < state.players.count { insights = Array(repeating: 0, count: state.players.count) }
                 insights[player.rawValue] += 1
@@ -354,6 +358,7 @@ struct GameReport {
         let fired = insights.enumerated().map { "p\($0.offset) \($0.element)" }
         return "world era: " + (eras.isEmpty ? "unchanged" : eras.joined(separator: ", "))
             + "; insights " + (fired.isEmpty ? "none" : fired.joined(separator: ", "))
+            + "; promotions \(promotions), upgrades \(upgrades)"
     }
 
     func playerLine(_ player: Player) -> String {

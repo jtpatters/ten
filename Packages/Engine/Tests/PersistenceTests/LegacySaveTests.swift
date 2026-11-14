@@ -7,10 +7,12 @@ import Testing
 // tribal villages existed, by the post-3f tree (snapshot p3fs): Duel seed 11, AI against AI,
 // saved at the start of turn 30 (Fixtures/v1-duel-11-t30.json says how, with the state hash and
 // the rules' content hash recorded then). Tribal villages came as additive optional fields, so
-// the format stays at 1 and such a save still opens: under the rules it was made with (C0, the
-// standard rules without their tribal village section) exactly as saved; under the standard
-// rules with the rules-changed warning, without any tribal village, and with its state's hash
-// under those rules.
+// the format stays at 1 and such a save still opens. The M1 rules it was made with no longer
+// validate (M2 added unit types, and every type needs a definition), so M1 saves are best
+// effort (M2-D4): the trimmed M1 rules data still hashes to the recorded content hash (the
+// fixture's provenance), and C0 (those rules with M2's units appended) opens it with the
+// rules-changed warning and round trips it; under the standard rules it opens with the warning,
+// without any tribal village, and with its state's hash under those rules.
 
 /// The version-1 fixture and what was recorded when it was written.
 struct LegacySave {
@@ -47,28 +49,54 @@ struct LegacySave {
         return url
     }
 
-    /// C0: the standard rules as they were when the fixture was saved: without their tribal
-    /// village section, and without M2's eras, progression, Insights and later techs (M2 2.1a).
-    static func c0() throws -> Ruleset {
-        try rules { json in
-            for key in ["tribalVillages", "eras", "progression"] { json.removeValue(forKey: key) }
-            let m1Techs = ["pottery", "mining", "animalHusbandry", "sailing", "writing", "irrigation",
-                           "archery", "bronzeWorking", "masonry", "currency"]
-            let techs = (json["techs"] as? [[String: Any]] ?? []).filter { m1Techs.contains($0["id"] as? String ?? "") }
-            json["techs"] = techs.map { tech in tech.filter { $0.key != "era" && $0.key != "insight" } }
-            var ai = json["ai"] as? [String: Any] ?? [:]
-            ai["researchOrderPeace"] = ["pottery", "animalHusbandry", "mining", "irrigation", "writing", "bronzeWorking",
-                                        "archery", "masonry", "sailing", "currency"]
-            ai["researchOrderWar"] = ["mining", "bronzeWorking", "animalHusbandry", "archery", "masonry", "pottery",
-                                      "writing", "irrigation", "currency", "sailing"]
-            json["ai"] = ai
+    /// The standard rules data as it was when the fixture was saved: without its tribal
+    /// village section, without M2's eras, progression, Insights and later techs (M2 2.1a), and
+    /// without M2's units, promotions and wall damage (2.1b). It no longer validates (every unit
+    /// type needs a definition); its hash is the recorded content hash.
+    static func m1Data() throws -> RulesetData { try decode(m1Object().m1) }
+
+    /// C0: the M1 rules data with M2's units appended (needing no tech), so that it validates.
+    static func c0() throws -> Ruleset { try Ruleset(data: decode(m1Object().playable)) }
+
+    private static func decode(_ object: [String: Any]) throws -> RulesetData {
+        try JSONDecoder().decode(RulesetData.self, from: JSONSerialization.data(withJSONObject: object))
+    }
+
+    private static func m1Object() throws -> (m1: [String: Any], playable: [String: Any]) {
+        var json = try standardRulesObject()
+        for key in ["tribalVillages", "eras", "progression", "promotions", "promotionXP"] { json.removeValue(forKey: key) }
+        var constants = json["constants"] as? [String: Any] ?? [:]
+        var combat = constants["combat"] as? [String: Any] ?? [:]
+        combat.removeValue(forKey: "wallDamagePct")
+        constants["combat"] = combat
+        json["constants"] = constants
+        let m1Techs = ["pottery", "mining", "animalHusbandry", "sailing", "writing", "irrigation",
+                       "archery", "bronzeWorking", "masonry", "currency"]
+        let techs = (json["techs"] as? [[String: Any]] ?? []).filter { m1Techs.contains($0["id"] as? String ?? "") }
+        json["techs"] = techs.map { tech in tech.filter { $0.key != "era" && $0.key != "insight" } }
+        var ai = json["ai"] as? [String: Any] ?? [:]
+        ai["researchOrderPeace"] = ["pottery", "animalHusbandry", "mining", "irrigation", "writing", "bronzeWorking",
+                                    "archery", "masonry", "sailing", "currency"]
+        ai["researchOrderWar"] = ["mining", "bronzeWorking", "animalHusbandry", "archery", "masonry", "pottery",
+                                  "writing", "irrigation", "currency", "sailing"]
+        json["ai"] = ai
+        let units = json["units"] as? [[String: Any]] ?? []
+        let m1Units = units.prefix(6).map { unit in
+            var unit = unit.filter { !["upgradesTo", "rangedAfterMove", "wallDamagePct"].contains($0.key) }
+            if unit["type"] as? String == "spearman" { unit["classBonuses"] = [["against": "cavalry", "strength": 10]] }
+            return unit
         }
+        var m1 = json
+        m1["units"] = Array(m1Units)
+        var playable = json
+        playable["units"] = Array(m1Units) + units.dropFirst(6).map { unit in unit.filter { $0.key != "tech" } }
+        return (m1, playable)
     }
 }
 
 @Suite struct LegacySaveTests {
-    /// The fixture is a version-1 file; the format is still version 1; C0's content hash is the
-    /// one recorded with it, and the standard rules' differs.
+    /// The fixture is a version-1 file; the format is still version 1; the M1 rules data hashes
+    /// to the content hash recorded with it, and C0's and the standard rules' differ.
     @Test func theFixtureIsAVersion1SaveFromBeforeTribalVillages() throws {
         let legacy = try LegacySave.load()
         let bytes = [UInt8](legacy.bytes)
@@ -76,7 +104,8 @@ struct LegacySave {
         #expect(UInt16(bytes[4]) | UInt16(bytes[5]) << 8 == 1)
         #expect(SaveStore.formatVersion == 1)
         let c0 = try LegacySave.c0()
-        #expect(c0.tribalVillages == nil && c0.contentHash == legacy.contentHash)
+        #expect(StableHash.of(try LegacySave.m1Data()) == legacy.contentHash)
+        #expect(c0.tribalVillages == nil && c0.contentHash != legacy.contentHash)
         #expect(Ruleset.standard.tribalVillages != nil && Ruleset.standard.contentHash != legacy.contentHash)
     }
 
@@ -95,8 +124,10 @@ struct LegacySave {
         #expect(try await store.listUnreadable().isEmpty)
     }
 
-    /// Under C0 it opens exactly as saved: no warning, the recorded state hash.
-    @Test func underC0ItOpensAsSaved() async throws {
+    /// Under C0 it opens with the rules-changed warning, at the recorded turn, phase, seed and
+    /// player, its invariants kept; saved again and reopened, it is the same state with the same
+    /// hash, and without the warning.
+    @Test func underC0ItOpensWithAWarningAndRoundTrips() async throws {
         let legacy = try LegacySave.load()
         let saves = TempSaves()
         defer { saves.cleanUp() }
@@ -104,13 +135,18 @@ struct LegacySave {
         let store = saves.store()
         let summary = try #require(try await store.list().first)
         let loaded = try await store.open(summary, rules: try LegacySave.c0())
-        #expect(loaded.warnings.isEmpty)
+        #expect(loaded.warnings == [.rulesDataChanged(rulesID: "m1.1")])
         let state = loaded.state
-        #expect(state.stateHash() == legacy.stateHash, "0x\(String(state.stateHash(), radix: 16))")
+        #expect(state.rulesRef.savedContentHash == legacy.contentHash)
         #expect(state.turn == legacy.turn && state.phaseCount == legacy.phaseCount && state.seed == legacy.seed)
         #expect(state.currentPlayer == PlayerID(legacy.currentPlayer))
         #expect(state.tribalVillages == nil && state.players.allSatisfy { $0.memory.tribalVillages == nil })
+        #expect(!state.units.isEmpty && !state.cities.isEmpty && state.players.count == 2)
         #expect(state.checkInvariants().isEmpty)
+
+        let again = try await store.save(state, name: "Again", kind: .manual)
+        let reopened = try await store.open(again, rules: try LegacySave.c0())
+        #expect(reopened.warnings.isEmpty && reopened.state == state && reopened.state.stateHash() == state.stateHash())
     }
 
     /// Under the standard rules it opens with the rules-changed warning, every field as saved,
@@ -135,7 +171,7 @@ struct LegacySave {
         #expect(state.checkInvariants().isEmpty)
         #expect(state.stateHash() != legacy.stateHash)
 
-        // Every field as saved: the same state as under C0 but for the rules it plays by.
+        // The same state as under C0 but for the rules it plays by.
         let asSaved = try await store.open(summary, rules: try LegacySave.c0()).state
         func fields(_ state: GameState) throws -> [String: Any] {
             let encoder = JSONEncoder()

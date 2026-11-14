@@ -10,16 +10,25 @@ public struct UnitID: Hashable, Codable, Sendable, Comparable, CustomStringConve
 /// art and data follow it.
 public enum UnitType: String, Codable, Sendable, CaseIterable {
     case settler, builder, scout, warrior, archer, spearman
+    // M2 §8.1 (appended; naval units, the Trader and unique units come later).
+    case horseman, heavyChariot, swordsman, catapult, manAtArms, crossbowman, pikeman, knight, trebuchet
 
     /// Hard-coded; rules validation checks it matches the data's unit class.
     public var isCivilian: Bool {
         switch self {
         case .settler, .builder: true
         case .scout, .warrior, .archer, .spearman: false
+        case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: false
         }
     }
 
-    public var displayName: String { rawValue.capitalized }
+    public var displayName: String {
+        switch self {
+        case .heavyChariot: "Heavy Chariot"
+        case .manAtArms: "Man-at-Arms"
+        default: rawValue.capitalized
+        }
+    }
 }
 
 /// What a unit is doing besides moving (M1 §7.4). Moving or attacking clears it.
@@ -45,6 +54,10 @@ public struct Unit: Codable, Hashable, Sendable {
     public var charges: Int
     /// The turn the unit last moved or attacked (healing, M1 §7.5); 0 = never.
     public var lastActedTurn: Int
+    /// Promotions taken, in order (M2 §8.3); nil = none.
+    public var promotions: [String]?
+    /// Attacked this phase, for units that may move after attacking (M2 §8.3); nil = no.
+    public var attacked: Bool?
 
     /// A fresh unit: full HP, no orders or activity. Moves and charges come from the rules
     /// (`GameState.addUnit` fills them in).
@@ -61,5 +74,7 @@ public struct Unit: Codable, Hashable, Sendable {
         self.xp = 0
         self.charges = charges
         self.lastActedTurn = 0
+        self.promotions = nil
+        self.attacked = nil
     }
 }

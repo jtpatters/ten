@@ -264,15 +264,18 @@ extension PlayerView {
               !isVisible(city.position) else { return nil }
         let def = rules.unit(unit.type)
         guard def.isRanged else { return nil }
-        let near = max(1, min(def.range, def.sight))
+        let near = max(1, min(state.range(of: unit), state.sight(of: unit)))
         return "Out of sight: move within \(near) tile\(near == 1 ? "" : "s") to see it, then shoot."
     }
 
     /// The units that take a city at 0 HP (M1 §8.3: melee and antiCavalry), by name from the
     /// rules: "a Warrior or Spearman".
+    /// Who can capture a city (M1 §8.3): named while few unit types can, by class once M2's
+    /// roster makes the list long.
     private var cityTakers: String {
         let names = rules.units.filter { $0.unitClass == .melee || $0.unitClass == .antiCavalry }.map(\.type.displayName)
         guard let first = names.first else { return "no unit" }
+        guard names.count <= 3 else { return "a melee or anti-cavalry unit" }
         let article = "AEIOU".contains(first.prefix(1).uppercased()) ? "an" : "a"
         let list = names.count == 1 ? first : names.dropLast().joined(separator: ", ") + " or " + names[names.count - 1]
         return "\(article) \(list)"

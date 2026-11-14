@@ -25,7 +25,7 @@ public enum Pathfinder {
         let knowledge = MoveKnowledge(state: state, unit: unit)
         guard knowledge.canEnd(goal) else { return nil }
         return search(knowledge, from: start, movesLeft: unit.zocStopped ? 0 : unit.movesLeft,
-                      maxMoves: state.rules.unit(unit.type).moves, to: goal)
+                      maxMoves: state.maxMoves(of: unit), to: goal)
     }
 
     /// The tiles `unit` can reach and stop on this phase, by its owner's knowledge, sorted by

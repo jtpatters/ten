@@ -449,11 +449,11 @@ import GameCore
 
     /// The token takes a free cell of the unit atlas: no atlas grows, no page is added.
     @Test func noAtlasGrows() throws {
-        #expect(SpriteSheet<UnitSprite>.width == 2048 && SpriteSheet<UnitSprite>.height == 1024)
+        #expect(SpriteSheet<UnitSprite>.width == 2048 && SpriteSheet<UnitSprite>.height == 1536)
         #expect(SpriteSheet<SettlementSprite>.width == 2048 && SpriteSheet<SettlementSprite>.height == 512)
         let scene = try TribalVillageFixture.scene()
         let r = MapRenderer(state: scene.state, viewer: Self.me)
-        #expect(r.unitAtlas.width == 2048 && r.unitAtlas.height == 1024 && r.townAtlas.width == 2048 && r.townAtlas.height == 512)
+        #expect(r.unitAtlas.width == 2048 && r.unitAtlas.height == 1536 && r.townAtlas.width == 2048 && r.townAtlas.height == 512)
         #expect(r.unitAtlas.uv(.tribalVillage) != .zero)
     }
 }

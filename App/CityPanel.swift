@@ -438,6 +438,15 @@ struct ItemIcon: View {
             case .archer: "scope"
             case .spearman: "shield.fill"
             case .warrior: "shield.lefthalf.filled"
+            case .horseman: "hare"
+            case .heavyChariot: "circle.circle"
+            case .swordsman: "bolt.shield"
+            case .catapult: "circle.bottomhalf.filled"
+            case .manAtArms: "shield.checkered"
+            case .crossbowman: "scope"
+            case .pikeman: "arrow.up"
+            case .knight: "crown.fill"
+            case .trebuchet: "triangle"
             }
         case let .building(id):
             switch id.rawValue {

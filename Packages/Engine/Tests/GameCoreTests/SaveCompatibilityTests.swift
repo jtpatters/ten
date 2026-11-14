@@ -48,6 +48,7 @@ enum SaveFixture {
         let spearman = state.addUnit(.spearman, owner: PlayerID(0), at: hex(5, 4))
         state.addUnit(.warrior, owner: PlayerID(1), at: hex(8, 2))
         state.addUnit(.settler, owner: PlayerID(2), at: hex(1, 3))
+        for (i, type) in UnitType.allCases.dropFirst(6).enumerated() { state.addUnit(type, owner: PlayerID(0), at: hex(i + 1, 0)) }
         state.updateUnit(settler) { u in
             u.activity = .sleeping
             u.destination = hex(1, 1)
@@ -66,6 +67,8 @@ enum SaveFixture {
             u.activity = .fortified
             u.hp = 70
             u.xp = 5
+            u.promotions = ["tortoise"]
+            u.attacked = true
         }
         state.updateUnit(archer) { $0.activity = .fortifying }
         state.updateUnit(spearman) { $0.lastActedTurn = 2 }

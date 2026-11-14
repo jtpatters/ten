@@ -119,6 +119,7 @@ struct AITurn {
             timed("5 defendCities") { $0.defendCities() }
             timed("6 captureCivilians") { $0.captureCivilians() }
         }
+        timed("improveUnits") { $0.improveUnits() }
         timed("buyThreatDefenders") { $0.buyThreatDefenders() }
         timed("moveSettlers") { $0.moveSettlers() }
         timed("moveBuilders") { $0.moveBuilders() }
@@ -266,6 +267,19 @@ struct AITurn {
         guard unit.movesLeft > 0, !unit.zocStopped, let here = view.index(of: unit.position) else { return [] }
         let f = reachField(unit.id)
         return view.aiTiles(within: unit.movesLeft, of: here).filter { $0 != here && f[$0] >= 0 && Int(f[$0]) <= unit.movesLeft }
+    }
+
+    /// Units that have not acted take the first promotion offered (rules order is the class
+    /// priority) or upgrade when the treasury holds twice the cost (M2 §18).
+    mutating func improveUnits() {
+        for unit in view.units where unit.owner == player && !acted.contains(unit.id) && unit.movesLeft > 0 {
+            guard live else { return }
+            if let promotion = view.promotionsOffered(unit.id).first {
+                if issue(.promote(unit: unit.id, promotion: promotion.id)) { acted.insert(unit.id) }
+            } else if let cost = view.upgradeCost(unit.id), view.me.gold >= 2 * cost {
+                if issue(.upgrade(unit: unit.id)) { acted.insert(unit.id) }
+            }
+        }
     }
 
     /// Units bought this phase (after the military moved) fortify where they appear.

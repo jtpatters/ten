@@ -79,6 +79,8 @@ enum PersistenceFixture {
             u.activity = .fortified
             u.hp = 64
             u.xp = 8
+            u.promotions = ["battlecry"]
+            u.attacked = true
         }
         state.updateUnit(archer) { $0.activity = .fortifying }
         state.updateUnit(spearman) { u in

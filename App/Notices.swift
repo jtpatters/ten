@@ -55,6 +55,9 @@ struct Notice: Identifiable, Equatable, Codable, Sendable {
         /// A tribal village the viewer knew of is gone: a rival reached it first (a toast line),
         /// or it was found gone (quiet: the log only, `NoticeCenter.logsQuietly`).
         case tribalVillageGone
+        /// M2 §6.2, §8: an Insight's credit, the world entering an era, an own unit upgraded or
+        /// promoted.
+        case insight, worldEra, upgraded, promoted
     }
 
     /// Set by `NoticeCenter.post` (0 before).
@@ -575,6 +578,23 @@ enum NoticeMaker {
                 let reason = RouteText.interruption(unit: current, goal: goal, view: view, civName: civName)
                 add(.moveInterrupted, "\(current?.type.displayName ?? "A unit")'s march stopped: \(reason)", "exclamationmark.triangle",
                     place: goal ?? at, subject: .unit(unit))
+
+            case let .insightGained(player, tech, credit) where player == me:
+                let name = view.rules.tech(tech)?.name ?? tech.rawValue
+                add(.insight, "Insight: +\(credit) Science toward \(name)", "lightbulb.fill", tone: .good, subject: .tech(tech))
+
+            case let .worldEraAdvanced(era):
+                let name = view.rules.eras.indices.contains(era) ? "the \(view.rules.eras[era].name) Era" : "a new era"
+                add(.worldEra, "The world enters \(name)", "globe.europe.africa.fill", importance: .important)
+
+            case let .unitUpgraded(unit, from, to, owner, at) where owner == me:
+                add(.upgraded, "Your \(from.displayName) was upgraded to \(CivText.article(to.displayName)) \(to.displayName)",
+                    "arrow.up.circle.fill", tone: .good, place: at, subject: .unit(unit))
+
+            case let .unitPromoted(unit, promotion, owner, at) where owner == me:
+                let name = view.rules.promotions.first { $0.id == promotion }?.name ?? promotion
+                let type = view.unit(unit)?.type.displayName ?? "unit"
+                add(.promoted, "Your \(type) earned \(name)", "star.circle.fill", tone: .good, place: at, subject: .unit(unit))
 
             case let .playerEliminated(player) where player != me:
                 add(.eliminated, "The \(adjective(player)) civilisation has fallen", "crown", importance: .important,

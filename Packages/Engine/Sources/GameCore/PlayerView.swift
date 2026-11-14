@@ -173,6 +173,24 @@ public struct PlayerView: Sendable {
     }
 
     /// An own unit, or a foreign unit on a visible tile.
+    /// The promotions an own unit may take now (M2 §8.3).
+    public func promotionsOffered(_ id: UnitID) -> [PromotionDef] {
+        guard let u = state.unit(id), u.owner == player else { return [] }
+        return state.promotionsOffered(to: u)
+    }
+
+    /// Gold to upgrade an own unit now, nil when it may not (M2 §8.2).
+    /// `unit`'s range, promotions included (0 for non-ranged units).
+    public func range(of unit: Unit) -> Int { state.range(of: unit) }
+
+    /// Whether it may fire after moving in the phase (siege may not, M2 §8.1, unless promoted).
+    public func firesAfterMoving(_ unit: Unit) -> Bool { state.firesAfterMoving(unit) }
+
+    public func upgradeCost(_ id: UnitID) -> Int? {
+        guard isMyPhase, let u = state.unit(id), u.owner == player, state.upgradeProblem(u) == nil else { return nil }
+        return state.upgradeCost(of: u.type)
+    }
+
     public func unit(_ id: UnitID) -> Unit? {
         guard let unit = state.unit(id) else { return nil }
         return unit.owner == player || isVisible(unit.position) ? unit : nil

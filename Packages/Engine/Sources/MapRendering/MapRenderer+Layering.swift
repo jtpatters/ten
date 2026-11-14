@@ -100,9 +100,9 @@ extension MapRenderer {
     /// 0.19 and the ox's body and the wagon bed 0.14.
     static func legHeight(_ type: UnitType) -> Float {
         switch type {
-        case .warrior, .archer, .spearman, .builder: 0.10
-        case .scout: 0.17
-        case .settler: 0.12
+        case .warrior, .archer, .spearman, .builder, .swordsman, .manAtArms, .crossbowman, .pikeman: 0.10
+        case .scout, .horseman, .knight: 0.17
+        case .settler, .heavyChariot, .catapult, .trebuchet: 0.12
         }
     }
 

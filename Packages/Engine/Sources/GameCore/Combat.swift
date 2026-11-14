@@ -36,6 +36,8 @@ public struct StrengthModifier: Hashable, Sendable {
         case wounded
         /// The unit's class bonus against the other side's class (rules data).
         case classBonus(UnitClass)
+        /// The unit's promotions that apply (M2 §8.3).
+        case promotion
         /// City Strength: per citizen.
         case population
         /// City Strength while wall HP is above 0.
@@ -65,6 +67,7 @@ public struct StrengthModifier: Hashable, Sendable {
         case .river: "River crossing"
         case .wounded: "Wounded"
         case let .classBonus(c): "vs \(caseName(c).prefix(1).uppercased() + caseName(c).dropFirst())"
+        case .promotion: "Promotions"
         case .population: "Population"
         case .walls: "Walls"
         case .hills: "Hills"
@@ -152,6 +155,17 @@ public enum CombatMath {
     public static func damage(base: Int, roll: Int) -> Int {
         (base * (100 + roll) + 50) / 100
     }
+
+    /// `damage` to a city split between its walls and its HP (M2 §9.2): wall HP takes
+    /// `wallPct`% of it; what the walls do not absorb reaches HP at full value (`rest`, not
+    /// capped at the city's HP).
+    public static func cityDamage(_ damage: Int, wallHP: Int, wallPct: Int) -> (walls: Int, rest: Int) {
+        guard wallHP > 0 else { return (0, damage) }
+        let pct = max(1, wallPct)
+        let scaled = damage * pct / 100
+        if scaled <= wallHP { return (scaled, 0) }
+        return (wallHP, max(0, damage - wallHP * 100 / pct))
+    }
 }
 
 // MARK: - A fight about to happen
@@ -178,12 +192,13 @@ extension GameState {
 
     /// City Strength (M1 §5): base + per citizen, walls while wall HP > 0, hills, and a
     /// garrison (a military unit of the owner on the tile) on a tile `sees` admits.
-    func cityStrength(_ city: City, sees: (Int) -> Bool) -> Strength {
+    /// `walls` false leaves out the Walls' bonus (siege attackers ignore it, M2 §9.2).
+    func cityStrength(_ city: City, sees: (Int) -> Bool, walls: Bool = true) -> Strength {
         let c = rules.constants.city
         let centre = map.index(of: city.position)!
         var s = Strength(base: c.strengthBase)
         s.add(.population, c.strengthPerPopulation * city.population)
-        if city.wallHP > 0 {
+        if walls, city.wallHP > 0 {
             let walls = city.buildings.compactMap { rules.building($0) }.map(\.cityStrength).max() ?? 0
             s.add(.walls, walls)
         }
@@ -220,6 +235,24 @@ extension GameState {
         return -(missing / rules.constants.combat.hpPerWoundPenalty)
     }
 
+    /// Strength from `unit`'s promotions in a fight against `other` (M2 §8.3).
+    private func promotionBonus(of unit: Unit, attacking: Bool, ranged: Bool, against other: CombatSide) -> Int {
+        guard let taken = unit.promotions, !taken.isEmpty else { return 0 }
+        let otherClass: UnitClass? = if case let .unit(o) = other { rules.unit(o.type).unitClass } else { nil }
+        let inOwnCity = city(atTile: map.index(of: unit.position)!)?.owner == unit.owner
+        return rules.promotions.filter { taken.contains($0.id) }.reduce(0) { sum, p in
+            guard let s = p.strength,
+                  p.when.map({ $0 == (attacking ? "attack" : "defend") }) ?? true,
+                  p.ranged.map({ $0 == ranged }) ?? true,
+                  p.against.map({ list in otherClass.map(list.contains) ?? false }) ?? true,
+                  p.vsCity.map({ $0 == (otherClass == nil) }) ?? true,
+                  p.inCity.map({ $0 == inOwnCity }) ?? true,
+                  p.vsWounded.map({ w in if case let .unit(o) = other { (o.hp < rules.constants.healing.maxHP) == w } else { !w } }) ?? true
+            else { return sum }
+            return sum + s
+        }
+    }
+
     private func classBonus(of unit: Unit, against other: CombatSide) -> (UnitClass, Int)? {
         guard case let .unit(o) = other else { return nil }
         let otherClass = rules.unit(o.type).unitClass
@@ -244,17 +277,19 @@ extension GameState {
             if !ranged {
                 let flankers = adjacentMilitary(of: unit.owner, around: target, excluding: unit.id, sees: sees)
                 s.add(.flanking, min(c.flankingMax, c.flankingPerUnit * flankers))
-                if crossesRiver(from, target) { s.add(.river, rules.river.meleeAttackModifier) }
+                if crossesRiver(from, target), !promotionDefs(unit).contains(where: { $0.noRiverPenalty == true }) { s.add(.river, rules.river.meleeAttackModifier) }
             }
             s.add(.wounded, woundPenalty(unit))
             if let (cls, bonus) = classBonus(of: unit, against: defender) { s.add(.classBonus(cls), bonus) }
+            s.add(.promotion, promotionBonus(of: unit, attacking: true, ranged: ranged, against: defender))
             attack = s
         }
 
         let defence: Strength
         switch defender {
         case let .city(city):
-            defence = cityStrength(city, sees: sees)
+            let siege = if case let .unit(u) = attacker { rules.unit(u.type).unitClass == .siege } else { false }
+            defence = cityStrength(city, sees: sees, walls: !siege)
         case let .unit(unit):
             var s = Strength(base: rules.unit(unit.type).strength)
             let tile = map.tiles[target]
@@ -268,6 +303,7 @@ extension GameState {
             }
             s.add(.wounded, woundPenalty(unit))
             if let (cls, bonus) = classBonus(of: unit, against: attacker) { s.add(.classBonus(cls), bonus) }
+            s.add(.promotion, promotionBonus(of: unit, attacking: false, ranged: ranged, against: attacker))
             defence = s
         }
         return Clash(attacker: attacker, defender: defender, from: from, target: target, ranged: ranged,
@@ -321,17 +357,21 @@ extension GameState {
         let def = rules.unit(unit.type)
         guard def.isMilitary else { return "civilians cannot attack" }
         guard unit.movesLeft > 0 else { return "no moves left" }
+        // Siege units fire only before moving in the phase (M2 §8.1).
+        if unit.attacked == true { return "already attacked this phase" }
+        if !firesAfterMoving(unit), unit.movesLeft < maxMoves(of: unit) { return "\(unit.type.displayName)s cannot fire after moving" }
         return nil
     }
 
     /// Why a unit of `type` standing on tile `from` may not attack `target` on tile `t`
     /// (nil: it may): range, and recon units never attack cities.
-    func attackReachProblem(_ type: UnitType, from: Int, at t: Int, against target: CombatSide) -> String? {
+    func attackReachProblem(_ unit: Unit, from: Int, at t: Int, against target: CombatSide) -> String? {
+        let type = unit.type
         let def = rules.unit(type)
         if case .city = target, def.unitClass == .recon { return "\(type.displayName)s cannot attack cities" }
         let distance = map.distance(index: from, t)
         if def.isRanged {
-            if distance < 1 || distance > def.range { return "target out of range" }
+            if distance < 1 || distance > range(of: unit) { return "target out of range" }
         } else if distance != 1 {
             return "target not adjacent"
         }
@@ -362,9 +402,12 @@ extension GameState {
         let c = rules.constants.combat
         let turn = self.turn
 
-        // Attacking ends the attacker's moves and clears its activity and orders.
+        // Attacking ends the attacker's moves (one move for a skirmisher, M2 §8.3) and clears
+        // its activity and orders.
+        let skirmish = promotionDefs(attacker).contains { $0.moveAfterAttack == true }
         updateUnit(id) { u in
-            u.movesLeft = 0
+            u.movesLeft = skirmish ? max(0, u.movesLeft - 1) : 0
+            if skirmish { u.attacked = true }
             u.activity = .none
             u.destination = nil
             u.lastActedTurn = turn
@@ -372,7 +415,7 @@ extension GameState {
         }
 
         let damage = CombatMath.damage(base: clash.baseDealt, roll: rolls.attack)
-        let (dealt, defenderDied) = hurt(target, by: damage, at: t, &fx)
+        let (dealt, defenderDied) = hurt(target, by: damage, at: t, wallPct: wallDamagePct(of: .unit(attacker)), &fx)
 
         var taken = 0
         var attackerDied = false
@@ -421,10 +464,21 @@ extension GameState {
         fx.touchPlayer(target.owner)
     }
 
+    /// Percent of `attacker`'s damage that wall HP takes (M2 §9.2): a promotion's, else its
+    /// unit's, else the rules' default; a city's bombard 100.
+    func wallDamagePct(of attacker: CombatSide) -> Int {
+        guard case let .unit(unit) = attacker else { return 100 }
+        let promoted = rules.promotions.filter { (unit.promotions ?? []).contains($0.id) }.compactMap(\.wallDamagePct).max()
+        return promoted ?? rules.unit(unit.type).wallDamagePct ?? rules.constants.combat.wallDamagePct ?? 100
+    }
+
     /// Applies `damage` to a defender: a unit loses HP (a survivor gains defence XP); a city
     /// loses wall HP first, then HP, never below 0, and counts as attacked this phase. Returns
     /// the HP actually lost and whether a unit died (the caller removes it).
-    private mutating func hurt(_ target: CombatSide, by damage: Int, at t: Int, _ fx: inout Effects) -> (lost: Int, died: Bool) {
+    /// `wallPct` scales the damage wall HP takes (M2 §9.2: siege 150, other units 50, bombard
+    /// 100); damage beyond the walls reaches HP at full value.
+    private mutating func hurt(_ target: CombatSide, by damage: Int, at t: Int, wallPct: Int = 100,
+                               _ fx: inout Effects) -> (lost: Int, died: Bool) {
         switch target {
         case let .unit(victim):
             if damage >= victim.hp { return (victim.hp, true) }
@@ -436,8 +490,9 @@ extension GameState {
             return (damage, false)
         case let .city(city):
             guard let i = cityIndex(city.id) else { return (0, false) }
-            let walls = min(cities[i].wallHP, damage)
-            let hp = min(cities[i].hp, damage - walls)
+            let split = CombatMath.cityDamage(damage, wallHP: cities[i].wallHP, wallPct: wallPct)
+            let walls = split.walls
+            let hp = min(cities[i].hp, split.rest)
             cities[i].wallHP -= walls
             cities[i].hp -= hp
             cities[i].lastAttackedPhase = phaseCount

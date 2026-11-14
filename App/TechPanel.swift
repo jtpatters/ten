@@ -14,7 +14,7 @@ struct TechPanel: View {
     var body: some View {
         let view = session.view
         let options = BuilderGuidance.annotated(view.researchOptions(), view)
-        let tree = TechTree(options: options)
+        let tree = TechTree(options: options).with(eras: view.rules.eras.map(\.name))
         let science = view.income().science
         VStack(alignment: .leading, spacing: 0) {
             CardHeader(title: "Research", systemImage: YieldChip.Kind.science.systemImage, onClose: onDone) {
@@ -103,6 +103,17 @@ extension GameSession {
 /// The techs arranged as a tree: depth by prerequisites (column), rows in depth-first order with
 /// a parent level with its children, and the research path's steps.
 struct TechTree {
+    /// The era names, by index (M2 §2; empty in rules without eras).
+    var eras: [String] = []
+
+    func with(eras: [String]) -> TechTree {
+        var tree = self
+        tree.eras = eras
+        return tree
+    }
+
+    func eraName(_ node: Node) -> String? { eras.indices.contains(node.option.era) ? eras[node.option.era] : nil }
+
     struct Node {
         var option: ResearchOption
         var depth: Int
@@ -200,7 +211,7 @@ private struct TechTreeLayout: View {
     var onChoose: (ResearchOption) -> Void
 
     static let minWidth: CGFloat = 540
-    static let nodeHeight: CGFloat = 92
+    static let nodeHeight: CGFloat = 112
     static let rowGap: CGFloat = 10
     static let columnGap: CGFloat = 34
 
@@ -236,7 +247,7 @@ private struct TechTreeLayout: View {
             .frame(width: width, height: height)
             ForEach(tree.nodes, id: \.option.tech) { node in
                 let f = frame(node)
-                TechNodeView(node: node, progress: progress, onChoose: onChoose)
+                TechNodeView(node: node, progress: progress, era: tree.eraName(node), onChoose: onChoose)
                     .frame(width: f.width, height: f.height)
                     .offset(x: f.minX, y: f.minY)
             }
@@ -262,7 +273,7 @@ private struct TechOutline: View {
                             .frame(width: 22)
                             .padding(.leading, CGFloat(node.depth - 1) * 22)
                     }
-                    TechNodeView(node: node, progress: progress, onChoose: onChoose)
+                    TechNodeView(node: node, progress: progress, era: tree.eraName(node), onChoose: onChoose)
                         .frame(minHeight: 76)
                 }
             }
@@ -275,6 +286,8 @@ private struct TechOutline: View {
 private struct TechNodeView: View {
     var node: TechTree.Node
     var progress: Double
+    /// Its era's name (M2 §2; nil in rules without eras).
+    var era: String?
     var onChoose: (ResearchOption) -> Void
 
     var body: some View {
@@ -303,6 +316,13 @@ private struct TechNodeView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
+                if let insight = option.insight, !option.known {
+                    Label(insight, systemImage: option.insightGained ? "lightbulb.fill" : "lightbulb")
+                        .font(HUD.body(.caption2))
+                        .foregroundStyle(option.insightGained ? HUD.Yield.science : HUD.inkSoft)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Spacer(minLength: 0)
                 if option.researching {
                     ProgressBar(fraction: progress, tint: HUD.Yield.science, height: 4)
@@ -358,9 +378,11 @@ private struct TechNodeView: View {
 
     private var costLine: String {
         let option = node.option
-        if option.known { return "Known" }
+        let era = self.era.map { "\($0) · " } ?? ""
+        if option.known { return "\(era)Known" }
         let turns = option.turns.map { " · \(turnsText($0))" } ?? ""
-        return "\(option.cost) science\(turns)"
+        let credit = option.credit > 0 ? " (\(option.credit) credited)" : ""
+        return "\(era)\(option.cost) science\(credit)\(turns)"
     }
 
     private var accessibilityText: String {
@@ -369,6 +391,9 @@ private struct TechNodeView: View {
         if option.known { parts.append("known") } else if option.researching { parts.append("being researched") }
         if !option.known { parts.append(costLine) }
         if !option.unlocks.isEmpty { parts.append("unlocks " + option.unlocks.joined(separator: ", ")) }
+        if let insight = option.insight, !option.known {
+            parts.append((option.insightGained ? "Insight gained: " : "Insight: ") + insight)
+        }
         return parts.joined(separator: ", ")
     }
 }

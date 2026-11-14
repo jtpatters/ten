@@ -175,8 +175,10 @@ S is the HSV saturation of the median colour, L* is CIELAB lightness and ΔE is 
   than 30% slower than the baseline.
 - Renderer setup at most 150 ms slower than the baseline; decoration placement at most 30 ms
   on the Large map; total texture memory at most 48 MB on the Large map, 50 MB at the very
-  most (M1 §15). Atlases: decor 2048×1536, units 2048×1024 (2048×1536 allowed), settlements
-  2048×512 (§11); the shaders take their sizes from the atlases (`kUnitAtlasTexels`,
+  most (M1 §15). Atlases: decor 2048×1536, units 2048×1536 since M2's nine land units (which
+  share their data cells two to a cell and mirror their west-facing body to face east: placeholder art, so their sun is on the
+  wrong side facing east, the one exception to the no-mirroring rule above),
+  settlements 2048×512 (§11); the shaders take their sizes from the atlases (`kUnitAtlasTexels`,
   `kTownAtlasTexels`).
 - East–west wrap stays seamless (noise periods tied to map width; sprites instanced across
   the seam).

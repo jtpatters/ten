@@ -107,10 +107,11 @@ extension GameState {
         guard let unit = unit(id) else { return }
         let heal = healing(for: unit)
         let wake = unit.activity == .sleeping && enemyNear(unit, within: 2)
-        let moves = rules.unit(unit.type).moves
+        let moves = rules.unit(unit.type).moves + promotionMoves(unit)
         let maxHP = rules.constants.healing.maxHP
         updateUnit(id) { u in
             u.zocStopped = false
+            u.attacked = nil
             if u.activity == .fortifying { u.activity = .fortified }
             if u.activity == .skipped || wake { u.activity = .none }
             u.hp = min(maxHP, u.hp + heal)
@@ -127,5 +128,118 @@ extension GameState {
             !other.type.isCivilian && isAtWar(unit.owner, other.owner) && map.distance(other.position, unit.position) <= radius
                 && map.index(of: other.position).map { visible[$0] } == true
         }
+    }
+
+    // MARK: Upgrades (M2 §8.2)
+
+    /// Gold to upgrade a unit of `type`: (target cost − own cost) × 2, at least 10; nil when it
+    /// has no upgrade.
+    public func upgradeCost(of type: UnitType) -> Int? {
+        guard let target = rules.unit(type).upgradesTo else { return nil }
+        return max(10, (rules.unit(target).cost - rules.unit(type).cost) * 2)
+    }
+
+    /// Why `unit` may not upgrade now (nil: it may): it stands in own territory with moves left,
+    /// its owner knows the target's tech and has the Gold.
+    func upgradeProblem(_ unit: Unit) -> String? {
+        guard let target = rules.unit(unit.type).upgradesTo, let cost = upgradeCost(of: unit.type) else {
+            return "\(unit.type.displayName)s have no upgrade"
+        }
+        guard unit.movesLeft > 0 else { return "no moves left" }
+        let t = map.index(of: unit.position)!
+        guard tileOwner(t) == unit.owner else { return "only in your territory" }
+        if let tech = rules.unit(target).tech, !players[unit.owner.rawValue].knows(tech) { return "needs \(techName(tech))" }
+        guard players[unit.owner.rawValue].gold >= cost else { return "needs \(cost) Gold" }
+        return nil
+    }
+
+    /// Upgrades a unit (validated by the caller): same id, XP, HP and position; its moves end.
+    mutating func upgrade(_ id: UnitID, _ fx: inout Effects) {
+        guard let unit = unit(id), let target = rules.unit(unit.type).upgradesTo, let cost = upgradeCost(of: unit.type) else { return }
+        players[unit.owner.rawValue].gold -= cost
+        updateUnit(id) { u in
+            u.type = target
+            u.movesLeft = 0
+            u.activity = .none
+            u.destination = nil
+        }
+        let t = map.index(of: unit.position)!
+        fx.emit(.unitUpgraded(unit: id, from: unit.type, to: target, owner: unit.owner, at: unit.position), .ownerAndTiles(unit.owner, [t]))
+        fx.touchPlayer(unit.owner)
+    }
+
+    // MARK: Promotions (M2 §8.3)
+
+    /// The promotions `unit` may take now: those of its class at the next tier, once its XP
+    /// reaches that tier's threshold.
+    public func promotionsOffered(to unit: Unit) -> [PromotionDef] {
+        let taken = unit.promotions?.count ?? 0
+        guard taken < rules.promotionXP.count, unit.xp >= rules.promotionXP[taken] else { return [] }
+        let cls = rules.unit(unit.type).unitClass
+        return rules.promotions.filter { $0.tier == taken + 1 && $0.classes.contains(cls) }
+    }
+
+    func promotionMoves(_ unit: Unit) -> Int {
+        guard let taken = unit.promotions else { return 0 }
+        return rules.promotions.reduce(0) { $0 + (taken.contains($1.id) ? $1.moves ?? 0 : 0) }
+    }
+
+    /// The promotions `unit` has taken.
+    func promotionDefs(_ unit: Unit) -> [PromotionDef] {
+        guard let taken = unit.promotions, !taken.isEmpty else { return [] }
+        return rules.promotions.filter { taken.contains($0.id) }
+    }
+
+    /// Its moves per phase, promotions included.
+    public func maxMoves(of unit: Unit) -> Int { rules.unit(unit.type).moves + promotionMoves(unit) }
+
+    /// Its range (0 for non-ranged units), promotions included.
+    public func range(of unit: Unit) -> Int {
+        let def = rules.unit(unit.type)
+        guard def.isRanged else { return 0 }
+        return def.range + promotionDefs(unit).reduce(0) { $0 + ($1.range ?? 0) }
+    }
+
+    /// Its sight, promotions included.
+    public func sight(of unit: Unit) -> Int {
+        rules.unit(unit.type).sight + promotionDefs(unit).reduce(0) { $0 + ($1.sight ?? 0) }
+    }
+
+    /// Whether it may fire after moving in the phase (siege may not, M2 §8.1, unless promoted).
+    func firesAfterMoving(_ unit: Unit) -> Bool {
+        rules.unit(unit.type).rangedAfterMove != false || promotionDefs(unit).contains { $0.rangedAfterMove == true }
+    }
+
+    func ignoresZOC(_ unit: Unit) -> Bool { promotionDefs(unit).contains { $0.ignoresZOC == true } }
+    func holdsZOC(_ unit: Unit) -> Bool { promotionDefs(unit).contains { $0.holdsZOC == true } }
+
+    /// Per elevation and per feature (by raw value): whether `unit` skips its extra move cost.
+    func freeMove(_ unit: Unit) -> (elevations: [Bool], features: [Bool]) {
+        let names = Set(promotionDefs(unit).flatMap { $0.freeMoveOn ?? [] })
+        return (rules.elevations.map { names.contains($0.name) }, rules.features.map { names.contains($0.name) })
+    }
+
+    func promoteProblem(_ unit: Unit, _ promotion: String) -> String? {
+        let offered = promotionsOffered(to: unit)
+        guard !offered.isEmpty else { return "no promotion due" }
+        guard offered.contains(where: { $0.id == promotion }) else { return "not offered to this unit" }
+        guard unit.movesLeft > 0 else { return "no moves left" }
+        return nil
+    }
+
+    /// Takes a promotion (validated by the caller): heals 50 HP and ends its moves.
+    mutating func promote(_ id: UnitID, _ promotion: String, _ fx: inout Effects) {
+        guard let unit = unit(id) else { return }
+        let maxHP = rules.constants.healing.maxHP
+        updateUnit(id) { u in
+            u.promotions = (u.promotions ?? []) + [promotion]
+            u.hp = min(maxHP, u.hp + 50)
+            u.movesLeft = 0
+            u.activity = .none
+            u.destination = nil
+        }
+        if rules.promotions.first(where: { $0.id == promotion })?.sight != nil { fx.touchPlayer(unit.owner) }
+        let t = map.index(of: unit.position)!
+        fx.emit(.unitPromoted(unit: id, promotion: promotion, owner: unit.owner, at: unit.position), .ownerAndTiles(unit.owner, [t]))
     }
 }
