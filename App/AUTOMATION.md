@@ -104,6 +104,7 @@ New Game, `newgame` and `-autostart` always place them.
 | `stability` | The capital with a Monument and two citizens over its Housing: overcrowded, Restless, slow growth and a City Unrest item (M2 §5.1, §5.2); the capital selected. |
 | `quarters` | The capital at population 9 with Writing, Currency, Bronze Working, Engineering and Apprenticeship, a Campus, a Market and (where it fits) an Aqueduct built, and legal sites left for a Workshop or Barracks (M2 §5.3, §18.2); the capital selected. |
 | `loyalty` | Turn 3: a forward viewer city at Loyalty 12 beside the rival capital at population 12, falling towards a revolt, and a second viewer city that revolted into a Free City (M2 §5.5, §12.5); the forward city selected. |
+| `upkeep` | The capital at population 6 with a Granary, a Campus and its Library (one specialist slot) on the Science focus, so a citizen is a specialist; 60 Gold, enough to buy a tile (M2 §5.3, §5.4, §7.4); the capital selected. Use `buytile` for the tile choice. |
 
 The `scenario` command's result ends with the scenario's note when it has one: the units and
 tiles to use next (`rivals`, `walls`, `repreview`, `tribal-villages`).
@@ -267,6 +268,7 @@ plus 0.25 s for the screen to draw.
 | `focus balanced\|food\|production\|gold` | The panel's Citizens focus. |
 | `bombard [cancel]` | The selected city's Bombard: target mode (the panel steps aside; with one target its preview opens), or leaves it. |
 | `quarter <kind>\|cancel` | A Quarters row of the selected city's panel: its tile choice (the panel steps aside; the legal sites are marked on the map with their adjacency; a `tap` on one queues the quarter there), or leaving it. Result: the sites, best first, as `q r +adjacency`. |
+| `buytile [cancel]` | The selected city's Buy tile button: its tile choice (the panel steps aside; the tiles it could buy are marked on the map with the price; a `tap` on one buys it), or leaving it. Result: the price and the tiles, as `q r`. |
 | `keep`, `raze` | The Keep/Raze card's buttons (Raze asks first: `confirm yes`). |
 | `peace accept\|decline` | Answers the peace card, or else the first pending proposal. |
 | `declarewar <player>` | Diplomacy's Declare War (asks first: `confirm yes`). |
@@ -317,7 +319,7 @@ facts about the session:
   a city's panel is not a card), `pendingPathTurns` (the previewed route's turns, or null);
 - `attention` (the queue, as the `attention` command lists it), `nextItem`, `attentionCard`,
   `openPanel` (`research`, `diplomacy`, `notices` or null), `cityPanel` (the selected city's panel part, or
-  null), `bombardTargeting` (the city picking a target), `endTurnPrompt` (the count asked
+  null), `bombardTargeting` (the city picking a target), `tileBuying` (the city choosing a tile to buy), `endTurnPrompt` (the count asked
   about), `pendingPurchase`, `pendingRaze`, `pendingWar`, `peaceProposals` (players whose
   proposal awaits the human's answer), `mapInsets` (points the HUD covers on each side),
   `viewSize` (the map view, points), `selectionPoint` (where the selection's tile is in the

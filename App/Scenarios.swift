@@ -62,7 +62,7 @@ enum Scenarios {
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
                         "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads", "naval",
-                        "stability", "quarters", "loyalty"]
+                        "stability", "quarters", "loyalty", "upkeep"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -155,6 +155,9 @@ enum Scenarios {
         case "stability":
             foundCapital(&state, player: viewer)
             made = try stability(&state)
+        case "upkeep":
+            foundCapital(&state, player: viewer)
+            made = try upkeep(&state)
         default:
             throw Failure(description: "no scenario “\(name)” (try \(names.joined(separator: ", ")))")
         }
@@ -775,6 +778,30 @@ extension Scenarios {
             .map { "\($0.kind.rawValue) \($0.sites.count)" }
         return Made(state: state, focus: .city(capital.id),
                     note: "built \(built.joined(separator: ", ")); sites: \(open.joined(separator: ", "))")
+    }
+
+    /// M2 §5.3, §5.4, §7.4: the capital with a Campus and its Library (a specialist slot) and a
+    /// Granary, on the Science focus so a citizen takes the slot; 60 Gold, so it can buy a tile.
+    static func upkeep(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else { throw Failure(description: "no capital") }
+        for tech in ["writing", "pottery"] { DebugTools.learnTech(TechID(tech), player: viewer, in: &state) }
+        DebugTools.setCity(capital.id, population: 6, adding: ["granary"], in: &state)
+        guard let site = state.view(for: viewer).quarterOptions(for: capital.id).first(where: { $0.kind == "campus" })?.sites.first,
+              DebugTools.addQuarter("campus", at: site.tile, to: capital.id, in: &state) else {
+            throw Failure(description: "no Campus fits around the capital")
+        }
+        DebugTools.setCity(capital.id, population: 6, adding: ["library"], in: &state)
+        try GameEngine.apply(.setFocus(city: capital.id, focus: .science), by: viewer, to: &state)
+        state.players[viewer.rawValue].gold = 60
+        DebugTools.refreshAllKnowledge(in: &state)
+        let view = state.view(for: viewer)
+        let specialists = view.specialists(of: capital.id)
+        let purchase = view.tilePurchase(of: capital.id)
+        return Made(state: state, focus: .city(capital.id),
+                    note: "specialists \(specialists?.filled.count ?? 0)/\(specialists?.slots.count ?? 0); "
+                        + "tile \(purchase?.price ?? 0) Gold, \(purchase?.tiles.count ?? 0) to buy; "
+                        + "upkeep \(view.income().buildings) (use buytile)")
     }
 
     /// M2 §5.1, §5.2: the capital with a Monument, two citizens over its Housing: overcrowded,

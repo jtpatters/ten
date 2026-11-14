@@ -95,7 +95,7 @@ struct GameView: View {
     /// Whether `card` shows anything.
     private var showsCard: Bool {
         session.state.outcome != nil || session.attentionCard != nil || session.pendingAttack != nil
-            || session.bombardTargeting != nil || session.quarterPlacing != nil || session.inspectedHex != nil || session.selectedUnit != nil
+            || session.bombardTargeting != nil || session.quarterPlacing != nil || session.tileBuying != nil || session.inspectedHex != nil || session.selectedUnit != nil
     }
 
     var body: some View {
@@ -128,6 +128,7 @@ struct GameView: View {
         .animation(.easeInOut(duration: 0.2), value: session.attentionCard)
         .animation(.easeInOut(duration: 0.2), value: session.bombardTargeting)
         .animation(.easeInOut(duration: 0.2), value: session.quarterPlacing)
+        .animation(.easeInOut(duration: 0.2), value: session.tileBuying)
         // At this level so that turning a phone upright (no side panel there) clears it too.
         .onChange(of: sidePanelCity != nil, initial: true) { _, shows in cover.hasSidePanel = shows }
         .onChange(of: cover.insets(sideCard: short && showsCard), initial: true) { _, insets in session.setMapInsets(insets) }
@@ -294,6 +295,8 @@ struct GameView: View {
             BombardHintCard(session: session, city: city)
         } else if let placing = session.quarterPlacing {
             QuarterHintCard(session: session, placing: placing)
+        } else if let city = session.tileBuying {
+            BuyTileHintCard(session: session, city: city)
         } else if let hex = session.inspectedHex {
             if session.inspectMode == .tile {
                 TileSheet(session: session, hex: hex)

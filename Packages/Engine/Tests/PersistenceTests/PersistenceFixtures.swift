@@ -125,6 +125,8 @@ enum PersistenceFixture {
             c.bombarded = true
             // Loyalty (M2 §5.5, additive).
             c.loyalty = 72
+            // Tiles bought (M2 §7.4, additive).
+            c.tilesBought = 2
         }
         city(&state, karakorum) { c in
             c.focus = .food
@@ -183,6 +185,11 @@ enum PersistenceFixture {
         state.phaseCount = 11
         state.currentPlayer = PlayerID(1)
         for index in state.cities.indices { state.assignCitizens(index) }
+        // A Campus specialist (M2 §5.3, additive) whose slot is gone (the Library is only queued): kept, yielding nothing.
+        city(&state, rome) { c in
+            if c.workedTiles.count >= c.population { c.workedTiles.removeLast() }
+            c.specialists = ["campus"]
+        }
         // Tribal villages (M1 §7.7): (4,1) in players 0's and 1's sight, (9,1) in no one's.
         for site in [at(4, 1), at(9, 1)] {
             let placed = DebugTools.placeTribalVillage(at: site, in: &state)

@@ -114,6 +114,16 @@ enum MapAdapter {
         return scores
     }
 
+    /// The tiles a city could buy (M2 §7.4), all in one shade.
+    static func purchaseScores(_ view: PlayerView, tiles: [HexCoord]) -> [UInt8] {
+        guard !tiles.isEmpty else { return [] }
+        var scores = [UInt8](repeating: 0, count: view.tileCount)
+        for tile in tiles {
+            if let t = view.index(of: tile) { scores[t] = overlayByte(shade: 6) }
+        }
+        return scores
+    }
+
     /// The built quarters to mark on the map: the viewer's own (every city's in diagnostic mode).
     static func quarterMarks(state: GameState, viewer: PlayerID, diagnostic: Bool) -> [MapOverlay.QuarterMark] {
         let cities = diagnostic ? state.cities : state.view(for: viewer).cities

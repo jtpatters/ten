@@ -44,7 +44,8 @@ extension GameSession {
     /// its side, where card and side panel would leave the map a sliver between them) the panel
     /// also steps aside for a card (attention such as Keep/Raze, combat preview, tile, game over).
     func panelCity(compact: Bool) -> City? {
-        guard let city = selectedCity, city.owner == viewer, bombardTargeting == nil, quarterPlacing == nil else { return nil }
+        guard let city = selectedCity, city.owner == viewer, bombardTargeting == nil, quarterPlacing == nil,
+              tileBuying == nil else { return nil }
         if compact, attentionCard != nil || pendingAttack != nil || inspectedHex != nil || state.outcome != nil { return nil }
         return city
     }
@@ -185,6 +186,46 @@ extension GameSession {
         }
         quarterPlacing = nil
         if enqueue(.quarter(placing.kind, at: hex), in: placing.city) { requestCityPanel(.production) }
+        refreshSelection()
+    }
+}
+
+// MARK: Buying tiles
+
+extension GameSession {
+    /// Buy tile (M2 §7.4): the panel steps aside and the map marks the tiles the city could buy,
+    /// with the price; a tap on one buys it.
+    func beginBuyTile(in id: CityID) {
+        guard let purchase = view.tilePurchase(of: id) else { return }
+        if let problem = purchase.problem ?? (isInputEnabled ? nil : "not your turn") {
+            show("Can't buy a tile: \(problem)")
+            return
+        }
+        if selection != .city(id) { select(.city(id)) }
+        quarterPlacing = nil
+        tileBuying = id
+        refreshSelection()
+    }
+
+    /// Leaves the tile choice; the panel returns.
+    func endBuyTile() {
+        tileBuying = nil
+        refreshSelection()
+    }
+
+    /// A tap while buying: a marked tile is bought and the panel returns; elsewhere it says to
+    /// tap a marked tile.
+    func buyTile(at hex: HexCoord) {
+        guard let id = tileBuying, let purchase = view.tilePurchase(of: id) else {
+            endBuyTile()
+            return
+        }
+        guard purchase.tiles.contains(hex) else {
+            show("Tap a marked tile to buy it, or Cancel")
+            return
+        }
+        tileBuying = nil
+        if perform(.purchaseTile(city: id, tile: hex)) { show("Bought a tile for \(purchase.price) Gold") }
         refreshSelection()
     }
 }

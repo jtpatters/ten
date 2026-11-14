@@ -428,3 +428,40 @@ extension PlayerView {
     /// The Free Cities faction, when the game has one (M2 §12.5).
     public var freeCities: PlayerID? { state.freeCities }
 }
+
+/// A city's specialists (M2 §5.3): its slots (one per building in each unpillaged quarter),
+/// the citizens filling them, and what those yield.
+public struct CitySpecialists: Hashable, Sendable {
+    public var slots: [QuarterKind]
+    public var filled: [QuarterKind]
+    public var yields: Yields
+}
+
+/// A city's next tile (M2 §7.4): its price, the tiles it could buy, and why it cannot buy one
+/// now (nil: it can).
+public struct TilePurchase: Hashable, Sendable {
+    public var price: Int
+    public var tiles: [HexCoord]
+    public var problem: String?
+}
+
+extension PlayerView {
+    /// An own city's specialists; nil when it has no slot and no specialist.
+    public func specialists(of id: CityID) -> CitySpecialists? {
+        guard let city = city(id), city.owner == player else { return nil }
+        let slots = state.specialistSlots(city)
+        let filled = state.activeSpecialists(city)
+        guard !slots.isEmpty || !filled.isEmpty else { return nil }
+        return CitySpecialists(slots: slots, filled: filled,
+                               yields: filled.reduce(Yields.zero) { $0 + state.specialistYields($1) })
+    }
+
+    /// An own city's tile buying; nil without the rules or for another's city.
+    public func tilePurchase(of id: CityID) -> TilePurchase? {
+        guard let city = city(id), city.owner == player, let price = state.tilePrice(for: city) else { return nil }
+        let tiles = state.purchasableTiles(for: city)
+        let gold = me.gold
+        let problem: String? = tiles.isEmpty ? "no tile to buy" : gold < price ? "needs \(price) Gold (have \(gold))" : nil
+        return TilePurchase(price: price, tiles: tiles, problem: problem)
+    }
+}

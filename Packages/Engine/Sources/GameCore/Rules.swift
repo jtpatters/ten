@@ -1266,7 +1266,9 @@ extension RulesetData {
         }
         for focus in CityFocus.allCases {
             let n = focuses.filter { $0.focus == focus }.count
-            check(n == 1, "focuses: \(focus) has \(n) definitions")
+            // The M2 focuses may be absent (M1 rules): they take the Balanced weights.
+            let optional = focus == .science || focus == .culture
+            check(n == 1 || (optional && n == 0), "focuses: \(focus) has \(n) definitions")
         }
 
         // Techs: unique, known prerequisites listed earlier (tree order), acyclic.
