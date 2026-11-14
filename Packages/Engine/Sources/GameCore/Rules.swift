@@ -62,6 +62,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public let roads: RoadRules?
     /// Internal move points per move: every move and move cost is multiplied by it (M2 §3.3).
     public var movePoints: Int { roads?.movePoints ?? 1 }
+    /// Embarking and naval units (M2 §8.4); nil without the section.
+    public let embark: EmbarkRules?
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
@@ -118,6 +120,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         resources = data.resources.map { list in Resource.allCases.map { c in list.first { $0.name == caseName(c) }! } } ?? []
         stockpile = data.stockpile
         roads = data.roads
+        embark = data.embark
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -270,6 +273,10 @@ extension UnitType {
         case .pikeman: 12
         case .knight: 13
         case .trebuchet: 14
+        case .galley: 15
+        case .quadrireme: 16
+        case .cog: 17
+        case .dromon: 18
         }
     }
 }
@@ -322,6 +329,7 @@ struct RulesetData: Codable, Hashable, Sendable {
     var resources: [ResourceDef]?
     var stockpile: StockpileRules?
     var roads: RoadRules?
+    var embark: EmbarkRules?
 }
 
 /// What a resource is for (M2 §3.1).
@@ -381,6 +389,20 @@ public struct RoadRules: Codable, Hashable, Sendable {
     /// Pillaging an improvement gives this much Gold, or heals this much when wounded.
     public let pillageGold: Int
     public let pillageHeal: Int
+}
+
+/// Embarked land units and naval units (M2 §8.4).
+public struct EmbarkRules: Codable, Hashable, Sendable {
+    /// Land units may enter Coast and Lake with it.
+    public let coastTech: TechID
+    /// Any unit may enter Ocean with it.
+    public let oceanTech: TechID
+    /// An embarked unit's (fixed) defending strength, moves on water and sight.
+    public let strength: Int
+    public let moves: Int
+    public let sight: Int
+    /// A naval unit heals this much in an own city; at sea it does not heal.
+    public let navalHealInCity: Int
 }
 
 /// Yields of one source (M1 §4). Integer only.
@@ -513,6 +535,10 @@ public enum UnitClass: String, Codable, Hashable, Sendable, CaseIterable {
     case civilian, recon, melee, ranged, antiCavalry, cavalry
     /// M2 §8.1.
     case heavyCavalry, siege
+    /// M2 §8.4.
+    case navalMelee, navalRanged
+
+    public var isNaval: Bool { self == .navalMelee || self == .navalRanged }
 }
 
 public struct ClassBonus: Codable, Hashable, Sendable {
@@ -1166,6 +1192,7 @@ extension RulesetData {
             let name = "unit \(u.type)"
             check(u.unitClass == .civilian ? u.type.isCivilian : !u.type.isCivilian,
                   "\(name): class \(u.unitClass) does not match UnitType.isCivilian")
+            check(u.unitClass.isNaval == u.type.isNaval, "\(name): class \(u.unitClass) does not match UnitType.isNaval")
             check(u.cost > 0, "\(name): cost must be positive")
             check(u.moves >= 1 && u.moves <= 10, "\(name): moves out of range")
             check(u.sight >= 1 && u.sight <= 5, "\(name): sight out of range")
@@ -1182,6 +1209,11 @@ extension RulesetData {
             check(u.capturedCharges.map { $0 >= 0 } ?? true, "\(name): negative captured charges")
         }
         check(units.contains { $0.foundsCity }, "no unit founds cities")
+        if let e = embark {
+            knownTech(e.coastTech, "embark")
+            knownTech(e.oceanTech, "embark")
+            check(e.strength > 0 && e.moves >= 1 && e.sight >= 1 && e.navalHealInCity >= 0, "embark: numbers out of range")
+        }
 
         // Buildings.
         let buildingIDs = buildings.map(\.id)

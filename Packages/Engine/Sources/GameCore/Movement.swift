@@ -46,6 +46,9 @@ struct MoveKnowledge {
     /// Remembered roads (M2 §3.3) and whether road steps ignore rivers for this player.
     let roads: TileBitSet
     let bridges: Bool
+    /// Water and naval movement (M2 §8.4).
+    let mobility: Mobility
+    let maxMoves: Int
 
     init(state: GameState, unit: Unit) {
         let me = state.players[unit.owner.rawValue]
@@ -74,7 +77,9 @@ struct MoveKnowledge {
                     if !(isMilitary && atWar[other.owner.rawValue]) { blocked[t] = true }
                 } else {
                     blocked[t] = true
-                    if atWar[other.owner.rawValue], !ignoresZOC || state.holdsZOC(other) { map.forEachNeighbor(of: t) { n, _ in zoc[n] = true } }
+                    if atWar[other.owner.rawValue], !ignoresZOC || state.holdsZOC(other) {
+                        map.forEachNeighbor(of: t) { n, _ in if state.zocReaches(other, from: t, to: n) { zoc[n] = true } }
+                    }
                 }
             } else if other.id != unit.id, other.type.isCivilian == unit.type.isCivilian {
                 occupied[t] = true
@@ -95,12 +100,14 @@ struct MoveKnowledge {
         (freeElevation, freeFeature) = state.freeMove(unit)
         roads = me.memory.tileRoad ?? TileBitSet(count: count)
         bridges = state.rules.roads.map { me.knows($0.riverTech) } ?? false
+        mobility = state.mobility(unit.type, owner: unit.owner)
+        maxMoves = state.maxMoves(of: unit)
     }
 
     /// The unit may enter (and pass through) tile `t`, as far as its player knows.
     @inline(__always)
     func canEnter(_ t: Int) -> Bool {
-        if explored[t], !rules.isPassable(map.tiles[t]) { return false }
+        if explored[t], !mobility.allows(map.tiles[t], ownCity: ownCities[t], rules: rules) { return false }
         return !blocked[t] && !closed[Int(memoryOwner[t])]
     }
 
@@ -114,6 +121,10 @@ struct MoveKnowledge {
     /// from either explored side).
     @inline(__always)
     func cost(from: Int, to: Int, _ direction: HexDirection) -> Int {
+        if let step = GameState.embarkStep(naval: mobility.naval, fromWater: explored[from] && map.tiles[from].terrain.isWater,
+                                           toWater: explored[to] && map.tiles[to].terrain.isWater, maxMoves: maxMoves, rules: rules) {
+            return step
+        }
         var cost = 1
         if explored[to] {
             let tile = map.tiles[to]
@@ -173,7 +184,7 @@ extension GameState {
     /// civilians alone of a player a military unit is at war with: it captures them), no
     /// foreign city, and not territory closed to it.
     func mayEnter(_ t: Int, _ unit: Unit) -> Bool {
-        guard rules.isPassable(map.tiles[t]) else { return false }
+        guard terrainAllows(t, unit.type, owner: unit.owner) else { return false }
         let hex = map.coord(at: t)
         let military = !unit.type.isCivilian
         for other in units where other.position == hex && other.owner != unit.owner {
@@ -221,7 +232,8 @@ extension GameState {
         var zoc = TileBitSet(count: map.tileCount)
         let map = self.map
         for u in units where !u.type.isCivilian && isAtWar(player, u.owner) && (!ignores || holdsZOC(u)) {
-            map.forEachNeighbor(of: map.index(of: u.position)!) { n, _ in zoc[n] = true }
+            let t = map.index(of: u.position)!
+            map.forEachNeighbor(of: t) { n, _ in if zocReaches(u, from: t, to: n) { zoc[n] = true } }
         }
         for c in cities where !ignores && isAtWar(player, c.owner) {
             map.forEachNeighbor(of: map.index(of: c.position)!) { n, _ in zoc[n] = true }
@@ -244,6 +256,7 @@ extension GameState {
         guard let start = unit(id), var here = map.index(of: start.position) else { return }
         let zoc = zoneOfControl(for: start)
         let free = freeMove(start)
+        let full = maxMoves(of: start)
         var movesLeft = start.movesLeft
         var moved: [HexCoord] = []
         var stop = (steps: 0, moves: movesLeft) // the last tile it may stop on
@@ -257,7 +270,10 @@ extension GameState {
                 interrupted = true
                 break
             }
-            let after = movesLeft - min(movesLeft, moveCost(from: here, to: next, direction, owner: start.owner, free: free))
+            let cost = Self.embarkStep(naval: start.type.isNaval, fromWater: map.tiles[here].terrain.isWater,
+                                       toWater: map.tiles[next].terrain.isWater, maxMoves: full, rules: rules)
+                ?? moveCost(from: here, to: next, direction, owner: start.owner, free: free)
+            let after = movesLeft - min(movesLeft, cost)
             let stoppable = mayStop(next, start)
             let inZOC = zoc?[next] ?? false
             if after == 0 || inZOC, !stoppable {

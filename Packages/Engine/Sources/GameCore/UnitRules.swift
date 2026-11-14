@@ -97,6 +97,10 @@ extension GameState {
         guard unit.lastActedTurn < turn - 1 else { return 0 }
         let h = rules.constants.healing
         let t = map.index(of: unit.position)!
+        if let e = rules.embark, unit.type.isNaval || map.tiles[t].terrain.isWater {
+            // M2 §8.4: ships heal only in an own city, nothing heals at sea.
+            return unit.type.isNaval && city(atTile: t)?.owner == unit.owner ? e.navalHealInCity : 0
+        }
         if let city = city(atTile: t), city.owner == unit.owner { return h.ownCity }
         guard let owner = tileOwner(t) else { return h.neutral }
         return owner == unit.owner ? h.ownTerritory : h.foreign
@@ -205,7 +209,8 @@ extension GameState {
 
     /// Its sight, promotions included.
     public func sight(of unit: Unit) -> Int {
-        rules.unit(unit.type).sight + promotionDefs(unit).reduce(0) { $0 + ($1.sight ?? 0) }
+        if let e = rules.embark, isEmbarked(unit) { return e.sight }
+        return rules.unit(unit.type).sight + promotionDefs(unit).reduce(0) { $0 + ($1.sight ?? 0) }
     }
 
     /// Whether it may fire after moving in the phase (siege may not, M2 §8.1, unless promoted).

@@ -384,6 +384,10 @@ public struct PlayerView: Sendable {
                 names.append("+\(bonus.food) Food on \(def.name.capitalized)")
             }
         }
+        if let e = rules.embark {
+            if e.coastTech == tech { names.append("Embark on Coast and Lake") }
+            if e.oceanTech == tech { names.append("Ocean for all units") }
+        }
         return names
     }
 

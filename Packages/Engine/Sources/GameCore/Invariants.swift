@@ -43,7 +43,7 @@ extension GameState {
                 continue
             }
             check(players.indices.contains(unit.owner.rawValue) && players[unit.owner.rawValue].isAlive, "\(unit.id) of a dead player")
-            check(rules.isPassable(map.tiles[t]), "\(unit.id) on impassable \(unit.position)")
+            check(terrainAllows(t, unit.type, owner: unit.owner), "\(unit.id) on impassable \(unit.position)")
             check(unit.hp > 0 && unit.hp <= rules.constants.healing.maxHP, "\(unit.id) hp \(unit.hp)")
             check(unit.movesLeft >= 0 && unit.movesLeft <= maxMoves(of: unit), "\(unit.id) moves \(unit.movesLeft)")
             check(occupant[t] == -1 || occupant[t] == unit.owner.rawValue, "units of two players on \(unit.position)")

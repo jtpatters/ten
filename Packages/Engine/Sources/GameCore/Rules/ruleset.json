@@ -110,7 +110,15 @@
         { "type": "knight", "class": "heavyCavalry", "cost": 180, "strength": 48, "rangedStrength": 0, "range": 0, "moves": 4, "sight": 2,
           "tech": "stirrups", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [] , "resource": "iron" },
         { "type": "trebuchet", "class": "siege", "cost": 200, "strength": 35, "rangedStrength": 45, "range": 2, "moves": 2, "sight": 2,
-          "tech": "militaryEngineering", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [{ "against": "melee", "strength": -10 }, { "against": "ranged", "strength": -10 }, { "against": "antiCavalry", "strength": -10 }, { "against": "cavalry", "strength": -10 }, { "against": "heavyCavalry", "strength": -10 }, { "against": "siege", "strength": -10 }], "rangedAfterMove": false, "wallDamagePct": 150 }
+          "tech": "militaryEngineering", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [{ "against": "melee", "strength": -10 }, { "against": "ranged", "strength": -10 }, { "against": "antiCavalry", "strength": -10 }, { "against": "cavalry", "strength": -10 }, { "against": "heavyCavalry", "strength": -10 }, { "against": "siege", "strength": -10 }], "rangedAfterMove": false, "wallDamagePct": 150 },
+        { "type": "galley", "class": "navalMelee", "cost": 65, "strength": 25, "rangedStrength": 0, "range": 0, "moves": 3, "sight": 2,
+          "tech": "sailing", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [], "upgradesTo": "cog" },
+        { "type": "quadrireme", "class": "navalRanged", "cost": 120, "strength": 20, "rangedStrength": 25, "range": 1, "moves": 3, "sight": 2,
+          "tech": "shipbuilding", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [], "upgradesTo": "dromon" },
+        { "type": "cog", "class": "navalMelee", "cost": 160, "strength": 40, "rangedStrength": 0, "range": 0, "moves": 4, "sight": 2,
+          "tech": "cartography", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [] },
+        { "type": "dromon", "class": "navalRanged", "cost": 180, "strength": 30, "rangedStrength": 45, "range": 2, "moves": 4, "sight": 2,
+          "tech": "cartography", "charges": 0, "foundsCity": false, "minPopulation": 1, "populationCost": 0, "classBonuses": [] }
     ],
     "buildings": [
         { "id": "palace", "name": "Palace", "cost": 0, "buildable": false, "palace": true,
@@ -356,7 +364,11 @@
         {"id": "ranger", "name": "Ranger", "classes": ["recon"], "tier": 1, "text": "No extra cost in forest or jungle", "freeMoveOn": ["forest", "jungle"]},
         {"id": "alpine", "name": "Alpine", "classes": ["recon"], "tier": 1, "text": "No extra cost on hills", "freeMoveOn": ["hills"]},
         {"id": "sentry", "name": "Sentry", "classes": ["recon"], "tier": 2, "text": "+1 sight", "sight": 1},
-        {"id": "guerrilla", "name": "Guerrilla", "classes": ["recon"], "tier": 2, "text": "May move after attacking", "moveAfterAttack": true}
+        {"id": "guerrilla", "name": "Guerrilla", "classes": ["recon"], "tier": 2, "text": "May move after attacking", "moveAfterAttack": true},
+        {"id": "helmsman", "name": "Helmsman", "classes": ["navalMelee", "navalRanged"], "tier": 1, "text": "+1 move", "moves": 1},
+        {"id": "embolon", "name": "Embolon", "classes": ["navalMelee", "navalRanged"], "tier": 1, "text": "+7 Strength against naval units", "strength": 7, "against": ["navalMelee", "navalRanged"]},
+        {"id": "rutter", "name": "Rutter", "classes": ["navalMelee", "navalRanged"], "tier": 2, "text": "+1 sight", "sight": 1},
+        {"id": "bulwark", "name": "Bulwark", "classes": ["navalMelee", "navalRanged"], "tier": 2, "text": "+10 Strength defending", "strength": 10, "when": "defend"}
     ],
     "progression": { "insightPct": 40, "catchUpInsightPct": 20, "worldEraAdvancePct": 50, "forceAheadCount": 3 },
     "resources": [
@@ -398,6 +410,7 @@
           "improvement": "mine", "revealedBy": "bronzeWorking", "sites": [ { "terrains": ["grassland", "plains", "desert"], "elevations": ["flat", "hills"], "features": ["none"] } ] }
     ],
     "roads": { "movePoints": 3, "roadCost": 1, "tech": "theWheel", "riverTech": "engineering", "pillageGold": 25, "pillageHeal": 50 },
+    "embark": { "coastTech": "sailing", "oceanTech": "cartography", "strength": 10, "moves": 3, "sight": 2, "navalHealInCity": 20 },
     "stockpile": { "perSource": 2, "cap": 20, "capBonus": 10, "capBonusEra": 2, "unitCost": 10, "warUsePerUnit": 1,
                    "shortageStrength": -5, "bonusPer1000Land": 32, "luxuryPer1000Land": 18, "strategicPer1000Land": 14,
                    "clusterMin": 2, "clusterMax": 4 }
