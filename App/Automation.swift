@@ -207,6 +207,32 @@ final class AutomationInbox {
             let target = now.first(where: { $0.isTarget && !$0.researching }).map { ", on the way to \($0.name)" } ?? ""
             return (set ? "" : (session.message ?? "not set") + "; ") + (current ?? "not researching") + target
                 + (session.openPanel == .research ? "; panel open" : "; panel closed")
+        case "civic":
+            // civic <civic id or name>: a tap on that civic panel row (the panel opens first)
+            let wanted = args.joined(separator: " ").lowercased()
+            let options = session.view.civicOptions()
+            guard let option = options.first(where: { $0.civic.rawValue.lowercased() == wanted || $0.name.lowercased() == wanted }) else {
+                throw Failure(description: "civic <civic>: " + options.map(\.civic.rawValue).joined(separator: ", "))
+            }
+            if session.openPanel != .civics {
+                session.openPanel = .civics
+                try await Task.sleep(for: .milliseconds(800))
+            }
+            let set = session.chooseCivic(option)
+            try await Task.sleep(for: .milliseconds(500))
+            let now = session.view.civicOptions()
+            let current = now.first(where: \.studying).map { "studying \($0.name)" + ($0.turns.map { ", \(turnsText($0))" } ?? "") }
+            return (set ? "" : (session.message ?? "not set") + "; ") + (current ?? "not studying")
+        case "government":
+            // government <id>: adopts that government (the Adopt button)
+            guard let id = args.first else { throw Failure(description: "government <id>") }
+            let ok = session.perform(.setGovernment(government: id))
+            return ok ? "government \(session.view.government?.name ?? id)" : (session.message ?? "not changed")
+        case "policies":
+            // policies [id ...]: slots exactly these policies (Apply in the government panel)
+            if let problem = session.view.policiesProblem(args) { return "not set: " + problem }
+            let ok = session.perform(.setPolicies(policies: args))
+            return ok ? "policies " + session.view.policies.map(\.id).joined(separator: " ") : (session.message ?? "not set")
         case "hourglass":
             // The hourglass beside Next (shown while items are pending): ends the turn early,
             // asking "N items need attention — End Turn?" once per game.
@@ -529,10 +555,15 @@ final class AutomationInbox {
             ])
             return ""
         case "panel":
-            // panel research|tech|diplomacy|notices|close, or panel city <id>|production|overview|yields|defence:
+            // panel research|tech|civics|government|governments|diplomacy|notices|close, or panel city <id>|production|overview|yields|defence:
             // opens a panel (the city's at one of its parts), or closes the open one
             switch args.first {
             case "research", "tech": session.openPanel = .research
+            case "civics", "civic": session.openPanel = .civics
+            case "government", "policies": session.openPanel = .government
+            case "governments":
+                session.panelAnchor = GovernmentPanel.governmentsAnchor
+                session.openPanel = .government
             case "diplomacy": session.openPanel = .diplomacy
             case "notices", "log": session.openPanel = .notices
             case "city":
@@ -546,7 +577,7 @@ final class AutomationInbox {
                 session.openPanel = nil
                 model.isShowingLoad = false
                 if case .city? = session.selection { session.deselect() } // its panel closes, as Esc
-            default: throw Failure(description: "panel research|tech|diplomacy|notices|city <id>|production|overview|yields|defence|close")
+            default: throw Failure(description: "panel research|tech|civics|government|governments|diplomacy|notices|city <id>|production|overview|yields|defence|close")
             }
             try await Task.sleep(for: .milliseconds(800))
             return openedText(session)
@@ -802,6 +833,10 @@ final class AutomationInbox {
             "nextItem": optional(session.nextAttentionItem?.description),
             "attentionCard": optional(session.attentionCard?.name),
             "openPanel": optional(session.openPanel.map { "\($0)" }),
+            "government": optional(session.view.government?.id),
+            "policies": session.view.policies.map(\.id),
+            "studying": optional(session.view.me.studying?.rawValue),
+            "influence": session.view.me.influence ?? 0,
             // What the HUD covers (points): the camera centres in the rest.
             "mapInsets": ["top": Double(session.mapInsets.top), "left": Double(session.mapInsets.left),
                           "bottom": Double(session.mapInsets.bottom), "right": Double(session.mapInsets.right)],

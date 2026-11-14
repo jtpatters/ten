@@ -38,7 +38,8 @@ import Testing
             "cities[].queue[].item.quarter.at", "cities[].queue[].item.quarter.at.q", "cities[].queue[].item.quarter.at.r",
             "cities[].stability", "cities[].loyalty", "cities[].freeCityLeader", "cities[].freeCityLeader.rawValue", "cities[].freeCityTurns", "players[].kind", "cities[].tilesBought", "cities[].specialists", "map.tiles[].pillaged", "map.tiles[].resource", "map.tiles[].road", "players[].insights", "players[].memory.tileRoad",
             "players[].memory.tileRoad.count", "players[].memory.tileRoad.words", "players[].memory.tribalVillages", "players[].stockpile",
-            "players[].techCredit", "tribalVillages", "tribalVillages.gifts", "tribalVillages.sites", "units[].attacked",
+            "players[].techCredit", "players[].studying", "players[].civicTarget", "players[].civicProgress", "players[].knownCivics", "players[].civicInsights", "players[].government", "players[].governmentsAdopted", "players[].policies", "players[].freeChangeTurn", "players[].influence", "players[].envoyTokens", "players[].envoysEarned",
+            "tribalVillages", "tribalVillages.gifts", "tribalVillages.sites", "units[].attacked",
             "units[].promotions", "worldEra"],
     ]
 
@@ -100,7 +101,8 @@ import Testing
                      "players[].memory.cities[].wallHP", "players[].memory.units[].turnSeen", "map.tiles[].improvement",
                      "tribalVillages.sites", "tribalVillages.gifts", "players[].memory.tribalVillages", "map.tiles[].resource",
                      "players[].stockpile", "map.tiles[].road", "map.tiles[].pillaged", "players[].memory.tileRoad",
-                     "cities[].stability", "cities[].loyalty", "cities[].freeCityLeader", "cities[].freeCityTurns", "players[].kind", "cities[].tilesBought", "cities[].specialists", "cities[].quarters[].tile.q", "cities[].queue[].cost", "cities[].queue[].item.quarter.at.q"] {
+                     "cities[].stability", "cities[].loyalty", "cities[].freeCityLeader", "cities[].freeCityTurns", "players[].kind", "cities[].tilesBought", "cities[].specialists", "cities[].quarters[].tile.q", "cities[].queue[].cost", "cities[].queue[].item.quarter.at.q",
+                     "players[].studying", "players[].knownCivics", "players[].government", "players[].policies", "players[].influence", "players[].envoysEarned"] {
             #expect(all.contains(path), "the fixture does not set \(path)")
         }
     }

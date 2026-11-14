@@ -34,6 +34,7 @@ struct Notice: Identifiable, Equatable, Codable, Sendable {
         case unit(UnitID)
         case player(PlayerID)
         case tech(TechID)
+        case civic(CivicID)
     }
 
     /// Notices of one kind merge into one line.
@@ -58,6 +59,8 @@ struct Notice: Identifiable, Equatable, Codable, Sendable {
         /// M2 §6.2, §8: an Insight's credit, the world entering an era, an own unit upgraded or
         /// promoted.
         case insight, worldEra, upgraded, promoted
+        /// M2 §7.1, §4.3: a civic completed, an envoy token earned.
+        case civic, envoy
     }
 
     /// Set by `NoticeCenter.post` (0 before).
@@ -600,6 +603,21 @@ enum NoticeMaker {
             case let .insightGained(player, tech, credit) where player == me:
                 let name = view.rules.tech(tech)?.name ?? tech.rawValue
                 add(.insight, "Insight: +\(credit) Science toward \(name)", "lightbulb.fill", tone: .good, subject: .tech(tech))
+
+            case let .civicInsightGained(player, civic, credit) where player == me:
+                let name = view.rules.civic(civic)?.name ?? civic.rawValue
+                add(.insight, "Insight: +\(credit) Culture toward \(name)", "lightbulb.fill", tone: .good, subject: .civic(civic))
+
+            case let .civicCompleted(player, civic) where player == me:
+                let name = view.rules.civic(civic)?.name ?? civic.rawValue
+                let unlocks = view.unlocks(of: civic)
+                let text = unlocks.isEmpty ? "Completed \(name)" : "Completed \(name): \(unlocks.joined(separator: ", "))"
+                add(.civic, text + ". Policies change free this turn", "theatermasks.fill", tone: .good, importance: .important,
+                    subject: .civic(civic))
+
+            case let .envoyEarned(player, tokens) where player == me:
+                add(.envoy, tokens == 1 ? "Envoy token earned from Influence" : "\(tokens) envoy tokens earned from Influence",
+                    "person.wave.2.fill", tone: .good)
 
             case let .worldEraAdvanced(era):
                 let name = view.rules.eras.indices.contains(era) ? "the \(view.rules.eras[era].name) Era" : "a new era"

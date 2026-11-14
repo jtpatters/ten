@@ -50,6 +50,8 @@ public struct StrengthModifier: Hashable, Sendable {
         case hills
         /// City Strength with a military unit in the city.
         case garrison
+        /// The owner's government and policies (M2 §7.2–7.3).
+        case government
     }
 
     public var kind: Kind
@@ -78,6 +80,7 @@ public struct StrengthModifier: Hashable, Sendable {
         case .walls: "Walls"
         case .hills: "Hills"
         case .garrison: "Garrison"
+        case .government: "Government"
         }
     }
 }
@@ -210,6 +213,7 @@ extension GameState {
         }
         let elevation = map.tiles[centre].elevation
         s.add(.hills, rules.elevation(elevation).cityStrength)
+        s.add(.government, bonus(\.cityStrength, for: city.owner))
         if sees(centre), units.contains(where: { $0.position == city.position && $0.owner == city.owner && !$0.type.isCivilian && !$0.type.isNaval }) {
             s.add(.garrison, c.garrisonStrength)
         }
@@ -276,7 +280,9 @@ extension GameState {
         let attack: Strength
         switch attacker {
         case let .city(city):
-            attack = cityStrength(city, sees: sees)
+            var s = cityStrength(city, sees: sees)
+            s.add(.government, bonus(\.bombard, for: city.owner))
+            attack = s
         case let .unit(unit):
             let def = rules.unit(unit.type)
             var s = Strength(base: ranged ? def.rangedStrength : def.strength)
@@ -290,6 +296,7 @@ extension GameState {
             if let (cls, bonus) = classBonus(of: unit, against: defender) { s.add(.classBonus(cls), bonus) }
             if case .city = defender { s.add(.vsCity, def.vsCity ?? 0) }
             s.add(.promotion, promotionBonus(of: unit, attacking: true, ranged: ranged, against: defender))
+            s.add(.government, governmentStrength(of: unit))
             attack = s
         }
 
@@ -318,6 +325,7 @@ extension GameState {
             if let r = shortage(of: unit) { s.add(.shortage(r), shortagePenalty(unit)) }
             if let (cls, bonus) = classBonus(of: unit, against: attacker) { s.add(.classBonus(cls), bonus) }
             s.add(.promotion, promotionBonus(of: unit, attacking: false, ranged: ranged, against: attacker))
+            s.add(.government, governmentStrength(of: unit))
             defence = s
         }
         return Clash(attacker: attacker, defender: defender, from: from, target: target, ranged: ranged,

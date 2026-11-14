@@ -160,6 +160,19 @@ enum PersistenceFixture {
         state.players[0].techCredit = Array(repeating: 0, count: state.rules.techs.count)
         state.players[0].techCredit![state.rules.techIndex("writing")!] = 18
         state.players[0].insights = ["writing"]
+        // Civics, government, policies and Influence (M2 §7.1–7.3, §4.3, additive fields).
+        state.players[0].studying = CivicID("foreignTrade")
+        state.players[0].civicTarget = CivicID("earlyEmpire")
+        state.players[0].civicProgress = 6
+        state.players[0].knownCivics = ["codeOfLaws", "craftsmanship"]
+        state.players[0].civicInsights = ["stateWorkforce"]
+        state.players[0].government = "chiefdom"
+        state.players[0].governmentsAdopted = ["chiefdom", "despotism"]
+        state.players[0].policies = ["discipline"]
+        state.players[0].freeChangeTurn = 4
+        state.players[0].influence = 12
+        state.players[0].envoyTokens = 1
+        state.players[0].envoysEarned = 2
         // Strategic stockpiles (M2 §3.1, an additive field).
         state.setStock(.iron, of: PlayerID(0), to: 12)
         state.setStock(.horses, of: PlayerID(0), to: 4)

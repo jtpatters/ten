@@ -193,7 +193,12 @@ extension AITurn {
         // 1c. M2 §8: a city projected below Content queues its Monument first; one near its
         //     Housing, its Granary.
         if let w = v.wellbeing(of: city.id) {
-            if w.breakdown.total < 0 { offer(.building(monumentID)) }
+            if w.breakdown.total < 0 {
+                offer(.building(monumentID))
+                // M2 §5.3: an Arena reaches nearby cities, so only where none reaches yet.
+                if w.breakdown.quarters == 0 { offerQuarter("arena") }
+                offer(.building("arena"))
+            }
             if city.population >= w.housing.total - 1 {
                 offer(.building(granaryID))
                 offerQuarter("aqueduct")

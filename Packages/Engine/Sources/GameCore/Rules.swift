@@ -74,9 +74,15 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public let loyalty: LoyaltyRules?
     /// Optional (M2 §7.4): absent, tiles cannot be bought.
     public let tileBuying: TileBuyingRules?
+    /// In tree order (M2 §7.1); empty in rules without civics.
+    public let civics: [CivicDef]
+    /// M2 §7.2–7.3; nil in rules without governments (M1).
+    public let governance: GovernanceRules?
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
+    /// Per civic index: indices of its direct prerequisites.
+    let civicRequires: [[Int]]
     /// Per improvement ordinal, per (terrain, elevation, feature) combination: may it be built?
     private let improvementSites: [[Bool]]
 
@@ -142,6 +148,10 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         quarters = data.quarters
         loyalty = data.loyalty
         tileBuying = data.tileBuying
+        let civics = data.civics ?? []
+        self.civics = civics
+        governance = data.governance
+        civicRequires = civics.map { civic in civic.requires.map { r in civics.firstIndex { $0.id == r }! } }
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -187,6 +197,10 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public func tech(_ id: TechID) -> TechDef? { techs.first { $0.id == id } }
     /// Position in tree order.
     public func techIndex(_ id: TechID) -> Int? { techs.firstIndex { $0.id == id } }
+    public func civic(_ id: CivicID) -> CivicDef? { civics.first { $0.id == id } }
+    public func civicIndex(_ id: CivicID) -> Int? { civics.firstIndex { $0.id == id } }
+    public func government(_ id: String) -> GovernmentDef? { governance?.governments.first { $0.id == id } }
+    public func policy(_ id: String) -> PolicyDef? { governance?.policies.first { $0.id == id } }
     public func civ(_ id: CivID) -> CivDef? { civs.first { $0.id == id } }
 
     /// A quarter's cost in world era `worldEra` (M2 §5.3): its flat cost, or base + perEra × era.
@@ -369,6 +383,8 @@ struct RulesetData: Codable, Hashable, Sendable {
     /// Optional (M2 §5.5, §12.5): absent, cities have no Loyalty and there are no Free Cities.
     var loyalty: LoyaltyRules?
     var tileBuying: TileBuyingRules?
+    var civics: [CivicDef]?
+    var governance: GovernanceRules?
 }
 
 /// What a resource is for (M2 §3.1).
@@ -771,6 +787,16 @@ public struct TechDef: Codable, Hashable, Sendable {
     public let insight: InsightDef?
 }
 
+/// A civic (M2 §7.1): researched with Culture like a tech with Science.
+public struct CivicDef: Codable, Hashable, Sendable {
+    public let id: CivicID
+    public let name: String
+    public let cost: Int
+    public let requires: [CivicID]
+    public let era: String?
+    public let insight: InsightDef?
+}
+
 /// An era (M2 §2). The rules' `eras` are in order: index 0 is the first era.
 /// A promotion (M2 §8.3): offered to units of `classes` at `tier`. Strength applies in a fight
 /// matching every condition given (`when` "attack"/"defend", `ranged`, the other side's class in
@@ -843,6 +869,16 @@ public enum InsightKind: String, Codable, Hashable, Sendable, CaseIterable {
     case killWith
     /// An own city with wall HP left survives an attack.
     case cityDefended
+    /// Own `count` quarters (of kind `target`, if given).
+    case ownQuarters
+    /// Have an own city of population `count`.
+    case cityPopulation
+    /// Have `count` own cities in Unrest or worse.
+    case cityInUnrest
+    /// Another player declared war on you.
+    case warDeclaredOn
+    /// Own `count` military units.
+    case ownMilitaryUnits
 }
 
 public struct InsightDef: Codable, Hashable, Sendable {
@@ -1287,6 +1323,39 @@ extension RulesetData {
             }
         }
         if let cycle = techCycle() { problems.append("techs: cycle through \(cycle)") }
+        let civicIDs = (civics ?? []).map(\.id)
+        check(Set(civicIDs).count == civicIDs.count, "civics: duplicate ids")
+        for (i, civic) in (civics ?? []).enumerated() {
+            check(civic.cost > 0, "civic \(civic.id): cost must be positive")
+            if let insight = civic.insight { problems += insightProblems(insight, "civic \(civic.id)") }
+            for r in civic.requires {
+                guard let j = civicIDs.firstIndex(of: r) else {
+                    problems.append("civic \(civic.id): unknown prerequisite \(r)")
+                    continue
+                }
+                check(j < i, "civic \(civic.id): prerequisite \(r) must come earlier (tree order)")
+            }
+        }
+        if let g = governance {
+            let govIDs = g.governments.map(\.id), policyIDs = g.policies.map(\.id)
+            check(Set(govIDs).count == govIDs.count, "governments: duplicate ids")
+            check(Set(policyIDs).count == policyIDs.count, "policies: duplicate ids")
+            check(govIDs.contains(g.defaultGovernment), "governance: unknown default government")
+            check(g.policySwapGold >= 0 && g.policySwapGoldPerEra >= 0 && g.govChangeTurnsOfGold >= 0,
+                  "governance: costs must not be negative")
+            for gov in g.governments {
+                check(gov.slots.count == PolicyKind.allCases.count && gov.slots.allSatisfy { $0 >= 0 },
+                      "government \(gov.id): needs one non-negative slot count per policy kind")
+                if let c = gov.civic { check(civicIDs.contains(c), "government \(gov.id): unknown civic \(c)") }
+            }
+            for policy in g.policies {
+                check(civicIDs.contains(policy.civic), "policy \(policy.id): unknown civic \(policy.civic)")
+                if let r = policy.replacedBy { check(policyIDs.contains(r), "policy \(policy.id): unknown replacement \(r)") }
+            }
+        }
+        for q in quarters?.kinds ?? [] {
+            if let c = q.civic { check(civicIDs.contains(CivicID(c)) || civics == nil, "quarter \(q.id): unknown civic \(c)") }
+        }
         // Eras (M2 §2): every tech names a known era when the rules have eras, none otherwise;
         // eras never go back in tree order.
         let eraIDs = (eras ?? []).map(\.id)
@@ -1474,11 +1543,12 @@ extension RulesetData {
     /// Problems with an Insight's arguments (M2 §6.2).
     private func insightProblems(_ insight: InsightDef, _ context: String) -> [String] {
         var problems: [String] = []
-        let needsCount: Set<InsightKind> = [.ownCoastalCities, .meetPlayers, .ownCities, .buildImprovements, .ownBuildings, .ownUnits]
+        let needsCount: Set<InsightKind> = [.ownCoastalCities, .meetPlayers, .ownCities, .buildImprovements, .ownBuildings, .ownUnits,
+                                            .ownQuarters, .cityPopulation, .cityInUnrest, .ownMilitaryUnits]
         if needsCount.contains(insight.kind), (insight.count ?? 0) < 1 { problems.append("\(context): insight needs a count ≥ 1") }
         switch insight.kind {
         case .buildImprovements:
-            if !Improvement.allCases.contains(where: { caseName($0) == insight.target }) {
+            if insight.target != nil, !Improvement.allCases.contains(where: { caseName($0) == insight.target }) {
                 problems.append("\(context): insight improvement \(insight.target ?? "nil") unknown")
             }
         case .ownBuildings:
@@ -1489,7 +1559,10 @@ extension RulesetData {
             if UnitType(rawValue: insight.target ?? "") == nil { problems.append("\(context): insight unit \(insight.target ?? "nil") unknown") }
         case .killWith:
             if (insight.classes ?? []).isEmpty { problems.append("\(context): insight needs classes") }
-        case .ownCoastalCities, .meetPlayers, .ownCities, .cityDefended:
+        case .ownQuarters:
+            if let t = insight.target, !(quarters?.kinds ?? []).contains(where: { $0.id.rawValue == t }) { problems.append("\(context): insight quarter \(t) unknown") }
+        case .ownCoastalCities, .meetPlayers, .ownCities, .cityDefended, .cityPopulation, .cityInUnrest, .warDeclaredOn,
+             .ownMilitaryUnits:
             break
         }
         if insight.text.isEmpty { problems.append("\(context): insight text is empty") }
@@ -1584,4 +1657,124 @@ public struct RulesRef: Codable, Hashable, Sendable {
         hasher.combine(rules.id)
         hasher.combine(rules.contentHash)
     }
+}
+
+// MARK: - Governance (M2 §7.2–7.3)
+
+public struct GovernanceRules: Codable, Hashable, Sendable {
+    public let defaultGovernment: String
+    /// Gold per newly slotted policy outside a free-change turn, plus this much per world era.
+    public let policySwapGold: Int
+    public let policySwapGoldPerEra: Int
+    /// A paid government change costs this many turns of Gold income, rounded to 10.
+    public let govChangeTurnsOfGold: Int
+    /// Influence per turn from the Palace (M2 §4.3).
+    public let palaceInfluence: Int
+    /// Influence for the next envoy token: base + step × tokens earned, at most max.
+    public let envoyBase: Int
+    public let envoyStep: Int
+    public let envoyMax: Int
+    public let governments: [GovernmentDef]
+    public let policies: [PolicyDef]
+}
+
+public enum PolicyKind: String, Codable, Hashable, Sendable, CaseIterable {
+    case military, economic, diplomatic, wildcard
+}
+
+public struct GovernmentDef: Codable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+    /// nil: available from the start.
+    public let civic: CivicID?
+    /// One count per `PolicyKind`, in `allCases` order.
+    public let slots: [Int]
+    public let bonuses: Bonuses?
+
+    public func slots(_ kind: PolicyKind) -> Int {
+        slots[PolicyKind.allCases.firstIndex(of: kind)!]
+    }
+
+    /// Whether these policies fit the slots; a Wildcard slot takes any kind.
+    public func fits(_ policies: [PolicyDef]) -> Bool {
+        var overflow = 0
+        for kind in PolicyKind.allCases where kind != .wildcard {
+            overflow += max(0, policies.filter { $0.kind == kind }.count - slots(kind))
+        }
+        return overflow + policies.filter { $0.kind == .wildcard }.count <= slots(.wildcard)
+    }
+}
+
+public struct PolicyDef: Codable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+    public let kind: PolicyKind
+    public let civic: CivicID
+    /// Unslotted and unavailable once the replacement's civic is known.
+    public let replacedBy: String?
+    public let bonuses: Bonuses
+    /// AI preference; higher is slotted first.
+    public let aiWeight: Int?
+}
+
+public struct StrengthBonus: Codable, Hashable, Sendable {
+    public let classes: [UnitClass]
+    public let amount: Int
+}
+
+/// A percentage cut to production costs for the items it names.
+public struct CostCut: Codable, Hashable, Sendable {
+    public let units: [UnitType]?
+    public let classes: [UnitClass]?
+    /// Only units of this era or earlier.
+    public let maxEra: String?
+    public let buildings: [String]?
+    /// City-centre (non-quarter) buildings.
+    public let centre: Bool?
+    public let pct: Int
+}
+
+/// Effects of a government or policy (M2 §7.2–7.3). Absent fields are 0 / none.
+public struct Bonuses: Codable, Hashable, Sendable {
+    public let influence: Int?
+    public let influencePerFourCities: Int?
+    public let capitalYields: Yields?
+    public let cityProduction: Int?
+    public let strength: [StrengthBonus]?
+    public let quarterStability: Int?
+    public let wallsHousing: Int?
+    public let capitalLoyalty: Int?
+    public let capitalLoyaltyReach: Int?
+    public let tradeRoutes: Int?
+    /// Gold purchases cost this % less.
+    public let buyPct: Int?
+    public let costCuts: [CostCut]?
+    public let reconMoves: Int?
+    public let reconSight: Int?
+    public let unitUpkeepCut: Int?
+    public let pillageBonusPct: Int?
+    public let enemyTerritoryStrength: Int?
+    public let cityStrength: Int?
+    public let bombard: Int?
+    public let garrisonStability: Int?
+    public let garrisonLoyalty: Int?
+    /// Loyalty/turn in cities the player did not found.
+    public let conqueredLoyalty: Int?
+    /// Upgrades cost this % less.
+    public let upgradePct: Int?
+    public let builderCharges: Int?
+    public let newBuilderCharges: Int?
+    /// Buying tiles costs this % less.
+    public let tileBuyPct: Int?
+    /// Housing in cities with at least 2 quarters.
+    public let quartersHousing: Int?
+    /// Quarter kinds whose adjacency bonus doubles.
+    public let adjacencyDouble: [String]?
+    public let quarterCulture: Int?
+    public let raiderStrength: Int?
+    public let tradeRouteGold: Int?
+    public let intlTradeScience: Int?
+    public let intlTradeCulture: Int?
+    public let envoyGold: Int?
+    public let friendshipCostPct: Int?
 }

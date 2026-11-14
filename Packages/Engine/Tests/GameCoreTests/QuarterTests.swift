@@ -48,7 +48,7 @@ import Testing
         #expect(state.itemProblem(.quarter("campus", at: hex(6, 4)), in: state.city(id)!) == nil)
         state.players[0].knownTechs.removeAll { $0 == "writing" }
         #expect(state.itemProblem(.quarter("campus", at: hex(6, 4)), in: state.city(id)!) == "needs Writing")
-        #expect(state.itemProblem(.quarter("theater", at: hex(6, 4)), in: state.city(id)!) == "needs a civic")
+        #expect(state.itemProblem(.quarter("theater", at: hex(6, 4)), in: state.city(id)!) == "needs Drama and Poetry")
         build(&state, "market", at: hex(6, 4), in: id)
         #expect(state.itemProblem(.quarter("market", at: hex(4, 4)), in: state.city(id)!) == "already built")
         #expect(state.itemProblem(.quarter("workshop", at: hex(4, 4)), in: state.city(id)!) == "needs population 3",

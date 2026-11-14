@@ -53,6 +53,28 @@ public struct Player: Codable, Hashable, Sendable {
     public internal(set) var stockpile: [Int]?
     /// What kind of player this is (M2 §12.5); nil is a major civ (left out of saves).
     public internal(set) var kind: PlayerKind?
+    /// The civic Culture goes into (M2 §7.1); nil: Culture banks as progress.
+    public internal(set) var studying: CivicID?
+    /// The civic `setCivic` asked for; `studying` walks its missing prerequisites first.
+    public internal(set) var civicTarget: CivicID?
+    /// Culture toward `studying` (or banked). Nil until the first (left out of saves).
+    public internal(set) var civicProgress: Int?
+    /// Completed civics, sorted. Nil until the first (left out of saves).
+    public internal(set) var knownCivics: [CivicID]?
+    /// Civics whose Insight fired, sorted. Nil until the first (left out of saves).
+    public internal(set) var civicInsights: [CivicID]?
+    /// nil: the rules' default government (M2 §7.2).
+    public internal(set) var government: String?
+    /// Sorted; governments adopted at least once (the default is implied).
+    public internal(set) var governmentsAdopted: [String]?
+    /// Slotted policy ids.
+    public internal(set) var policies: [String]?
+    /// The turn a civic last completed: government and policy changes are free on it.
+    public internal(set) var freeChangeTurn: Int?
+    /// Influence toward the next envoy token (M2 §4.3).
+    public internal(set) var influence: Int?
+    public internal(set) var envoyTokens: Int?
+    public internal(set) var envoysEarned: Int?
 
     /// A civ that takes phases, researches and can win; not the Free Cities.
     public var isMajor: Bool { kind == nil || kind == .major }
@@ -245,10 +267,11 @@ public struct GameState: Codable, Hashable, Sendable {
     mutating func insertUnit(_ type: UnitType, owner: PlayerID, at position: HexCoord, movesLeft: Int? = nil,
                              charges: Int? = nil) -> UnitID {
         let def = rules.unit(type)
+        let extraCharges = def.charges > 0 ? bonus(\.builderCharges, for: owner) + bonus(\.newBuilderCharges, for: owner) : 0
         let id = UnitID(nextUnitID)
         nextUnitID += 1
         units.append(Unit(id: id, owner: owner, type: type, position: map.normalize(position)!,
-                          movesLeft: movesLeft ?? def.moves * rules.movePoints, charges: charges ?? def.charges, hp: rules.constants.healing.maxHP))
+                          movesLeft: movesLeft ?? def.moves * rules.movePoints, charges: charges ?? def.charges + extraCharges, hp: rules.constants.healing.maxHP))
         return id
     }
 

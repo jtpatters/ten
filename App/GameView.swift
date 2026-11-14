@@ -78,7 +78,7 @@ struct GameView: View {
 
     /// The sheets, one at a time.
     enum GameSheet: String, Identifiable {
-        case city, research, diplomacy, notices, load
+        case city, research, civics, government, diplomacy, notices, load
         var id: String { rawValue }
     }
 
@@ -316,6 +316,8 @@ struct GameView: View {
         if model.isShowingLoad { return .load }
         switch session.openPanel {
         case .research?: return .research
+        case .civics?: return .civics
+        case .government?: return .government
         case .diplomacy?: return .diplomacy
         case .notices?: return .notices
         case nil: break
@@ -330,7 +332,7 @@ struct GameView: View {
             guard sheet == nil, let shown = wantedSheet else { return }
             switch shown {
             case .load: model.isShowingLoad = false
-            case .research, .diplomacy, .notices: session.openPanel = nil
+            case .research, .civics, .government, .diplomacy, .notices: session.openPanel = nil
             case .city:
                 cover.sheetTop = nil
                 // Turning the phone on its side also closes the sheet (the side panel takes
@@ -371,6 +373,16 @@ struct GameView: View {
             TechPanel(session: session) { session.openPanel = nil }
                 .presentationDetents([.large])
                 .presentationSizing(.page)
+                .presentationBackground(HUD.parchmentTop)
+        case .civics:
+            CivicPanel(session: session) { session.openPanel = nil }
+                .presentationDetents([.large])
+                .presentationSizing(.page)
+                .presentationBackground(HUD.parchmentTop)
+        case .government:
+            GovernmentPanel(session: session) { session.openPanel = nil }
+                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationSizing(.form)
                 .presentationBackground(HUD.parchmentTop)
         case .diplomacy:
             DiplomacySheet(session: session) { session.openPanel = nil }
@@ -417,6 +429,20 @@ struct GameView: View {
                     session.openPanel = .research
                 } label: {
                     Label("Research…", systemImage: YieldChip.Kind.science.systemImage)
+                }
+                if !session.view.rules.civics.isEmpty {
+                    Button {
+                        session.openPanel = .civics
+                    } label: {
+                        Label("Civics…", systemImage: YieldChip.Kind.culture.systemImage)
+                    }
+                }
+                if session.view.government != nil {
+                    Button {
+                        session.openPanel = .government
+                    } label: {
+                        Label("Government…", systemImage: "building.columns")
+                    }
                 }
                 Button {
                     session.openPanel = .notices

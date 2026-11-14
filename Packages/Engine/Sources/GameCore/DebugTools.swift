@@ -170,6 +170,29 @@ public enum DebugTools {
         return true
     }
 
+    /// Gives `player` the civic outright, as if completed this turn (a free policy change).
+    /// False for an unknown player or civic, or one already known.
+    @discardableResult
+    public static func learnCivic(_ civic: CivicID, player: PlayerID, in state: inout GameState) -> Bool {
+        guard state.players.indices.contains(player.rawValue), state.rules.civic(civic) != nil,
+              !state.players[player.rawValue].knowsCivic(civic) else { return false }
+        state.learnCivic(civic, player: player)
+        if state.players[player.rawValue].civicTarget == civic || state.players[player.rawValue].studying == civic {
+            state.players[player.rawValue].studying = nil
+            state.players[player.rawValue].civicTarget = nil
+        }
+        return true
+    }
+
+    /// Sets `player`'s Influence stock and envoy tokens (M2 §4.3). False for an unknown player.
+    @discardableResult
+    public static func setInfluence(_ influence: Int, tokens: Int, player: PlayerID, in state: inout GameState) -> Bool {
+        guard state.players.indices.contains(player.rawValue) else { return false }
+        state.players[player.rawValue].influence = max(0, influence)
+        state.players[player.rawValue].envoyTokens = max(0, tokens)
+        return true
+    }
+
     /// Sets unit `id`'s experience (scenarios: a veteran with a promotion due). False for an
     /// unknown unit.
     @discardableResult

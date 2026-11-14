@@ -21,7 +21,9 @@ import Testing
         #expect(state.view(for: PlayerID(0)).warProblem(on: PlayerID(1)) == nil)
 
         let records = try apply(.declareWar(on: PlayerID(1)), &state)
-        #expect(events(records) == [.warDeclared(by: PlayerID(0), on: PlayerID(1))])
+        #expect(events(records).filter { if case .civicInsightGained = $0 { false } else { true } }
+                == [.warDeclared(by: PlayerID(0), on: PlayerID(1))])
+        #expect(events(records).contains(.civicInsightGained(player: PlayerID(1), civic: "defensiveTactics", credit: 48)))
         #expect(records[0].audience == 0b0111) // not player 3, who met neither
         let relation = state.relation(PlayerID(0), PlayerID(1))
         #expect(relation.stance == .war && relation.since == 1 && state.isAtWar(PlayerID(1), PlayerID(0)))

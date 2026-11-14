@@ -30,6 +30,12 @@ public enum Command: Codable, Hashable, Sendable {
     case setFocus(city: CityID, focus: CityFocus)
     /// Research a tech, through its missing prerequisites (M1 §6).
     case setResearch(tech: TechID)
+    /// Study `civic`, through its missing prerequisites (M2 §7.1).
+    case setCivic(civic: CivicID)
+    /// M2 §7.2.
+    case setGovernment(government: String)
+    /// M2 §7.3: the full set of slotted policies.
+    case setPolicies(policies: [String])
     /// Declare war on a player met and at peace with (M1 §9).
     case declareWar(on: PlayerID)
     /// Propose peace to a player at war with (M1 §9); it answers in its own phase.
@@ -109,6 +115,9 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case cityJoined(city: CityID, name: String, from: PlayerID, to: PlayerID, at: HexCoord)
     case productionCompleted(city: CityID, item: ProductionItem, at: HexCoord)
     case techResearched(player: PlayerID, tech: TechID)
+    case civicCompleted(player: PlayerID, civic: CivicID)
+    /// M2 §4.3: Influence reached the envoy threshold; `tokens` is the new total.
+    case envoyEarned(player: PlayerID, tokens: Int)
     case borderGrew(city: CityID, tile: HexCoord)
     case improvementBuilt(improvement: Improvement, at: HexCoord, owner: PlayerID)
     case playersMet(PlayerID, PlayerID)
@@ -126,6 +135,7 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case gameOver(GameOutcome)
     /// A tech's Insight fired for `player` (M2 §6.2): `credit` science toward it.
     case insightGained(player: PlayerID, tech: TechID, credit: Int)
+    case civicInsightGained(player: PlayerID, civic: CivicID, credit: Int)
     /// The world entered era `era` (an index into the rules' eras, M2 §2).
     case worldEraAdvanced(era: Int)
     /// A unit upgraded in place (M2 §8.2).
@@ -264,7 +274,7 @@ public enum GameEngine {
             if let problem = state.itemProblem(item, in: city) ?? state.completionProblem(item, in: city) {
                 throw .rejected(reason: problem)
             }
-            let price = state.purchasePrice(of: item)
+            let price = state.purchasePrice(of: item, for: player)
             guard state.players[player.rawValue].gold >= price else { throw .rejected(reason: "needs \(price) gold") }
             state.purchase(item, inCity: index, price: price, &fx)
 
@@ -285,6 +295,31 @@ public enum GameEngine {
             guard state.rules.tech(tech) != nil else { throw .rejected(reason: "no such tech") }
             guard !state.players[player.rawValue].knows(tech) else { throw .rejected(reason: "already known") }
             state.setResearch(tech, for: player)
+
+        case let .setCivic(civic):
+            guard state.rules.civic(civic) != nil else { throw .rejected(reason: "no such civic") }
+            guard !state.players[player.rawValue].knowsCivic(civic) else { throw .rejected(reason: "already known") }
+            state.setCivic(civic, for: player)
+
+        case let .setGovernment(government):
+            guard state.rules.government(government) != nil else { throw .rejected(reason: "no such government") }
+            guard state.availableGovernments(for: player).contains(where: { $0.id == government }) else {
+                throw .rejected(reason: "government not available")
+            }
+            guard state.government(of: player)?.id != government else { throw .rejected(reason: "already the government") }
+            guard state.players[player.rawValue].gold >= state.governmentChangeCost(to: government, for: player) else {
+                throw .rejected(reason: "not enough gold")
+            }
+            state.setGovernment(government, for: player)
+            fx.touchPlayer(player)
+
+        case let .setPolicies(policies):
+            if let problem = state.policiesProblem(policies, for: player) { throw .rejected(reason: problem) }
+            guard state.players[player.rawValue].gold >= state.policyChangeCost(to: policies, for: player) else {
+                throw .rejected(reason: "not enough gold")
+            }
+            state.setPolicies(policies, for: player)
+            fx.touchPlayer(player)
 
         case let .attack(id, target):
             let unit = try ownedUnit(id, by: player, in: state)

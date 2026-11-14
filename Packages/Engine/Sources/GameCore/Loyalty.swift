@@ -40,6 +40,8 @@ public struct LoyaltyBreakdown: Hashable, Sendable {
     public var capital = 0
     public var garrison = 0
     public var stability = 0
+    /// From the government and policies (M2 §7.2–7.3).
+    public var government = 0
     public var captured = 0
     public var enemies = 0
     /// The clamped change per turn.
@@ -84,6 +86,15 @@ extension GameState {
         }
         if units.contains(where: { $0.position == city.position && $0.owner == owner && !$0.type.isCivilian }) {
             b.garrison = l.garrison
+            b.government += bonus(\.garrisonLoyalty, for: owner)
+        }
+        if city.capturedTurn != nil { b.government += bonus(\.conqueredLoyalty, for: owner) }
+        if let capital = players[owner.rawValue].capital, let c = self.city(capital) {
+            for bonus in bonuses(of: owner) {
+                guard let v = bonus.capitalLoyalty,
+                      map.distance(index: centre, map.index(of: c.position)!) <= (bonus.capitalLoyaltyReach ?? 0) else { continue }
+                b.government += v
+            }
         }
         let stability = city.stability ?? 0
         b.stability = stability > 0 ? min(stability, l.stabilityMax) : max(stability, l.stabilityMin)
@@ -95,7 +106,7 @@ extension GameState {
         }.count
         b.enemies = max(-l.enemyUnitsMax, min(0, enemies * l.enemyUnit))
 
-        let sum = b.pressure + b.capital + b.garrison + b.stability + b.captured + b.enemies
+        let sum = b.pressure + b.capital + b.garrison + b.stability + b.captured + b.enemies + b.government
         b.total = max(-l.deltaCap, min(l.deltaCap, sum))
         return b
     }

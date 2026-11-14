@@ -186,6 +186,8 @@ final class GameSession {
     var settlerWaitShown: Set<CityID> = []
     /// The tech the viewer learnt last (the research panel's header).
     var lastResearched: LearntTech?
+    /// The civic last completed, for the civic panel to say so that turn.
+    var lastCivic: LearntCivic?
     /// Cities captured this phase that the viewer chose to keep.
     var keptCities: Set<CityID> = []
     /// "N items need attention — End Turn?" on screen, with N; asked once per game (M1 §16).
@@ -210,6 +212,8 @@ final class GameSession {
     var cityPanelRequest = CityPanelRequest(focus: .overview, token: 0)
     /// The tech panel, diplomacy sheet or notices log, when open.
     var openPanel: Panel?
+    /// A section the open panel should scroll to once (cleared when it has).
+    var panelAnchor: String?
     /// The Save Game prompt and its name field.
     var isShowingSave = false
     var saveName = ""
@@ -1145,7 +1149,7 @@ final class GameSession {
     /// The panels presented over the map on request (the tech panel, the diplomacy sheet, the
     /// notices log).
     enum Panel: Equatable {
-        case research, diplomacy, notices
+        case research, civics, government, diplomacy, notices
     }
 
     /// Esc: closes the combat preview, else leaves bombard target mode, else drops the

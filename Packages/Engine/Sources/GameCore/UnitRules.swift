@@ -15,7 +15,8 @@ extension GameState {
 
     /// Gold `player` pays per turn for its military units beyond the free allowance.
     public func upkeep(of player: PlayerID) -> Int {
-        max(0, militaryUnitCount(of: player) - freeUnitAllowance(of: player)) * rules.constants.upkeep.goldPerUnit
+        max(0, militaryUnitCount(of: player) - freeUnitAllowance(of: player))
+            * max(0, rules.constants.upkeep.goldPerUnit - bonus(\.unitUpkeepCut, for: player))
     }
 
     /// Gold `player` pays per turn for its buildings and quarters (M2 §5.4).
@@ -157,15 +158,17 @@ extension GameState {
 
     /// Gold to upgrade a unit of `type`: (target cost − own cost) × 2, at least 10; nil when it
     /// has no upgrade.
-    public func upgradeCost(of type: UnitType) -> Int? {
+    public func upgradeCost(of type: UnitType, for player: PlayerID? = nil) -> Int? {
         guard let target = rules.unit(type).upgradesTo else { return nil }
-        return max(10, (rules.unit(target).cost - rules.unit(type).cost) * 2)
+        let cost = max(10, (rules.unit(target).cost - rules.unit(type).cost) * 2)
+        guard let player else { return cost }
+        return cost - cost * min(90, bonus(\.upgradePct, for: player)) / 100
     }
 
     /// Why `unit` may not upgrade now (nil: it may): it stands in own territory with moves left,
     /// its owner knows the target's tech and has the Gold.
     func upgradeProblem(_ unit: Unit) -> String? {
-        guard let target = rules.unit(unit.type).upgradesTo, let cost = upgradeCost(of: unit.type) else {
+        guard let target = rules.unit(unit.type).upgradesTo, let cost = upgradeCost(of: unit.type, for: unit.owner) else {
             return "\(unit.type.displayName)s have no upgrade"
         }
         guard unit.movesLeft > 0 else { return "no moves left" }
@@ -178,7 +181,7 @@ extension GameState {
 
     /// Upgrades a unit (validated by the caller): same id, XP, HP and position; its moves end.
     mutating func upgrade(_ id: UnitID, _ fx: inout Effects) {
-        guard let unit = unit(id), let target = rules.unit(unit.type).upgradesTo, let cost = upgradeCost(of: unit.type) else { return }
+        guard let unit = unit(id), let target = rules.unit(unit.type).upgradesTo, let cost = upgradeCost(of: unit.type, for: unit.owner) else { return }
         players[unit.owner.rawValue].gold -= cost
         spendResource(for: target, owner: unit.owner)
         updateUnit(id) { u in
@@ -215,7 +218,14 @@ extension GameState {
     }
 
     /// Its moves per phase, promotions included.
-    public func maxMoves(of unit: Unit) -> Int { (rules.unit(unit.type).moves + promotionMoves(unit)) * rules.movePoints }
+    public func maxMoves(of unit: Unit) -> Int {
+        (rules.unit(unit.type).moves + promotionMoves(unit) + reconBonus(unit, \.reconMoves)) * rules.movePoints
+    }
+
+    /// A government or policy bonus that applies to recon units (M2 §7.3).
+    func reconBonus(_ unit: Unit, _ field: KeyPath<Bonuses, Int?>) -> Int {
+        rules.unit(unit.type).unitClass == .recon ? bonus(field, for: unit.owner) : 0
+    }
 
     /// Its range (0 for non-ranged units), promotions included.
     public func range(of unit: Unit) -> Int {
@@ -227,7 +237,7 @@ extension GameState {
     /// Its sight, promotions included.
     public func sight(of unit: Unit) -> Int {
         if let e = rules.embark, isEmbarked(unit) { return e.sight }
-        return rules.unit(unit.type).sight + promotionDefs(unit).reduce(0) { $0 + ($1.sight ?? 0) }
+        return rules.unit(unit.type).sight + promotionDefs(unit).reduce(0) { $0 + ($1.sight ?? 0) } + reconBonus(unit, \.reconSight)
     }
 
     /// Whether it may fire after moving in the phase (siege may not, M2 §8.1, unless promoted).
