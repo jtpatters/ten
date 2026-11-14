@@ -393,7 +393,10 @@ struct GameReport {
         return "  \(player.id) \(player.name): " + (player.isAlive ? "" : "eliminated, ")
             + "\(cities.count) cities (founded \(t.founded), 3rd " + (t.thirdCityTurn.map { "t\($0)" } ?? "never") + "), "
             + "population \(cities.reduce(0) { $0 + $1.population }), \(player.knownTechs.count) techs, "
-            + "\(state.militaryUnitCount(of: player.id)) military, \(state.units(of: player.id).count) units, "
+            + "\(state.militaryUnitCount(of: player.id)) military, "
+            + "\(state.units(of: player.id).filter(\.type.isNaval).count) ships "
+            + "(\(state.cities(of: player.id).filter { state.view(for: player.id).isCoastal($0) }.count) coastal cities), "
+            + "\(state.units(of: player.id).count) units, "
             + "captured \(t.captured), lost \(t.lost), razed \(t.razed), civilians \(t.civilians), units lost \(t.unitsLost), "
             + "\(player.gold) gold, score \(state.score(of: player.id))" + villages.playerSummary(player.id.rawValue)
     }

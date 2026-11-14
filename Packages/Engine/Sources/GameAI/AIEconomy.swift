@@ -212,6 +212,9 @@ extension AITurn {
             offer(.unit(.builder))
         }
 
+        // 4b. A few ships in coastal cities after the early turns (M2 §8.4).
+        if v.turn > ai.earlyTurns, canKeepMilitary, let ship = shipToBuild(for: city, c, v) { offer(.unit(ship)) }
+
         // 5. Monument early: in the first earlyTurns turns (later it comes with the other
         //    buildings, below the army).
         if v.turn <= ai.earlyTurns { offer(.building(monumentID)) }
@@ -223,9 +226,6 @@ extension AITurn {
 
         // 7. Granary, Library, Market (the Monument first if it is still missing).
         for building in [monumentID, granaryID, libraryID, marketID] { offer(.building(building)) }
-
-        // 7b. A few ships in coastal cities (M2 §8.4).
-        if canKeepMilitary, let ship = shipToBuild(for: city, c, v) { offer(.unit(ship)) }
 
         // Nothing else wanted: Walls, then an army unit the treasury can keep.
         offer(.building(wallsID))
