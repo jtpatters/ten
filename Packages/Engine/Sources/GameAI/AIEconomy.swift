@@ -147,6 +147,12 @@ extension AITurn {
             guard available(item, in: city, v), !list.contains(where: { $0.item == item }) else { return }
             list.append(Candidate(item: item, urgent: urgent))
         }
+        // A quarter on its best site (M2 §5.3), unless one of the kind is already queued.
+        func offerQuarter(_ kind: QuarterKind) {
+            guard !city.queue.contains(where: { if case .quarter(kind, _) = $0.item { true } else { false } }),
+                  let site = v.quarterSites(kind, in: city.id).first else { return }
+            offer(.quarter(kind, at: site.tile))
+        }
         let cities = v.cities.count
         let atWar = !plan.enemies.isEmpty
         let threatened = plan.isThreatened(city.id)
@@ -163,7 +169,10 @@ extension AITurn {
         if needsDefender(city, v), canKeepMilitary, let defender = threatened ? bestDefender(v) : cheapestFighter(v) {
             offer(.unit(defender), urgent: true)
         }
-        if threatened { offer(.building(wallsID), urgent: true) }
+        if threatened {
+            offer(.building(wallsID), urgent: true)
+            offer(.building(castleID), urgent: true)
+        }
 
         // 1b. An escort for a waiting Settler no free fighter can come to, in its escort city
         //     (p3b ai-settler-escort, AIEscorts.swift).
@@ -185,7 +194,10 @@ extension AITurn {
         //     Housing, its Granary.
         if let w = v.wellbeing(of: city.id) {
             if w.breakdown.total < 0 { offer(.building(monumentID)) }
-            if city.population >= w.housing.total - 1 { offer(.building(granaryID)) }
+            if city.population >= w.housing.total - 1 {
+                offer(.building(granaryID))
+                offerQuarter("aqueduct")
+            }
         }
 
         // 2a. A few ships in coastal cities after the early turns (M2 §8.4), ahead of Settlers
@@ -234,7 +246,16 @@ extension AITurn {
         }
 
         // 7. Granary, Library, Market (the Monument first if it is still missing).
-        for building in [monumentID, granaryID, libraryID, marketID, waterMillID] { offer(.building(building)) }
+        //    M2 §5.3: the Campus and Market quarters first, so the Library and Market can follow;
+        //    then the Workshop and Harbor quarters and their buildings.
+        offer(.building(monumentID))
+        offer(.building(granaryID))
+        offerQuarter("campus")
+        offer(.building(libraryID))
+        offerQuarter("market")
+        for building in [marketID, waterMillID, "university", "bank"] { offer(.building(building)) }
+        for kind: QuarterKind in ["workshop", "harbor"] { offerQuarter(kind) }
+        for building: BuildingID in ["workshop", "lighthouse"] { offer(.building(building)) }
 
         // Nothing else wanted: Walls, then an army unit the treasury can keep.
         offer(.building(wallsID))
@@ -246,6 +267,7 @@ extension AITurn {
     var monumentID: BuildingID { "monument" }
     var granaryID: BuildingID { "granary" }
     var libraryID: BuildingID { "library" }
+    var castleID: BuildingID { "castle" }
     var marketID: BuildingID { "market" }
     var waterMillID: BuildingID { "waterMill" }
     var wallsID: BuildingID { rules.buildings.first { $0.wallHP > 0 }?.id ?? "walls" }
@@ -262,7 +284,12 @@ extension AITurn {
         case let .building(id):
             guard let def = rules.building(id), def.buildable, !city.has(id) else { return false }
             if def.requiresRiver == true, (v.tile(at: city.position)?.riverEdges ?? 0) == 0 { return false }
+            if let kind = def.quarter, city.quarters?.contains(where: { $0.kind == kind && !$0.isPillaged }) != true { return false }
+            if let other = def.requires, !city.has(other) { return false }
+            if let other = def.excludes, city.has(other) { return false }
             return def.tech.map(v.me.knows) ?? true
+        case let .quarter(kind, at):
+            return v.quarterSites(kind, in: city.id).contains { $0.tile == at }
         }
     }
 

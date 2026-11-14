@@ -81,7 +81,7 @@ extension GameState {
             check(Set(city.workedTiles).count == city.workedTiles.count, "\(city.id) works a tile twice")
             for hex in city.workedTiles {
                 guard let t = map.index(of: hex) else { continue }
-                check(tileCity[t] == Int32(city.id.rawValue + 1) && t != centre && rules.isWorkable(map.tiles[t])
+                check(tileCity[t] == Int32(city.id.rawValue + 1) && t != centre && rules.isWorkable(map.tiles[t]) && !isQuarterTile(t)
                       && map.distance(hex, city.position) <= rules.constants.city.workRadius,
                       "\(city.id) works \(hex) it may not")
             }
@@ -90,6 +90,15 @@ extension GameState {
             check(city.wallHP >= 0 && city.wallHP <= maxWall, "\(city.id) wall HP \(city.wallHP) of \(maxWall)")
             if let captured = city.capturedTurn { check(captured >= city.foundedTurn && captured <= turn, "\(city.id) captured in turn \(captured)") }
             check(map.tiles[centre].improvement == nil, "\(city.id) centre improved")
+            let quarters = city.quarters ?? []
+            check(city.quarters?.isEmpty != true, "\(city.id) empty quarter list")
+            check(Set(quarters.map(\.kind)).count == quarters.count && Set(quarters.map(\.tile)).count == quarters.count,
+                  "\(city.id) quarters not unique")
+            for q in quarters {
+                let t = map.index(of: q.tile)
+                check(rules.quarter(q.kind) != nil && t != nil && t != centre && tileCity[t ?? centre] == Int32(city.id.rawValue + 1)
+                      && map.tiles[t ?? centre].improvement == nil, "\(city.id) quarter \(q.kind) at \(q.tile)")
+            }
         }
         let liveCities = Set(cities.map { $0.id.rawValue + 1 })
         for t in 0..<count where tileCity[t] != 0 {

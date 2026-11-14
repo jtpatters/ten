@@ -200,6 +200,9 @@ final class GameSession {
     var confirmingLoad = false
     /// The city choosing a bombard target: its panel steps aside and the map is the target picker.
     var bombardTargeting: CityID?
+    /// The city choosing a tile for a quarter (M2 §18.2): its panel steps aside and the map
+    /// marks the legal sites with their adjacency.
+    var quarterPlacing: QuarterPlacing?
     /// What the city panel should show (a new city's production list); the token changes with
     /// every request.
     var cityPanelRequest = CityPanelRequest(focus: .overview, token: 0)
@@ -566,6 +569,7 @@ final class GameSession {
 
     func syncWorld() {
         MapAdapter.syncWorld(renderer, state: state, viewer: viewer, diagnostic: diagnostic)
+        overlay.quarterMarks = MapAdapter.quarterMarks(state: state, viewer: viewer, diagnostic: diagnostic)
     }
 
     /// A refusal or failure as a sentence for a toast or alert.
@@ -616,6 +620,11 @@ final class GameSession {
         guard let hex = view.normalize(raw) else { return }
         let wasInspecting = inspectedHex != nil
         inspectedHex = nil
+        // 0. Placing a quarter: a marked site queues it.
+        if quarterPlacing != nil {
+            placeQuarter(at: hex)
+            return
+        }
 
         // 1. The end of a previewed route: the second tap moves.
         if pendingPath?.destination == hex, selectedUnit != nil {
@@ -865,6 +874,7 @@ final class GameSession {
         attentionCard = nil
         if selection != self.selection {
             bombardTargeting = nil
+            quarterPlacing = nil
             // Another city's panel opens on its overview.
             if case .city = selection { cityPanelRequest = CityPanelRequest(focus: .overview, token: cityPanelRequest.token &+ 1) }
         }
@@ -918,6 +928,7 @@ final class GameSession {
         explore.described = nil
         attentionCard = nil
         bombardTargeting = nil
+        quarterPlacing = nil
         selection = nil
         refreshSelection()
     }
@@ -1041,6 +1052,7 @@ final class GameSession {
     /// out of sight) is cleared.
     func refreshSelection() {
         overlay.invalidateBanners()
+        if quarterPlacing == nil { overlay.siteLabels = [] }
         let view = self.view
         switch selection {
         case let .unit(id)?:
@@ -1076,7 +1088,9 @@ final class GameSession {
             renderer.setMovementRange([])
             renderer.setAttackTargets(targets.map(\.target))
             renderer.setWorkedTiles(city.workedTiles)
-            renderer.setTileScores([])
+            let sites = quarterPlacing?.city == id ? quarterSites() : []
+            renderer.setTileScores(MapAdapter.quarterSiteScores(view, sites: sites))
+            overlay.siteLabels = sites.map { MapOverlay.SiteLabel(hex: $0.tile, text: "+\($0.adjacency)") }
             if let plan = pendingAttack, plan.attacker != .city(id) || !targets.contains(plan.option) {
                 cancelAttack()
             } else {
@@ -1126,6 +1140,8 @@ final class GameSession {
             cancelAttack()
         } else if bombardTargeting != nil {
             endBombard()
+        } else if quarterPlacing != nil {
+            endQuarter()
         } else if pendingPath != nil {
             clearPreviews()
         } else if inspectedHex != nil {

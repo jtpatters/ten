@@ -13,6 +13,8 @@ public enum YieldSource: Hashable, Sendable {
     case building(BuildingID)
     /// The city's Stability state (M2 §5.2): a percentage of every yield but Food.
     case stability
+    /// A quarter's adjacency bonus (M2 §5.3).
+    case quarter(QuarterKind)
 }
 
 /// A city's yields this phase with their sources (M1 §12.6).
@@ -135,6 +137,7 @@ extension GameState {
         for id in city.buildings {
             if let def = rules.building(id), !def.yields.isZero { breakdown.append((.building(id), def.yields)) }
         }
+        for (kind, yields) in quarterYields(city) { breakdown.append((.quarter(kind), yields)) }
         var total = breakdown.reduce(Yields.zero) { $0 + $1.1 }
         let pct = rules.stabilityYieldPct(rules.stabilityState(city.stability ?? 0))
         if pct != 0 {
@@ -175,7 +178,7 @@ extension GameState {
         var candidates: [Candidate] = []
         map.forEachIndex(within: rules.constants.city.workRadius, of: city.position) { t in
             // A city works only tiles it owns, so no other city works these.
-            guard t != centreIndex, tileCity[t] == code, rules.isWorkable(map.tiles[t]), !enemies.contains(t),
+            guard t != centreIndex, tileCity[t] == code, rules.isWorkable(map.tiles[t]), !isQuarterTile(t), !enemies.contains(t),
                   !candidates.contains(where: { $0.tile == t }) else { return }
             let y = tileYields(t, for: city.owner)
             candidates.append(Candidate(tile: t, yields: y, value: focus.value(y), distance: map.distance(index: t, centreIndex)))

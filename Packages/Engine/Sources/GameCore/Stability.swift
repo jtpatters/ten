@@ -14,7 +14,8 @@ public struct HousingBreakdown: Hashable, Sendable {
     public var buildings: Int
     /// From worked Farms, Pastures, Plantations and Camps.
     public var improvements: Int
-    public var total: Int { base + buildings + improvements }
+    public var quarters = 0
+    public var total: Int { base + buildings + improvements + quarters }
 }
 
 /// A city's Stability by source (M2 §5.2): supply minus need and penalties.
@@ -25,11 +26,13 @@ public struct StabilityBreakdown: Hashable, Sendable {
     public var empireSize = 0
     public var overcrowding = 0
     public var occupied = 0
+    /// From Arenas in reach (M2 §5.2).
+    public var quarters = 0
 
     public init() {}
 
     /// Supply − need − penalties (the penalties are negative or 0).
-    public var total: Int { buildings + luxuries - need + empireSize + overcrowding + occupied }
+    public var total: Int { buildings + luxuries + quarters - need + empireSize + overcrowding + occupied }
 }
 
 extension Ruleset {
@@ -72,7 +75,13 @@ extension GameState {
             let tile = map.tiles[map.index(of: hex)!]
             if let i = tile.improvement, !tile.isPillaged, h.improvements.contains(caseName(i)) { improved += 1 }
         }
-        return HousingBreakdown(base: base, buildings: buildings, improvements: improved / max(1, h.improvedTilesPerHousing))
+        var quarters = 0
+        for q in city.quarters ?? [] where !q.isPillaged {
+            guard let def = rules.quarter(q.kind) else { continue }
+            quarters += (fresh ? nil : def.housingNoFreshWater) ?? def.housing ?? 0
+        }
+        return HousingBreakdown(base: base, buildings: buildings, improvements: improved / max(1, h.improvedTilesPerHousing),
+                                quarters: quarters)
     }
 
     /// Percent of a positive food surplus that goes into the store (M2 §5.1, §5.2).
@@ -99,7 +108,12 @@ extension GameState {
         for i in own {
             let city = cities[i]
             var b = StabilityBreakdown()
-            b.buildings = city.buildings.reduce(0) { $0 + (rules.building($1)?.stability ?? 0) }
+            b.buildings = city.buildings.reduce(0) { sum, id in
+                guard let def = rules.building(id) else { return sum }
+                if let kind = def.quarter, rules.quarter(kind)?.stabilityReach != nil { return sum }
+                return sum + (def.stability ?? 0)
+            }
+            b.quarters = reachStability(at: city.position, owner: player, among: own)
             b.need = max(0, (city.population - 1) / max(1, s.needDivisor))
             b.empireSize = empire
             b.overcrowding = -max(0, city.population - housing(of: city).total)
@@ -116,6 +130,22 @@ extension GameState {
             for i in lowest.prefix(s.luxuryCities) { result[i]!.luxuries += 1 }
         }
         return result
+    }
+
+    /// The best Stability a quarter with a reach (an Arena) of `owner`'s gives at `hex`, with
+    /// its buildings' Stability (M2 §5.2).
+    func reachStability(at hex: HexCoord, owner: PlayerID, among own: [Int]) -> Int {
+        var best = 0
+        for j in own {
+            for q in cities[j].quarters ?? [] where !q.isPillaged {
+                guard let def = rules.quarter(q.kind), let reach = def.stabilityReach, map.distance(q.tile, hex) <= reach else { continue }
+                let extra = cities[j].buildings.reduce(0) { sum, id in
+                    rules.building(id).map { $0.quarter == q.kind ? sum + ($0.stability ?? 0) : sum } ?? sum
+                }
+                best = max(best, (def.stability ?? 0) + extra)
+            }
+        }
+        return best
     }
 
     /// Recomputes the Stability of `player`'s cities (the owner's phase start, before yields).

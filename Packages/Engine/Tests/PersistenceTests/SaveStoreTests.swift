@@ -81,6 +81,11 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
             // City Stability (M2 §5.2, additive) comes back as saved.
             #expect(state.cities.contains { $0.stability == -2 })
             #expect(loaded.state.cities.map(\.stability) == state.cities.map(\.stability))
+        // Quarters, a queued quarter and its fixed cost (M2 §5.3, additive) come back as saved.
+        #expect(state.cities.contains { $0.quarters?.isEmpty == false })
+        #expect(state.cities.contains { $0.queue.contains { if case .quarter = $0.item { $0.cost != nil } else { false } } })
+        #expect(loaded.state.cities.map(\.quarters) == state.cities.map(\.quarters))
+        #expect(loaded.state.cities.map(\.queue) == state.cities.map(\.queue))
             // The loaded game answers the same questions.
             let (a, b) = (loaded.state.view(for: PlayerID(0)), state.view(for: PlayerID(0)))
             #expect(a.dangerMap() == b.dangerMap() && a.knownCities == b.knownCities && a.income() == b.income())

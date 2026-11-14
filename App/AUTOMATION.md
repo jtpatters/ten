@@ -102,6 +102,7 @@ New Game, `newgame` and `-autostart` always place them.
 | `roads` | As `resources`, plus roads laid by hand from the capital out through its land and beyond (M2 §3.3), the Quarry pillaged (its mark on the map), and The Wheel learnt (the Builder's card offers a Road). |
 | `naval` | Sailing and Shipbuilding learnt; a Galley and a Quadrireme on the coast nearest the capital and a Warrior embarked beside them (M2 §3.2, §8.4); the Galley selected. |
 | `stability` | The capital with a Monument and two citizens over its Housing: overcrowded, Restless, slow growth and a City Unrest item (M2 §5.1, §5.2); the capital selected. |
+| `quarters` | The capital at population 9 with Writing, Currency, Bronze Working, Engineering and Apprenticeship, a Campus, a Market and (where it fits) an Aqueduct built, and legal sites left for a Workshop or Barracks (M2 §5.3, §18.2); the capital selected. |
 
 The `scenario` command's result ends with the scenario's note when it has one: the units and
 tiles to use next (`rivals`, `walls`, `repreview`, `tribal-villages`).
@@ -264,6 +265,7 @@ plus 0.25 s for the screen to draw.
 | `buy <item>` | The panel's Buy button: buys at once, asks first above half the treasury (`asks: P of G gold`), or says why not. |
 | `focus balanced\|food\|production\|gold` | The panel's Citizens focus. |
 | `bombard [cancel]` | The selected city's Bombard: target mode (the panel steps aside; with one target its preview opens), or leaves it. |
+| `quarter <kind>\|cancel` | A Quarters row of the selected city's panel: its tile choice (the panel steps aside; the legal sites are marked on the map with their adjacency; a `tap` on one queues the quarter there), or leaving it. Result: the sites, best first, as `q r +adjacency`. |
 | `keep`, `raze` | The Keep/Raze card's buttons (Raze asks first: `confirm yes`). |
 | `peace accept\|decline` | Answers the peace card, or else the first pending proposal. |
 | `declarewar <player>` | Diplomacy's Declare War (asks first: `confirm yes`). |

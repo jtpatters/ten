@@ -211,6 +211,19 @@ public enum DebugTools {
         return true
     }
 
+    /// Builds a quarter of `kind` on `hex` for city `id` at once (scenarios), as finishing it
+    /// would. False, with nothing changed, when the city may not have it there.
+    @discardableResult
+    public static func addQuarter(_ kind: QuarterKind, at hex: HexCoord, to id: CityID, in state: inout GameState) -> Bool {
+        guard let index = state.cityIndex(id) else { return false }
+        let city = state.cities[index]
+        guard state.quarterKindProblem(kind, in: city) == nil, state.quarterSiteProblem(kind, at: hex, in: city) == nil else { return false }
+        var fx = Effects()
+        state.buildQuarter(kind, at: hex, inCity: index, &fx)
+        state.updateKnowledge(&fx)
+        return true
+    }
+
     /// Fills city `id`'s culture store to one phase short of its next border tile, so its
     /// owner's next phase start grows its borders (M1 §5), and returns the tile they will take:
     /// the one `borderCandidate` picks now, unless the map or the territory around it changes

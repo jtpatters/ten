@@ -215,6 +215,12 @@ public struct PlayerView: Sendable {
     }
 
     /// An own city.
+    /// Where one of my cities may place a quarter of `kind`, best first (M2 §18.2).
+    public func quarterSites(_ kind: QuarterKind, in id: CityID) -> [(tile: HexCoord, adjacency: Int)] {
+        guard let i = state.cityIndex(id), state.cities[i].owner == player else { return [] }
+        return state.quarterSites(kind, in: state.cities[i])
+    }
+
     public func city(_ id: CityID) -> City? {
         state.city(id).flatMap { $0.owner == player ? $0 : nil }
     }

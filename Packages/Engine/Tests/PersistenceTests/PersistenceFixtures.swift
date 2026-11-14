@@ -108,7 +108,11 @@ enum PersistenceFixture {
         city(&state, rome) { c in
             c.population = 4
             c.foodStore = 9
-            c.queue = [QueueEntry(.unit(.archer), progress: 12), QueueEntry(.building("library"), progress: 0)]
+            // A quarter queued on its fixed tile at its fixed cost (M2 §5.3, additive).
+            c.queue = [QueueEntry(.unit(.archer), progress: 12), QueueEntry(.building("library"), progress: 0),
+                       QueueEntry(.quarter("market", at: at(1, 1)), progress: 7, cost: 85)]
+            // A built quarter (M2 §5.3, additive).
+            c.quarters = [CityQuarter(kind: "campus", tile: at(1, 2))]
             c.storedProgress = 3
             c.buildings = ["granary", "monument", "palace", "walls"]
             c.cultureStore = 5

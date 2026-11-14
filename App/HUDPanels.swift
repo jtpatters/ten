@@ -13,6 +13,7 @@ enum ItemName {
         switch item {
         case let .unit(type): type.displayName
         case let .building(id): rules.building(id)?.name ?? id.rawValue.capitalized
+        case let .quarter(kind, _): rules.quarter(kind)?.name ?? kind.rawValue.capitalized
         }
     }
 

@@ -3,11 +3,28 @@
 public struct QueueEntry: Codable, Hashable, Sendable {
     public var item: ProductionItem
     public var progress: Int
+    /// A quarter's cost, fixed when queued (M2 §5.3); nil: the rules' cost.
+    public var cost: Int?
 
-    public init(_ item: ProductionItem, progress: Int = 0) {
+    public init(_ item: ProductionItem, progress: Int = 0, cost: Int? = nil) {
         self.item = item
         self.progress = progress
+        self.cost = cost
     }
+}
+
+/// A quarter of a city (M2 §5.3).
+public struct CityQuarter: Codable, Hashable, Sendable {
+    public var kind: QuarterKind
+    public var tile: HexCoord
+    public var pillaged: Bool?
+
+    public init(kind: QuarterKind, tile: HexCoord) {
+        self.kind = kind
+        self.tile = tile
+    }
+
+    public var isPillaged: Bool { pillaged == true }
 }
 
 /// A city (M1 §5, §12.3).
@@ -43,6 +60,8 @@ public struct City: Codable, Hashable, Sendable, Identifiable {
     /// Stability as of the owner's last phase start (M2 §5.2); nil without Stability rules or
     /// before the first.
     public var stability: Int?
+    /// Built quarters in build order (M2 §5.3); nil when none.
+    public var quarters: [CityQuarter]?
 
     init(id: CityID, name: String, owner: PlayerID, position: HexCoord, turn: Int, hp: Int) {
         self.id = id
