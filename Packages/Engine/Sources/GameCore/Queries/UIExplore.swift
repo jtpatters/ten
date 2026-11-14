@@ -344,11 +344,12 @@ extension PlayerView {
             let def = rules.unit(enemy.type)
             if def.unitClass == .recon, !reconExplorer { continue }
             let reach = def.isRanged ? state.range(of: enemy) : 1
+            let maxMoves = state.maxMoves(of: enemy), free = state.freeMove(enemy)
             var touched = [start]
-            left[start] = Int8(def.moves)
-            var buckets = [[Int]](repeating: [], count: def.moves + 1)
-            buckets[def.moves] = [start]
-            for moves in stride(from: def.moves, through: 1, by: -1) {
+            left[start] = Int8(maxMoves)
+            var buckets = [[Int]](repeating: [], count: maxMoves + 1)
+            buckets[maxMoves] = [start]
+            for moves in stride(from: maxMoves, through: 1, by: -1) {
                 var i = 0
                 while i < buckets[moves].count {
                     let t = buckets[moves][i]
@@ -359,7 +360,7 @@ extension PlayerView {
                     }
                     map.forEachNeighbor(of: t) { n, direction in
                         if explored[n], !rules.isPassable(map.tiles[n]) { return }
-                        let after = moves - min(moves, exploreStepCost(from: t, to: n, direction, explored: explored))
+                        let after = moves - min(moves, exploreStepCost(from: t, to: n, direction, explored: explored, free: free))
                         guard after > Int(left[n]) else { return }
                         if left[n] < 0 { touched.append(n) }
                         left[n] = Int8(after)
@@ -378,12 +379,13 @@ extension PlayerView {
 
     /// Movement cost of a step over terrain as this player knows it (unexplored: 1), as
     /// `dangerMap` reckons an enemy's moves.
-    private func exploreStepCost(from: Int, to: Int, _ direction: HexDirection, explored: TileBitSet) -> Int {
+    private func exploreStepCost(from: Int, to: Int, _ direction: HexDirection, explored: TileBitSet,
+                                 free: (elevations: [Bool], features: [Bool])) -> Int {
         var cost = 1
         if explored[to] {
             let tile = state.map.tiles[to]
-            cost += rules.elevation(tile.elevation).moveCost
-            if !(rules.feature(tile.feature).removedByCity && knownCity(at: coord(at: to)) != nil) {
+            if !free.elevations[Int(tile.elevation.rawValue)] { cost += rules.elevation(tile.elevation).moveCost }
+            if !free.features[Int(tile.feature.rawValue)], !(rules.feature(tile.feature).removedByCity && knownCity(at: coord(at: to)) != nil) {
                 cost += rules.feature(tile.feature).moveCost
             }
         }

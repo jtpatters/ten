@@ -194,13 +194,14 @@ extension PlayerView {
 
     /// Movement cost of one step over terrain as this player knows it (unexplored: 1; a river
     /// known from either explored side).
-    private func aiStepCost(from: Int, to: Int, _ direction: HexDirection, explored: TileBitSet, cityCentres: TileBitSet) -> Int {
+    private func aiStepCost(from: Int, to: Int, _ direction: HexDirection, explored: TileBitSet, cityCentres: TileBitSet,
+                            free: (elevations: [Bool], features: [Bool])? = nil) -> Int {
         let map = state.map
         var cost = 1
         if explored[to] {
             let tile = map.tiles[to]
-            cost += rules.elevation(tile.elevation).moveCost
-            if !(cityCentres[to] && rules.feature(tile.feature).removedByCity) { cost += rules.feature(tile.feature).moveCost }
+            if free?.elevations[Int(tile.elevation.rawValue)] != true { cost += rules.elevation(tile.elevation).moveCost }
+            if free?.features[Int(tile.feature.rawValue)] != true, !(cityCentres[to] && rules.feature(tile.feature).removedByCity) { cost += rules.feature(tile.feature).moveCost }
         }
         let river: Bool
         if explored[from] {
@@ -237,7 +238,7 @@ extension PlayerView {
                 for city in me.memory.cities { if let t = index(of: city.position) { known[t] = true } }
                 cities = known
             }
-            let moves = max(1, min(Int(Int8.max), rules.unit(enemy.type).moves))
+            let moves = max(1, min(Int(Int8.max), state.maxMoves(of: enemy))), free = state.freeMove(enemy)
             reach[start] = true
             var touched = [start]
             left[start] = Int8(moves)
@@ -252,7 +253,7 @@ extension PlayerView {
                     map.forEachNeighbor(of: t) { n, direction in
                         if explored[n], !rules.isPassable(map.tiles[n]) { return }
                         reach[n] = true
-                        let after = m - min(m, aiStepCost(from: t, to: n, direction, explored: explored, cityCentres: cities!))
+                        let after = m - min(m, aiStepCost(from: t, to: n, direction, explored: explored, cityCentres: cities!, free: free))
                         guard after > Int(left[n]) else { return }
                         if left[n] < 0 { touched.append(n) }
                         left[n] = Int8(after)
