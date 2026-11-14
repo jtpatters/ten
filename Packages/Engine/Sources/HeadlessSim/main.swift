@@ -61,6 +61,7 @@ enum Mode: String { case random, scripted, ai }
 struct Options {
     var mode = Mode.random
     var size = MapSize.standard
+    var script = MapScript.pangaea
     var seed: UInt64 = 42
     var turns = 50
     var games = 1
@@ -99,6 +100,7 @@ while let arg = args.next() {
     case "--scripted": parsed.mode = .scripted
     case "--ai": parsed.mode = .ai
     case "--size": parsed.size = args.next().flatMap(MapSize.init(rawValue:)) ?? parsed.size
+    case "--script": parsed.script = args.next().flatMap(MapScript.init(rawValue:)) ?? parsed.script
     case "--seed": parsed.seed = args.next().flatMap { UInt64($0) } ?? parsed.seed
     case "--turns": parsed.turns = args.next().flatMap { Int($0) } ?? parsed.turns
     case "--games": parsed.games = max(1, args.next().flatMap { Int($0) } ?? parsed.games)
@@ -118,7 +120,7 @@ while let arg = args.next() {
     case "--newbie-rush": parsed.newbieRush = true
     case "--placement-timing": parsed.placementTiming = true
     default:
-        print("usage: headless-sim [--random | --scripted | --ai] [--games N] [--size duel|small|standard|large] [--seed N] "
+        print("usage: headless-sim [--random | --scripted | --ai] [--games N] [--size duel|small|standard|large] [--script pangaea|continents|archipelago] [--seed N] "
             + "[--turns N] [--extra-units N] [--check-every-phase] [--trace] [--narrate] [--lint-detail] [--p0 ai|scripted|turtle|newbie|shadow] "
             + "[--profile] [--early] [--rules ruleset.json] [--starts] [--newbie-rush] [--placement-timing]")
         print("  early-game checks: --ai --games 40 --size duel --seed 1 --turns 80 --p0 newbie --early")
@@ -427,7 +429,7 @@ func checkInvariants(_ state: GameState, _ label: String) {
 func playGame(seed: UInt64, _ o: Options, verbose: Bool) -> GameReport {
     var generated: GeneratedMap!
     let genTime = clock.measure {
-        generated = MapGenerator.generate(MapGenSettings(size: o.size, seed: seed))
+        generated = MapGenerator.generate(MapGenSettings(size: o.size, seed: seed, script: o.script))
     }
     // p3g: `--random` and `--ai` games place tribal villages (none without the rules section).
     var state = GameState.newGame(seed: seed, map: generated.map, startPositions: generated.startPositions,
@@ -690,7 +692,7 @@ if options.placementTiming {
     var costs: [Double] = []
     for g in 0..<options.games {
         let seed = options.seed &+ UInt64(g)
-        let generated = MapGenerator.generate(MapGenSettings(size: options.size, seed: seed))
+        let generated = MapGenerator.generate(MapGenSettings(size: options.size, seed: seed, script: options.script))
         var best = [Double.infinity, Double.infinity]
         var placed = 0
         for _ in 0..<5 {

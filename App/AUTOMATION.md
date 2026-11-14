@@ -207,7 +207,7 @@ plus 0.25 s for the screen to draw.
 
 | Command | Effect | Result |
 |---|---|---|
-| `newgame [size] [seed] [civ] [fog\|nofog]` | New game (default `duel 42`, first civ, fog on); waits until idle. | `turn T, player P, U units, C cities` |
+| `newgame [size] [seed] [civ] [fog\|nofog] [pangaea\|continents\|archipelago]` | New game (default `duel 42`, first civ, fog on, Pangaea); waits until idle. | `turn T, player P, U units, C cities` |
 | `scenario <name>` | Open a scenario; waits until idle. | as above, then the scenario's note, if any |
 | `continue` | Open the newest save; waits until idle (AI phases before the human's play first). | as above |
 | `load [i]` | Open save number i of the list, newest first (default 0). | as above |
