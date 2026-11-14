@@ -57,7 +57,7 @@ extension GameState {
     static func embarkStep(naval: Bool, fromWater: Bool, toWater: Bool, maxMoves: Int, rules: Ruleset) -> Int? {
         if naval { return rules.movePoints }
         guard fromWater || toWater, let e = rules.embark else { return nil }
-        if !fromWater { return max(maxMoves, 1) * 4 } // all remaining moves
+        if !fromWater { return max(maxMoves, 1) * 4 } // more than any unit has: takes all remaining moves
         if !toWater { return rules.movePoints }
         return max(1, maxMoves / max(1, e.moves))
     }
@@ -72,4 +72,9 @@ extension GameState {
         }
         return coastal
     }
+}
+
+extension PlayerView {
+    /// Whether an own city borders Coast or Lake: it can build ships (M2 §8.4).
+    public func isCoastal(_ city: City) -> Bool { city.owner == player && state.isCoastal(city) }
 }

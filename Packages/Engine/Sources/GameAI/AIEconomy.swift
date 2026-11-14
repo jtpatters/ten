@@ -13,6 +13,8 @@ struct ProductionCounts {
     var scouts = 0
     /// Every military unit (recon included): upkeep.
     var military = 0
+    /// Naval units.
+    var ships = 0
     /// Non-garrison archers and melee/antiCavalry units: the army's mix.
     var armyRanged = 0
     var armyLine = 0
@@ -83,6 +85,7 @@ extension AITurn {
             if u.type == .builder { c.builders += 1 }
             if isRecon(u.type) { c.scouts += 1 }
             if !u.type.isCivilian { c.military += 1 }
+            if u.type.isNaval { c.ships += 1 }
         }
         for u in f.army {
             c.army += 1
@@ -95,6 +98,7 @@ extension AITurn {
         var c = counts
         if type == .settler { c.settlers += 1 }
         if type == .builder { c.builders += 1 }
+        if type.isNaval { c.ships += 1 }
         return c
     }
 
@@ -106,6 +110,7 @@ extension AITurn {
             if type == .builder { c.builders += 1 }
             if isRecon(type) { c.scouts += 1 }
             if !type.isCivilian { c.military += 1 }
+            if type.isNaval { c.ships += 1 }
             if isFighter(type) {
                 c.army += 1
                 if isRanged(type) { c.armyRanged += 1 } else if isLine(type) { c.armyLine += 1 }
@@ -219,6 +224,9 @@ extension AITurn {
         // 7. Granary, Library, Market (the Monument first if it is still missing).
         for building in [monumentID, granaryID, libraryID, marketID] { offer(.building(building)) }
 
+        // 7b. A few ships in coastal cities (M2 §8.4).
+        if canKeepMilitary, let ship = shipToBuild(for: city, c, v) { offer(.unit(ship)) }
+
         // Nothing else wanted: Walls, then an army unit the treasury can keep.
         offer(.building(wallsID))
         if canKeepMilitary, let unit = armyUnit(c, v) { offer(.unit(unit)) }
@@ -304,6 +312,20 @@ extension AITurn {
             best = type
         }
         return best ?? archer
+    }
+
+    /// The strongest naval unit `city` can build while the player has fewer ships (alive and
+    /// queued) than shipsPerCoastalCityPct of its coastal cities, rounded up.
+    func shipToBuild(for city: City, _ c: ProductionCounts, _ v: PlayerView) -> UnitType? {
+        guard let pct = ai.shipsPerCoastalCityPct, pct > 0, v.isCoastal(city) else { return nil }
+        let coastal = v.cities.filter { v.isCoastal($0) }.count
+        guard c.ships < ceilPct(coastal, pct) else { return nil }
+        var best: UnitType?
+        for type in UnitType.allCases where type.isNaval && fieldable(type, v) {
+            if let b = best, (rules.unit(b).strength, -rules.unit(b).cost) >= (rules.unit(type).strength, -rules.unit(type).cost) { continue }
+            best = type
+        }
+        return best
     }
 
     /// The defence quota (M1 §13): a city needs a garrison (a non-recon military unit on its

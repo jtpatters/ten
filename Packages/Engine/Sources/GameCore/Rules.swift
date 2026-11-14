@@ -917,6 +917,8 @@ public struct AIRules: Codable, Hashable, Sendable {
     public let settlersPerCityPct: Int
     public let buildersPerCityPct: Int
     public let archersPerMeleePct: Int
+    /// Ships per coastal city (M2 §8.4); nil: none.
+    public let shipsPerCoastalCityPct: Int?
     public let warGoldDeficitMultiplier: Int
     public let buyDefenderGoldReserve: Int
     public let buyCivilianGoldPct: Int
@@ -1278,7 +1280,7 @@ extension RulesetData {
         check(ai.maxCities.allSatisfy { $0.cities >= 1 } && ai.defaultMaxCities >= 1, "ai.maxCities out of range")
         for pct in [ai.firstCityMovePct, ai.settlersPerCityPct, ai.buildersPerCityPct, ai.archersPerMeleePct,
                     ai.buyCivilianGoldPct, ai.warRatioPct, ai.attackKillChancePct, ai.sortieKillChancePct, ai.peaceRatioPct,
-                    ai.queueSwitchProgressPct, ai.buyArmyGoldPct] {
+                    ai.queueSwitchProgressPct, ai.buyArmyGoldPct, ai.shipsPerCoastalCityPct ?? 0] {
             check(pct >= 0 && pct <= 1000, "ai percentage \(pct) out of range")
         }
         check(ai.maxCommandsPerPhase >= 10, "ai.maxCommandsPerPhase must be at least 10")

@@ -263,6 +263,7 @@
         "settlersPerCityPct": 50,
         "buildersPerCityPct": 50,
         "archersPerMeleePct": 100,
+        "shipsPerCoastalCityPct": 50,
         "warGoldDeficitMultiplier": 20,
         "buyDefenderGoldReserve": 20,
         "buyCivilianGoldPct": 200,

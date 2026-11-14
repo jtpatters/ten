@@ -27,7 +27,7 @@ extension AITurn {
     /// nearer the goal (none without a goal).
     func escortSpots(for unit: Unit, toward goal: HexCoord?, _ v: PlayerView) -> [Int] {
         guard let here = v.index(of: unit.position) else { return [] }
-        guard v.units(at: unit.position).contains(where: { $0.owner == player && !$0.type.isCivilian }) else { return [here] }
+        guard v.units(at: unit.position).contains(where: { $0.owner == player && isGuard($0.type) }) else { return [here] }
         guard let goal else { return [] }
         let toGoal = v.distanceField(from: goal)
         guard toGoal[here] > 0 else { return [] }
@@ -131,7 +131,7 @@ extension AITurn {
         let v = view
         guard let unit = v.unit(id), unit.type.isCivilian, let t = v.index(of: unit.position), civilianDanger(v)[t],
               !v.cities.contains(where: { $0.position == unit.position }),
-              let guardian = v.units(at: unit.position).first(where: { $0.owner == player && !$0.type.isCivilian }) else { return }
+              let guardian = v.units(at: unit.position).first(where: { $0.owner == player && isGuard($0.type) }) else { return }
         acted.insert(guardian.id)
         fortify(guardian)
     }
