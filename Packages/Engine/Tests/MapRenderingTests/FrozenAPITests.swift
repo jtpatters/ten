@@ -76,7 +76,8 @@ import MapGen
 
         // UnitType (CaseIterable, isCivilian, displayName); UnitID and PlayerID.
         #expect(UnitType.allCases == [.settler, .builder, .scout, .warrior, .archer, .spearman, .horseman, .heavyChariot, .swordsman,
-                                  .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet])
+                                  .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet, .galley, .quadrireme,
+                                  .cog, .dromon])
         #expect(UnitType.allCases.filter(\.isCivilian) == [.settler, .builder])
         let _: String = UnitType.archer.displayName
         let unitID = UnitID(3), playerID = PlayerID(1)

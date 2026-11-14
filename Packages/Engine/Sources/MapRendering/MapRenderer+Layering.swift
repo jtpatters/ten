@@ -103,6 +103,7 @@ extension MapRenderer {
         case .warrior, .archer, .spearman, .builder, .swordsman, .manAtArms, .crossbowman, .pikeman: 0.10
         case .scout, .horseman, .knight: 0.17
         case .settler, .heavyChariot, .catapult, .trebuchet: 0.12
+        case .galley, .quadrireme, .cog, .dromon: 0.12
         }
     }
 

@@ -58,6 +58,8 @@ enum SaveFixture {
         let warrior = state.addUnit(.warrior, owner: PlayerID(0), at: hex(3, 2))
         let archer = state.addUnit(.archer, owner: PlayerID(0), at: hex(2, 1))
         let spearman = state.addUnit(.spearman, owner: PlayerID(0), at: hex(5, 4))
+        // An embarked land unit (M2 §3.2) on the coast beside the Fishing Boats.
+        state.addUnit(.warrior, owner: PlayerID(0), at: hex(9, 5))
         state.addUnit(.warrior, owner: PlayerID(1), at: hex(8, 2))
         state.addUnit(.settler, owner: PlayerID(2), at: hex(1, 3))
         for (i, type) in UnitType.allCases.dropFirst(6).enumerated() { state.addUnit(type, owner: PlayerID(0), at: hex(i + 1, 0)) }
