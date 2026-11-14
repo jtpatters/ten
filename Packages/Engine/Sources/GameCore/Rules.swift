@@ -54,6 +54,10 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     /// Promotions and the XP each tier needs (M2 §8.3); empty without the sections.
     public let promotions: [PromotionDef]
     public let promotionXP: [Int]
+    /// In `Resource.allCases` order (M2 §3.1); empty without the section.
+    public let resources: [ResourceDef]
+    /// Strategic stockpiles (M2 §3.1); nil without the section.
+    public let stockpile: StockpileRules?
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
@@ -107,6 +111,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         progression = data.progression
         promotions = data.promotions ?? []
         promotionXP = data.promotionXP ?? []
+        resources = data.resources.map { list in Resource.allCases.map { c in list.first { $0.name == caseName(c) }! } } ?? []
+        stockpile = data.stockpile
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -140,6 +146,10 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public func elevation(_ elevation: Elevation) -> ElevationDef { elevations[Int(elevation.rawValue)] }
     public func feature(_ feature: Feature) -> FeatureDef { features[Int(feature.rawValue)] }
     public func improvement(_ improvement: Improvement) -> ImprovementDef { improvements[improvement.ordinal] }
+    /// Nil in rules without resources.
+    public func resource(_ resource: Resource) -> ResourceDef? {
+        resources.isEmpty ? nil : resources[Int(resource.rawValue) - 1]
+    }
     public func unit(_ type: UnitType) -> UnitDef { units[type.ordinal] }
     public func focus(_ focus: CityFocus) -> FocusDef { focuses[focus.ordinal] }
 
@@ -168,8 +178,13 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     /// Whether `improvement` may stand on a tile with this terrain, elevation and feature (the
     /// improvement's site list and the feature's `allowsImprovements`; ownership, city centres
     /// and techs are checked by the engine).
-    public func allowsImprovement(_ improvement: Improvement, on tile: Tile) -> Bool {
-        guard feature(tile.feature).allowsImprovements else { return false }
+    /// `resource`: the tile's resource as the builder's player knows it (M2 §4.1): an improvement
+    /// listing it may stand there whatever the site list and feature say.
+    public func allowsImprovement(_ improvement: Improvement, on tile: Tile, resource: Resource? = nil) -> Bool {
+        let def = self.improvement(improvement)
+        if let r = resource, def.resources?.contains(caseName(r)) == true { return true }
+        if def.noResource == true, resource != nil { return false }
+        guard feature(tile.feature).allowsImprovements || def.anyFeature == true else { return false }
         return improvementSites[improvement.ordinal][Self.siteIndex(tile.terrain, tile.elevation, tile.feature)]
     }
 
@@ -298,6 +313,53 @@ struct RulesetData: Codable, Hashable, Sendable {
     var progression: ProgressionRules?
     var promotions: [PromotionDef]?
     var promotionXP: [Int]?
+    /// Optional (M2 §3.1): absent, maps have no resources and nothing needs one.
+    var resources: [ResourceDef]?
+    var stockpile: StockpileRules?
+}
+
+/// What a resource is for (M2 §3.1).
+public enum ResourceKind: String, Codable, Hashable, Sendable {
+    case bonus, luxury, strategic
+}
+
+public struct ResourceDef: Codable, Hashable, Sendable {
+    /// The `Resource` case name.
+    public let name: String
+    public let displayName: String
+    public let kind: ResourceKind
+    public let food: Int
+    public let production: Int
+    public let gold: Int
+    public let culture: Int
+    /// The `Improvement` case name that improves it.
+    public let improvement: String
+    /// The tech that shows it to a player; nil = always known.
+    public let revealedBy: TechID?
+    /// Where MapGen may place it.
+    public let sites: [ImprovementSite]
+}
+
+/// Strategic stockpiles (M2 §3.1, M2-D5).
+public struct StockpileRules: Codable, Hashable, Sendable {
+    /// Added per improved source at phase start.
+    public let perSource: Int
+    public let cap: Int
+    /// Added to the cap from this era index on.
+    public let capBonus: Int
+    public let capBonusEra: Int
+    /// Taken when a unit that needs the resource completes, is bought or upgrades.
+    public let unitCost: Int
+    /// Taken per such unit per turn while at war.
+    public let warUsePerUnit: Int
+    /// Strength of such units while at war with an empty stockpile.
+    public let shortageStrength: Int
+    /// Map placement per 1000 land tiles, and luxury cluster sizes.
+    public let bonusPer1000Land: Int
+    public let luxuryPer1000Land: Int
+    public let strategicPer1000Land: Int
+    public let clusterMin: Int
+    public let clusterMax: Int
 }
 
 /// Yields of one source (M1 §4). Integer only.
@@ -415,6 +477,14 @@ public struct ImprovementDef: Codable, Hashable, Sendable {
     public let freshWaterFood: Int
     public let freshWaterTech: TechID?
     public let sites: [ImprovementSite]
+    /// `Resource` case names it may stand on whatever its sites and the feature (M2 §4.1).
+    public let resources: [String]?
+    /// May stand on features that allow no improvements (Lumber Mill on forest).
+    public let anyFeature: Bool?
+    /// Never on a tile with a known resource.
+    public let noResource: Bool?
+    /// Extra yields once a tech is known (Mine with Apprenticeship).
+    public let techBonuses: [TechYieldBonus]?
 }
 
 /// A unit's class (M1 §7). Military = every class except civilian.
@@ -458,6 +528,8 @@ public struct UnitDef: Codable, Hashable, Sendable {
     public let rangedAfterMove: Bool?
     /// Percent of its damage that wall HP takes (M2 §9.2); nil = `combat.wallDamagePct`.
     public let wallDamagePct: Int?
+    /// The strategic `Resource` case name it needs (M2 §3.1), if any.
+    public let resource: String?
 
     public var isMilitary: Bool { unitClass != .civilian }
     public var isRanged: Bool { rangedStrength > 0 }
@@ -465,7 +537,7 @@ public struct UnitDef: Codable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case type, unitClass = "class", cost, strength, rangedStrength, range, moves, sight, tech, charges, foundsCity,
              minPopulation, populationCost, classBonuses, capturedAs, capturedCharges, upgradesTo, rangedAfterMove,
-             wallDamagePct
+             wallDamagePct, resource
     }
 }
 
@@ -970,6 +1042,24 @@ extension RulesetData {
         exactlyOne(Elevation.self, elevations.map(\.name), "elevations")
         exactlyOne(Feature.self, features.map(\.name), "features")
         exactlyOne(Improvement.self, improvements.map(\.name), "improvements")
+        if let resources {
+            exactlyOne(Resource.self, resources.map(\.name), "resources")
+            let improvementNames = Set(Improvement.allCases.map { caseName($0) })
+            for r in resources {
+                check(improvementNames.contains(r.improvement), "resource \(r.name): unknown improvement \(r.improvement)")
+                check(!r.sites.isEmpty, "resource \(r.name): no sites")
+                if let tech = r.revealedBy { check(techs.contains { $0.id == tech }, "resource \(r.name): unknown tech \(tech.rawValue)") }
+            }
+            check(stockpile != nil, "resources without a stockpile section")
+        }
+        let strategic = Set((resources ?? []).filter { $0.kind == .strategic }.map(\.name))
+        for unit in units {
+            if let r = unit.resource { check(strategic.contains(r), "unit \(unit.type): \(r) is not a strategic resource") }
+        }
+        let resourceNames = Set(Resource.allCases.map { caseName($0) })
+        for imp in improvements {
+            for r in imp.resources ?? [] { check(resourceNames.contains(r), "improvement \(imp.name): unknown resource \(r)") }
+        }
         for type in UnitType.allCases {
             let n = units.filter { $0.type == type }.count
             check(n == 1, "units: \(type) has \(n) definitions")
@@ -1041,7 +1131,7 @@ extension RulesetData {
         for imp in improvements {
             knownTech(imp.tech, "improvement \(imp.name)")
             knownTech(imp.freshWaterTech, "improvement \(imp.name)")
-            check(!imp.sites.isEmpty, "improvement \(imp.name): no sites")
+            check(!imp.sites.isEmpty || imp.resources?.isEmpty == false, "improvement \(imp.name): no sites")
             check(imp.freshWaterFood >= 0, "improvement \(imp.name): negative fresh water food")
             for site in imp.sites {
                 for n in site.terrains where !terrainNames.contains(n) { problems.append("improvement \(imp.name): unknown terrain \(n)") }

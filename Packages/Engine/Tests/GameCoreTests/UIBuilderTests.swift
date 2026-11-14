@@ -69,7 +69,7 @@ import Testing
 
         // By the tech that unlocks them.
         #expect(state.view(for: me).improvementSites(unlockedBy: "mining").map(\.improvement) == [.mine])
-        #expect(state.view(for: me).improvementSites(unlockedBy: "animalHusbandry").map(\.improvement) == [.pasture])
+        #expect(state.view(for: me).improvementSites(unlockedBy: "animalHusbandry").map(\.improvement) == [.pasture, .camp])
         #expect(state.view(for: me).improvementSites(unlockedBy: "pottery").isEmpty)
     }
 

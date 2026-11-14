@@ -266,7 +266,7 @@ struct TribalVillagePlacer {
         steps.withUnsafeBufferPointer { steps in
             for t in 0..<count where passable[t] && !isStart[t] && !occupied[t] && tileCity[t] == 0 {
                 let tile = map.tiles[t]
-                guard tile.feature != .oasis, tile.terrain != .snow else { continue }
+                guard tile.feature != .oasis, tile.terrain != .snow, tile.resource == nil else { continue }
                 var nearest = -1, fewest = Int32.max, next = Int32.max, reached = 0
                 for i in 0..<starts.count {
                     let d = steps[i * count + t]

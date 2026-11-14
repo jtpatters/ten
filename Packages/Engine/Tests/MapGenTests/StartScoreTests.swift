@@ -16,7 +16,7 @@ import GameCore
     @Test func terrainFactsMatchTheRules() {
         let rules = Ruleset.standard
         for tile in Self.landTiles {
-            let sites = Improvement.allCases.contains { rules.allowsImprovement($0, on: tile) }
+            let sites = [Improvement.farm, .mine, .pasture].contains { rules.allowsImprovement($0, on: tile) }
             #expect(MapGenerator.isImprovable(tile) == sites, "\(tile)")
             if rules.isWorkable(tile) {
                 #expect(MapGenerator.food(tile) == rules.tileYields(tile, knows: { _ in false }).food, "\(tile)")

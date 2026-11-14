@@ -361,6 +361,29 @@ struct GameReport {
             + "; promotions \(promotions), upgrades \(upgrades)"
     }
 
+    /// "resources: 52 bonus, 30 luxury, 24 strategic; improved 18; pasture 9, …; stock p0 horses 12/2 iron 0/0" (M2 §3.1).
+    var resourceLine: String {
+        let rules = state.rules
+        var placed: [ResourceKind: Int] = [:]
+        var built = [Int](repeating: 0, count: Improvement.allCases.count)
+        for t in state.map.tiles.indices {
+            let tile = state.map.tiles[t]
+            if let r = tile.resource, let def = rules.resource(r) { placed[def.kind, default: 0] += 1 }
+            if let i = tile.improvement { built[Int(i.rawValue) - 1] += 1 }
+        }
+        let improvements = Improvement.allCases.enumerated().filter { built[$0.offset] > 0 }
+            .map { "\(String(describing: $0.element)) \(built[$0.offset])" }.joined(separator: ", ")
+        let strategic = Resource.allCases.filter { rules.resource($0)?.kind == .strategic }
+        let stocks = state.players.filter(\.isAlive).map { player in
+            let sources = state.improvedSources(of: player.id)
+            return "\(player.id) " + strategic.map { "\(String(describing: $0)) \(player.stock($0))/\(sources[Int($0.rawValue) - 1])" }
+                .joined(separator: " ")
+        }.joined(separator: ", ")
+        return "resources: \(placed[.bonus, default: 0]) bonus, \(placed[.luxury, default: 0]) luxury, "
+            + "\(placed[.strategic, default: 0]) strategic; improvements " + (improvements.isEmpty ? "none" : improvements)
+            + "; stock/sources " + stocks
+    }
+
     func playerLine(_ player: Player) -> String {
         let cities = state.cities.filter { $0.owner == player.id }
         let t = tallies[player.id.rawValue]
@@ -702,6 +725,7 @@ if options.games == 1 {
     print("events: \(report.counts.summary)")
     print(report.warLine)
     if !report.state.rules.eras.isEmpty { print(report.eraLine) }
+    if !report.state.rules.resources.isEmpty { print(report.resourceLine) }
     if report.villages.enabled { print(report.villageLine) }
     print("outcome: " + report.outcomeLine)
     for player in state.players { print(report.playerLine(player)) }
@@ -798,6 +822,7 @@ if options.games == 1 {
                 + String(format: "final hash %016llx", hash))
             print("  " + report.warLine)
             if !report.state.rules.eras.isEmpty { print("  " + report.eraLine) }
+            if !report.state.rules.resources.isEmpty { print("  " + report.resourceLine) }
             if report.villages.enabled {
                 print("  " + report.villageLine)
                 villages.add(report.villages, standing: DebugTools.tribalVillages(in: report.state).count)

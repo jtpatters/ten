@@ -13,9 +13,12 @@ import Testing
         state.learn("ironWorking", player: PlayerID(0))
         state.players[0].gold = 120
         state.updateUnit(warrior) { $0.xp = 7 }
+        #expect(state.upgradeProblem(state.unit(warrior)!) == "needs 10 Iron (have 0)")
+        state.setStock(.iron, of: PlayerID(0), to: 12)
         let records = try apply(.upgrade(unit: warrior), &state)
         let unit = try #require(state.unit(warrior))
         #expect(unit.type == .swordsman && unit.xp == 7 && unit.movesLeft == 0 && state.players[0].gold == 20)
+        #expect(state.players[0].stock(.iron) == 2)
         #expect(events(records).contains(.unitUpgraded(unit: warrior, from: .warrior, to: .swordsman, owner: PlayerID(0), at: hex(3, 3))))
     }
 

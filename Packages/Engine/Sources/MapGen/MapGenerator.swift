@@ -34,8 +34,12 @@ public struct MapGenSettings: Sendable {
     public var playerCount: Int
     public var landFraction: Double
     public var wrapsX: Bool
+    /// Resource definitions for placement (M2 §3.1); rules without resources place none.
+    public var rules: Ruleset
 
-    public init(size: MapSize, seed: UInt64, playerCount: Int? = nil, landFraction: Double = 0.38, wrapsX: Bool = true) {
+    public init(size: MapSize, seed: UInt64, playerCount: Int? = nil, landFraction: Double = 0.38, wrapsX: Bool = true,
+                rules: Ruleset = .standard) {
+        self.rules = rules
         self.size = size
         self.seed = seed
         self.playerCount = playerCount ?? size.defaultPlayers
@@ -65,6 +69,14 @@ public enum MapGenerator {
     /// attempt (most starts placed; ties: the earliest). Starts are never on separate
     /// landmasses. The game keeps the chosen seed (the caller passes `settings.seed` on).
     public static func generate(_ settings: MapGenSettings) -> GeneratedMap {
+        var generated = generateTerrainAndStarts(settings)
+        var map = generated.map
+        ResourcePlacer.place(on: &map, starts: generated.startPositions, seed: settings.seed, rules: settings.rules)
+        generated = GeneratedMap(map: map, startPositions: generated.startPositions)
+        return generated
+    }
+
+    static func generateTerrainAndStarts(_ settings: MapGenSettings) -> GeneratedMap {
         var best: (map: HexMap, placed: Int)?
         for attempt in 0...retryAttempts {
             let seed = attempt == 0 ? settings.seed : terrainSeed(settings.seed, attempt: attempt)

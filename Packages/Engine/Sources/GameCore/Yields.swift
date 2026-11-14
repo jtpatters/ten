@@ -66,6 +66,18 @@ extension Ruleset {
             if def.freshWaterFood > 0, def.freshWaterTech.map(techs) ?? true, tile.riverEdges != 0 || touchesLake {
                 y.food += def.freshWaterFood
             }
+            for bonus in def.techBonuses ?? [] where techs(bonus.tech) {
+                y.food += bonus.food
+                y.production += bonus.production
+                y.gold += bonus.gold
+            }
+        }
+        // M2 §3.1: a resource yields once revealed, improved or not.
+        if let r = tile.resource, let def = resource(r), def.revealedBy.map(techs) ?? true {
+            y.food += def.food
+            y.production += def.production
+            y.gold += def.gold
+            y.culture += def.culture
         }
         if isCityCentre {
             let c = constants.city

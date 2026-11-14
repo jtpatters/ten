@@ -240,7 +240,7 @@ extension AITurn {
     func available(_ item: ProductionItem, in city: City, _ v: PlayerView) -> Bool {
         switch item {
         case let .unit(type):
-            return rules.unit(type).tech.map(v.me.knows) ?? true
+            return fieldable(type, v)
         case let .building(id):
             guard let def = rules.building(id), def.buildable, !city.has(id) else { return false }
             return def.tech.map(v.me.knows) ?? true
@@ -264,7 +264,7 @@ extension AITurn {
     /// highest Strength (ties: cheaper).
     func bestDefender(_ v: PlayerView) -> UnitType? {
         var best: UnitType?
-        for type in UnitType.allCases where isFighter(type) && (rules.unit(type).tech.map(v.me.knows) ?? true) {
+        for type in UnitType.allCases where isFighter(type) && fieldable(type, v) {
             let def = rules.unit(type)
             if let b = best {
                 let bd = rules.unit(b)
@@ -279,7 +279,7 @@ extension AITurn {
     /// is not threatened, which only adds City Strength.
     func cheapestFighter(_ v: PlayerView) -> UnitType? {
         var best: UnitType?
-        for type in UnitType.allCases where isFighter(type) && (rules.unit(type).tech.map(v.me.knows) ?? true) {
+        for type in UnitType.allCases where isFighter(type) && fieldable(type, v) {
             let def = rules.unit(type)
             if let b = best {
                 let bd = rules.unit(b)
@@ -294,12 +294,12 @@ extension AITurn {
     /// than archersPerMeleePct of the melee units, once Archery is known; otherwise the
     /// strongest melee or antiCavalry unit available.
     func armyUnit(_ c: ProductionCounts, _ v: PlayerView) -> UnitType? {
-        let archer = UnitType.allCases.first { isRanged($0) && isFighter($0) && (rules.unit($0).tech.map(v.me.knows) ?? true) }
+        let archer = UnitType.allCases.first { isRanged($0) && isFighter($0) && fieldable($0, v) }
         if let archer, c.armyRanged < ai.warMinRanged || 100 * c.armyRanged < ai.archersPerMeleePct * c.armyLine {
             return archer
         }
         var best: UnitType?
-        for type in UnitType.allCases where isLine(type) && (rules.unit(type).tech.map(v.me.knows) ?? true) {
+        for type in UnitType.allCases where isLine(type) && fieldable(type, v) {
             if let b = best, rules.unit(b).strength >= rules.unit(type).strength { continue }
             best = type
         }
@@ -358,14 +358,24 @@ extension AITurn {
     }
 
     /// The improvement a Builder should build on tile `t`, with its rank, if any.
-    func bestImprovement(at t: Int, _ v: PlayerView) -> (Improvement, Int)? {
-        let hex = v.coord(at: t)
+    /// M2 §3.1: a known resource's own improvement first (strategic and luxury before bonus).
+    func bestImprovement(at hex: HexCoord, _ v: PlayerView) -> (Improvement, Int)? {
+        if let r = v.resource(at: hex), let def = rules.resource(r),
+           let improvement = Improvement.allCases.first(where: { String(describing: $0) == def.improvement }),
+           v.aiImprovementProblem(improvement, at: hex) == nil {
+            return (improvement, 0)
+        }
         let farm = v.aiImprovementProblem(.farm, at: hex) == nil
         if farm, v.aiHasFreshWater(at: hex) { return (.farm, 0) }
         if v.aiImprovementProblem(.mine, at: hex) == nil { return (.mine, 1) }
         if v.aiImprovementProblem(.pasture, at: hex) == nil { return (.pasture, 2) }
         if farm { return (.farm, 3) }
+        if v.aiImprovementProblem(.lumberMill, at: hex) == nil { return (.lumberMill, 4) }
         return nil
+    }
+
+    func bestImprovement(at t: Int, _ v: PlayerView) -> (Improvement, Int)? {
+        bestImprovement(at: v.coord(at: t), v)
     }
 
     // MARK: Purchases

@@ -78,6 +78,8 @@ public struct ResearchOption: Hashable, Sendable {
 
 public enum UnitActionKind: String, Hashable, Sendable, CaseIterable {
     case foundCity, buildFarm, buildMine, buildPasture, fortify, sleep, wake, skip, cancelOrders, disband
+    // M2 §4.1.
+    case buildQuarry, buildPlantation, buildCamp, buildFishingBoats, buildLumberMill
 }
 
 /// An action of the unit card (M1 §12.6, §16).
@@ -229,6 +231,7 @@ public struct PlayerView: Sendable {
         guard let t = index(of: hex), me.explored[t] else { return nil }
         var tile = state.map.tiles[t]
         tile.improvement = Improvement(rawValue: me.memory.tileImprovement[t])
+        tile.resource = state.knownResource(at: t, for: player)
         return tile
     }
 
@@ -242,6 +245,18 @@ public struct PlayerView: Sendable {
 
     /// The yields of an explored tile for this player (its techs, the improvement as last
     /// seen, city centre if a known city stands there); nil if unexplored.
+    /// The resource on an explored tile once this player knows its reveal tech (M2 §3.4:
+    /// resources never change, so a reveal fills in every explored tile at once).
+    public func resource(at hex: HexCoord) -> Resource? {
+        guard let t = index(of: hex), me.explored[t] else { return nil }
+        return state.knownResource(at: t, for: player)
+    }
+
+    /// Strategic stock of a resource and this player's improved sources of it.
+    public func stock(_ resource: Resource) -> (amount: Int, sources: Int, cap: Int) {
+        (me.stock(resource), state.improvedSources(of: player)[Int(resource.rawValue) - 1], state.stockpileCap)
+    }
+
     public func tileYields(at hex: HexCoord) -> Yields? {
         guard let tile = tile(at: hex), let t = index(of: hex) else { return nil }
         let known = me.knownTechs
@@ -372,6 +387,14 @@ public struct PlayerView: Sendable {
         }
         if def.charges > 0 {
             for (kind, improvement) in [(UnitActionKind.buildFarm, Improvement.farm), (.buildMine, .mine), (.buildPasture, .pasture)] {
+                add(kind, .buildImprovement(unit: id, improvement: improvement), state.improvementProblem(improvement, by: unit))
+            }
+            // M2 improvements are offered only where they could stand.
+            let t = state.map.index(of: unit.position)!
+            let known = state.knownResource(at: t, for: player)
+            for (kind, improvement) in [(UnitActionKind.buildQuarry, Improvement.quarry), (.buildPlantation, .plantation),
+                                        (.buildCamp, .camp), (.buildFishingBoats, .fishingBoats), (.buildLumberMill, .lumberMill)]
+                where rules.allowsImprovement(improvement, on: state.map.tiles[t], resource: known) {
                 add(kind, .buildImprovement(unit: id, improvement: improvement), state.improvementProblem(improvement, by: unit))
             }
         }
