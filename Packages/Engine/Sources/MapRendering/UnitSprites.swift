@@ -60,6 +60,8 @@ enum UnitSprite: SpriteSet {
     case digit(Int)
     case job(Improvement)
     case tribalVillage
+    /// A pillaged improvement's mark (M2 §3.3): a flame on a cream disc in a red rim.
+    case pillaged
 
     static var all: [UnitSprite] {
         var keys: [UnitSprite] = []
@@ -83,6 +85,7 @@ enum UnitSprite: SpriteSet {
         // After every older cell, so none of theirs moves.
         for kind in Improvement.allCases { keys.append(.job(kind)) }
         keys.append(.tribalVillage)
+        keys.append(.pillaged)
         return keys
     }
 
@@ -184,6 +187,10 @@ enum UnitSprite: SpriteSet {
         case .tribalVillage:
             var f = Figure(size: cell.width)
             Self.tribalVillageBadge(&f)
+            canvas.paint(f.steps, pass: .body)
+        case .pillaged:
+            var f = Figure(size: cell.width)
+            Self.pillagedBadge(&f)
             canvas.paint(f.steps, pass: .body)
         }
     }
@@ -1312,6 +1319,24 @@ enum UnitSprite: SpriteSet {
             shapes.append(saw)
         }
         f.glyph(shapes: shapes, halo: h * 0.14)
+    }
+
+    // MARK: Pillaged
+
+    /// A pillaged improvement's mark: a flame in ink on a cream disc in a red rim.
+    private static func pillagedBadge(_ f: inout Figure) {
+        let r = CGFloat(badgeDisc) / 2
+        f.add(f.ellipse(0.5, 0.5, r, r), Material(Tone(0.62, 0.16, 0.1), gloss: 0.2), outline: 0.03)
+        f.add(f.ellipse(0.5, 0.5, r - 0.075, r - 0.075), Material(cream, shade: 0.5), outline: 0)
+        let c = f.pt((0.5, 0.5)), h = f.size * 0.25
+        func q(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: c.x + x * h, y: c.y + y * h) }
+        let flame = CGMutablePath()
+        flame.move(to: q(0, -0.85))
+        flame.addCurve(to: q(0.05, 0.9), control1: q(0.85, -0.75), control2: q(0.7, 0.3))
+        flame.addCurve(to: q(-0.2, 0.05), control1: q(-0.05, 0.45), control2: q(-0.3, 0.3))
+        flame.addCurve(to: q(0, -0.85), control1: q(-0.55, 0.2), control2: q(-0.75, -0.65))
+        flame.closeSubpath()
+        f.glyph(shapes: [flame], halo: h * 0.14)
     }
 
     // MARK: Tribal villages

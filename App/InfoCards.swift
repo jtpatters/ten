@@ -182,8 +182,13 @@ struct TileSheet: View {
         }
         // Movement and defence.
         VStack(alignment: .leading, spacing: 3) {
-            row(systemImage: "figure.walk", label: "Move cost", value: facts.moveCost.map { "\($0)" } ?? "Impassable",
-                note: facts.riverCrossingCost > 0 ? "+\(facts.riverCrossingCost) across the river" : nil)
+            row(systemImage: "figure.walk", label: "Move cost", value: facts.moveCost.map { view.rules.movesText($0) } ?? "Impassable",
+                note: facts.riverCrossingCost > 0 ? "+\(view.rules.movesText(facts.riverCrossingCost)) across the river" : nil)
+            if facts.tile.hasRoad || facts.tile.isPillaged {
+                row(systemImage: facts.tile.isPillaged ? "flame" : "road.lanes", label: facts.tile.hasRoad ? "Road" : "Pillaged",
+                    value: facts.tile.isPillaged && facts.tile.hasRoad ? "Pillaged" : "",
+                    note: facts.tile.isPillaged ? "the improvement yields nothing until a Builder repairs it" : nil)
+            }
             if facts.defense.isEmpty {
                 row(systemImage: "shield", label: "Defence", value: "None", note: nil)
             } else {

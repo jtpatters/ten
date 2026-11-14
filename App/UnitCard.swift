@@ -23,7 +23,8 @@ struct UnitCard: View {
                 if let status = session.exploreBadge(of: unit) ?? Self.status(of: unit) { KindBadge(text: status) }
             }
             HStack(spacing: HUD.Space.m) {
-                StatPill(systemImage: "figure.walk", value: "\(unit.movesLeft)/\(session.state.maxMoves(of: unit))", name: "Moves",
+                StatPill(systemImage: "figure.walk",
+                         value: "\(view.rules.movesText(unit.movesLeft))/\(view.rules.movesText(session.state.maxMoves(of: unit)))", name: "Moves",
                          valueTint: unit.movesLeft == 0 ? HUD.inkSoft : HUD.ink)
                 HStack(spacing: 4) {
                     Image(systemName: "heart.fill").font(.system(size: 11, weight: .semibold))
@@ -262,7 +263,8 @@ struct UnitCard: View {
             let base: Int = switch kind {
             case .foundCity: 0
             case .buildFarm, .buildMine, .buildPasture, .buildQuarry, .buildPlantation, .buildCamp, .buildFishingBoats,
-                 .buildLumberMill: 1
+                 .buildLumberMill, .buildRoad: 1
+            case .pillage: 4
             case .wake: 2
             case .cancelOrders: 3
             case .fortify: 4
@@ -298,6 +300,11 @@ struct UnitCard: View {
         case .buildCamp: ("Camp", "tent.fill", build(.camp, view))
         case .buildFishingBoats: ("Fishing Boats", "sailboat.fill", build(.fishingBoats, view))
         case .buildLumberMill: ("Lumber Mill", "tree.fill", build(.lumberMill, view))
+        case .buildRoad: ("Road", "road.lanes", "Lay a road on this tile: moving from road to road costs "
+                          + "\(view.rules.movesText(1)) of a move. Uses all moves, no charge.")
+        case .pillage: ("Pillage", "flame.fill", "Wreck the enemy improvement here (its tile yields nothing until repaired) "
+                        + "for \(view.rules.roads?.pillageGold ?? 0) Gold, or \(view.rules.roads?.pillageHeal ?? 0) HP when wounded; "
+                        + "with none, the road. Uses all moves.")
         case .fortify: ("Fortify", "shield.fill",
                         "+\(view.rules.constants.combat.fortified) defence from your next turn until it moves. Any unit that waits a turn heals.")
         case .sleep: ("Sleep", "moon.zzz.fill", "Wait here until woken or an enemy comes near.")

@@ -117,6 +117,10 @@ struct MapInputs {
     var readyUnits: Set<UnitID> = []
     /// The tribal villages the viewer knows, one per tile, in tile order (`setTribalVillages`).
     var tribalVillages: [TribalVillageMarker] = []
+    /// Per tile: a road the viewer knows (`setRoads`).
+    var roads: [Bool] = []
+    /// Pillaged improvements the viewer sees, one per tile, in tile order (`setPillaged`).
+    var pillaged: [HexCoord] = []
     var viewportInsets = MapInsets.zero
 }
 

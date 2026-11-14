@@ -2,7 +2,7 @@ import GameCore
 import MapRendering
 
 /// Builds the renderer's world inputs from what the viewer knows (M1 §11, §15): cities,
-/// territory, improvements, resources and tribal villages from the viewer's `PlayerView` (own cities live,
+/// territory, improvements, resources, roads, pillaged tiles and tribal villages from the viewer's `PlayerView` (own cities live,
 /// foreign ones and tribal villages out of sight as last seen), or from the live state in
 /// diagnostic mode (fog off). Called after a state change, never per frame; the renderer ignores
 /// inputs that did not change.
@@ -15,11 +15,17 @@ enum MapAdapter {
             renderer.setTerritory((0..<state.map.tileCount).map { t in state.tileOwner(t).map { UInt8($0.rawValue + 1) } ?? 0 })
             renderer.setImprovements(state.map.tiles.map { $0.improvement?.rawValue ?? 0 })
             renderer.setResources(state.map.tiles.map { $0.resource?.rawValue ?? 0 })
+            renderer.setRoads(state.map.tiles.map(\.hasRoad))
+            renderer.setPillaged(state.map.tiles.indices.filter { state.map.tiles[$0].isPillaged }.map { state.map.coord(at: $0) })
         } else {
             renderer.setCities(view.knownCities.map { marker(for: $0, rules: state.rules) })
             renderer.setTerritory(view.knownTerritory)
             renderer.setImprovements(view.knownImprovements)
             renderer.setResources(knownResources(view))
+            let tiles = (0..<view.tileCount).map { view.tile(at: view.coord(at: $0)) }
+            renderer.setRoads(tiles.map { $0?.hasRoad ?? false })
+            // `tile(at:)` keeps a pillaged mark only where the tile is in sight (M2 §3.3).
+            renderer.setPillaged(tiles.indices.filter { tiles[$0]?.isPillaged == true }.map { view.coord(at: $0) })
         }
         renderer.setTribalVillages(tribalVillageMarkers(state: state, view: view, diagnostic: diagnostic))
         renderer.setReadyUnits(readyUnits(view))

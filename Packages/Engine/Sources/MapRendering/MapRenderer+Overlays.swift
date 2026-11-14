@@ -87,6 +87,10 @@ enum OverlayStyle: Float {
     /// The movement range's outline: a cream line just inside the range's edge. Same
     /// parameters as `border` (aux.x unused).
     case rangeEdge = 7
+    /// A road (M2 §3.3): a packed-earth band from a tile's centre to the middle of its edge with
+    /// a road tile beside it (`MapRenderer+Roads.swift`). color: across (-1...1), along (world
+    /// units); aux.y: dim (explored, out of sight).
+    case road = 8
 }
 
 extension MapRenderer {
@@ -166,7 +170,7 @@ extension MapRenderer {
     /// its unexplored remainder and the destination ring. Rebuilt each frame (a few hundred
     /// vertices) so their widths can follow the zoom and keep their weight on screen.
     func overlayGeometry() -> [OverlayVertex] {
-        let ribbons = territoryGeometry()
+        let ribbons = roadGeometry() + territoryGeometry()
         guard let destination = unitArt.destination else { return ribbons }
         let s = Float(layout.size)
         let widen = max(1, camera.scale * 0.85)

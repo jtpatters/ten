@@ -26,6 +26,11 @@ enum SaveFixture {
         map[hex(8, 5)] = Tile(terrain: .plains, feature: .forest, improvement: .lumberMill)
         map[hex(9, 5)] = Tile(terrain: .coast, improvement: .fishingBoats, resource: .fish)
         map[hex(0, 4)] = Tile(terrain: .plains, resource: .iron)
+        // Roads and a pillaged improvement (M2 §3.3) beside player 0's city, so it remembers them.
+        map[hex(3, 1)].road = true
+        map[hex(4, 1)].road = true
+        map[hex(4, 2)] = Tile(terrain: .grassland, improvement: .farm)
+        map[hex(4, 2)].pillaged = true
         return map
     }
 
@@ -185,6 +190,7 @@ enum SaveFixture {
         #expect(p0.researching != nil && p0.researchTarget != nil && p0.originalCapital != nil && p0.capital != nil)
         #expect(p0.techCredit != nil && p0.insights?.isEmpty == false && state.worldEra != nil)
         #expect(tiles.contains { $0.resource != nil } && p0.stockpile != nil)
+        #expect(tiles.contains(where: \.hasRoad) && tiles.contains(where: \.isPillaged) && p0.memory.tileRoad != nil)
         #expect(!p0.memory.cities.isEmpty && !p0.memory.units.isEmpty && p0.memory.tileImprovement.contains { $0 != 0 })
         // Tribal villages: the live state with gifts, and one remembered.
         #expect(state.tribalVillages.map { $0.sites.count == 2 && $0.gifts.contains { $0 > 0 } } == true)
