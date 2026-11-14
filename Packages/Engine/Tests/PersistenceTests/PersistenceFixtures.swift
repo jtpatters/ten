@@ -36,6 +36,11 @@ enum PersistenceFixture {
         map[at(11, 0)] = Tile(terrain: .plains, feature: .forest, improvement: .lumberMill)
         map[at(3, 3)] = Tile(terrain: .plains, resource: .iron)
         map[at(6, 4)] = Tile(terrain: .grassland, improvement: .pasture, resource: .horses)
+        // Roads and a pillaged improvement (M2 §3.3), in player 0's sight so it remembers them.
+        map[at(1, 1)].road = true
+        map[at(1, 2)].road = true
+        map[at(2, 1)] = Tile(terrain: .grassland, improvement: .farm)
+        map[at(2, 1)].pillaged = true
         return map
     }
 

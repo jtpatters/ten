@@ -52,7 +52,7 @@ struct LegacySave {
     /// The standard rules data as it was when the fixture was saved: without its tribal
     /// village section, without M2's eras, progression, Insights and later techs (M2 2.1a), and
     /// without M2's units, promotions and wall damage (2.1b), and without M2's resources,
-    /// stockpiles and resource improvements (2.1c). It no longer validates (every unit
+    /// stockpiles, resource improvements and roads (2.1c). It no longer validates (every unit
     /// type needs a definition); its hash is the recorded content hash.
     static func m1Data() throws -> RulesetData { try decode(m1Object().m1) }
 
@@ -69,6 +69,8 @@ struct LegacySave {
         let m2Resources = json["resources"], m2Stockpile = json["stockpile"]
         json.removeValue(forKey: "resources")
         json.removeValue(forKey: "stockpile")
+        // M2 2.1c roads (M2 §3.3).
+        json.removeValue(forKey: "roads")
         let improvements = json["improvements"] as? [[String: Any]] ?? []
         json["improvements"] = improvements.prefix(3).map { imp in imp.filter { !["resources", "techBonuses"].contains($0.key) } }
         for key in ["tribalVillages", "eras", "progression", "promotions", "promotionXP"] { json.removeValue(forKey: key) }

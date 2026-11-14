@@ -420,6 +420,7 @@ extension MapRenderer {
         if let unitSelected, near <= 0 || !cityTiles.contains(unitSelected) { selectionRing(unitSelected) }
         // The job marks' glyphs, over the selection ring.
         appendJobBadges(into: &sprites, table: table)
+        appendPillagedMarks(into: &sprites, table: table)
         claim(nil)
 
         frame.bands = frame.ground.upperBound..<sprites.count
@@ -968,6 +969,7 @@ extension MapRenderer {
         table.digits = (0...9).map { unitAtlas.uv(.digit($0)) }
         for kind in Improvement.allCases { table.jobs[kind.rawValue] = unitAtlas.uv(.job(kind)) }
         table.tribalVillage = unitAtlas.uv(.tribalVillage)
+        table.pillaged = unitAtlas.uv(.pillaged)
         unitArt.atlasTable = table
         return table
     }
@@ -1103,6 +1105,8 @@ struct UnitAtlasTable {
     var jobs: [UInt8: SIMD4<Float>] = [:]
     /// The tribal villages' strategic token (`UnitSprite.tribalVillage`).
     var tribalVillage: SIMD4<Float>?
+    /// A pillaged improvement's mark (`UnitSprite.pillaged`).
+    var pillaged: SIMD4<Float>?
 
     func body(_ type: UnitType, east: Bool, escorted isEscorted: Bool = false) -> SIMD4<Float> {
         // Only the settler sets its banner pole down when escorted: the builder's pole is its
