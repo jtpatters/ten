@@ -210,6 +210,14 @@ extension AITurn {
         //     ship is never the first choice.
         if v.turn > ai.earlyTurns, canKeepMilitary, let ship = shipToBuild(for: city, c, v) { offer(.unit(ship)) }
 
+        // 2c. M2 §17.3: line units to clear a remembered raider camp within reach of the city,
+        //     up to raiderCampHunters in the army, ahead of Settlers.
+        if canKeepMilitary, c.armyLine < Self.raiderCampHunters, let t = v.index(of: city.position),
+           v.knownRaiderCamps.contains(where: { v.aiDistance(Int($0), t) <= Self.raiderCampCityRange }),
+           let hunter = strongestLine(v) {
+            offer(.unit(hunter))
+        }
+
         // 2b. In prepare/war with at least armyFirstCities cities, Builders (step 4) and then
         //     the army (step 6) come before Settlers. Otherwise an AI that keeps finding sites
         //     spends its production on Settlers through prepare and has almost no army before
@@ -357,12 +365,17 @@ extension AITurn {
         if let archer, c.armyRanged < ai.warMinRanged || 100 * c.armyRanged < ai.archersPerMeleePct * c.armyLine {
             return archer
         }
+        return strongestLine(v) ?? archer
+    }
+
+    /// The strongest melee or anti-cavalry unit the player can field (ties: the first).
+    func strongestLine(_ v: PlayerView) -> UnitType? {
         var best: UnitType?
         for type in UnitType.allCases where isLine(type) && fieldable(type, v) {
             if let b = best, rules.unit(b).strength >= rules.unit(type).strength { continue }
             best = type
         }
-        return best ?? archer
+        return best
     }
 
     /// The strongest naval unit `city` can build while the player has fewer ships (alive and

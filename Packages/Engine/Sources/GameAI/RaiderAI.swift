@@ -3,7 +3,7 @@ import GameCore
 /// The raiders' phase (M2 §11), stateless: each unit in id order captures a reachable civilian,
 /// else makes a favourable attack (a city only to sack it at 0 HP), else pillages, else roams
 /// toward the nearest remembered city within reach of its home (its camp, or the city that
-/// raised it) or wanders near home. A camp's first unit guards the camp.
+/// raised it) or wanders near home.
 enum RaiderAI {
     static func playPhase(_ state: inout GameState, player: PlayerID) -> AIPhaseReport {
         var bot = RaiderTurn(state: state, player: player)
@@ -63,14 +63,6 @@ struct RaiderTurn {
         let map = state.map
         let me = state.players[player.rawValue]
         let home = home(of: id, at: unit.position)
-
-        // The camp's guard stays on (or goes back to) the camp.
-        if let camp = state.raiderCamp(of: id), camp.units.first == id {
-            let tile = map.coord(at: Int(camp.tile))
-            if unit.position != tile { issue(.moveUnit(unit: id, to: tile)) }
-            if let u = state.unit(id), u.position == tile, u.movesLeft > 0 { issue(.fortify(unit: id)) }
-            return
-        }
 
         let view = state.view(for: player)
         let reach = view.reachableTiles(for: id)

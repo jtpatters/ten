@@ -104,6 +104,22 @@ import Testing
         expectSound(state)
     }
 
+    @Test func disciplineAddsStrengthAgainstRaidersOnly() throws {
+        var (state, _) = world()
+        let warrior = state.insertUnit(.warrior, owner: p0, at: hex(4, 2))
+        _ = state.insertUnit(.warrior, owner: raider, at: hex(5, 2))
+        _ = state.insertUnit(.warrior, owner: p1, at: hex(4, 3))
+        setWar(&state, p0, p1)
+        refreshKnowledge(&state)
+        func government(_ target: HexCoord) throws -> Int {
+            let p = try #require(state.view(for: p0).combatPreview(attacker: .unit(warrior), target: target, from: hex(4, 2)))
+            return p.attackerStrength.modifiers.filter { $0.kind == .government }.reduce(0) { $0 + $1.value }
+        }
+        #expect(try government(hex(5, 2)) == 0)
+        state.players[0].policies = ["discipline"]
+        #expect(try government(hex(5, 2)) == 5 && government(hex(4, 3)) == 0)
+    }
+
     @Test func killingACampsGuardInMeleeMovesInAndClearsIt() throws {
         var (state, _) = world()
         let swordsman = state.insertUnit(.swordsman, owner: p0, at: hex(4, 2))

@@ -224,13 +224,17 @@ struct Profile {
 struct EventCounts {
     var combats = 0, kills = 0, civiliansCaptured = 0, citiesCaptured = 0, citiesRazed = 0, citiesFounded = 0
     var wars = 0, peaces = 0, eliminations = 0, citiesRevolted = 0, citiesJoined = 0
-    var campsAppeared = 0, campsCleared = 0, citiesSacked = 0, rebels = 0
+    var campsAppeared = 0, campsCleared = 0, citiesSacked = 0, rebels = 0, raiderCasualties = 0
+    /// The raiders' player, for their casualties.
+    var raider: PlayerID?
 
     mutating func add(_ records: [EventRecord]) {
         for record in records {
             switch record.event {
             case .combat: combats += 1
-            case .unitKilled: kills += 1
+            case let .unitKilled(_, _, owner, _):
+                kills += 1
+                if owner == raider { raiderCasualties += 1 }
             case .unitCaptured: civiliansCaptured += 1
             case .cityCaptured: citiesCaptured += 1
             case .cityRevolted: citiesRevolted += 1
@@ -253,7 +257,7 @@ struct EventCounts {
         "\(citiesFounded) cities founded, \(combats) combats, \(kills) units killed, \(civiliansCaptured) civilians captured, "
             + "\(citiesCaptured) cities captured, \(citiesRevolted) revolted, \(citiesJoined) joined, \(citiesRazed) razed, \(wars) wars declared, \(peaces) peace treaties, "
             + "\(eliminations) players eliminated"
-            + (campsAppeared + rebels > 0 ? "; raiders: \(campsAppeared) camps, \(campsCleared) cleared, \(citiesSacked) cities sacked, \(rebels) rebels" : "")
+            + (campsAppeared + rebels > 0 ? "; raiders: \(campsAppeared) camps, \(campsCleared) cleared, \(raiderCasualties) raiders killed, \(citiesSacked) cities sacked, \(rebels) rebels" : "")
     }
 }
 
@@ -307,6 +311,7 @@ struct GameReport {
         observer = Observer(players: state.players.count, narrate: narrate)
         early = EarlyObserver(seed: seed, p0: p0, turns: turns)
         villages = TribalVillageStats(state: state, sites: sites)
+        counts.raider = state.raiderPlayer
         if let sites { early.startTribalVillages(sites, state: state) }
     }
 
@@ -533,7 +538,7 @@ func playGame(seed: UInt64, _ o: Options, verbose: Bool) -> GameReport {
 
     var report = GameReport(seed: seed, state: state, narrate: o.narrate && o.mode == .ai, p0: o.p0.rawValue, turns: o.turns,
                             sites: villageSites)
-    report.aiPlayers = state.players.indices.filter { $0 != 0 || o.p0 == .ai }
+    report.aiPlayers = state.players.indices.filter { ($0 != 0 || o.p0 == .ai) && state.players[$0].isMajor }
     report.observer.lintDetail = o.lintDetail
     var rng = SplitMix64(seed: seed, salts: 0x5133)
     let lastTurn = state.turn + o.turns - 1
@@ -886,6 +891,7 @@ if options.games == 1 {
     var ai = Timings(), aiLate = Timings()
     var profile = Profile()
     var threeCities = 0, warBy80 = 0, captureBy150 = 0, rejected = 0, capHits = 0
+    var raiderTotals = EventCounts()
     var lint = Lint()
     // Against a stand-in in player 0's seat (`--p0`): games the AIs won, player 0 won or nobody
     // won; cities AIs took from player 0 and player 0 took from AIs; wars on player 0.
@@ -941,6 +947,11 @@ if options.games == 1 {
             if report.everyoneFoundedThreeBy60 { threeCities += 1 }
             if report.warBy80 { warBy80 += 1 }
             if report.captureBy150 { captureBy150 += 1 }
+            raiderTotals.campsAppeared += report.counts.campsAppeared
+            raiderTotals.campsCleared += report.counts.campsCleared
+            raiderTotals.raiderCasualties += report.counts.raiderCasualties
+            raiderTotals.citiesSacked += report.counts.citiesSacked
+            raiderTotals.rebels += report.counts.rebels
             rejected += report.rejected
             capHits += report.capHits
             hashes ^= hash &* (combined.next() | 1)
@@ -962,6 +973,12 @@ if options.games == 1 {
         }
         print("balance: every AI founds ≥ 3 cities by turn 60: \(pct(threeCities)) [target ≥ 80%]; "
             + "war by turn 80: \(pct(warBy80)) [≥ 70%]; city captured by turn 150: \(pct(captureBy150)) [≥ 30%]")
+        let r = raiderTotals
+        if r.campsAppeared + r.rebels > 0 {
+            print(String(format: "raiders (per game): camps %.2f, cleared %.2f [target ≥ 3], raiders killed %.2f, cities sacked %.2f, rebels %.2f",
+                         Double(r.campsAppeared) / Double(n), Double(r.campsCleared) / Double(n), Double(r.raiderCasualties) / Double(n),
+                         Double(r.citiesSacked) / Double(n), Double(r.rebels) / Double(n)))
+        }
     }
     villages.print()
     if options.early { EarlySummary.print(earlyRecords) }

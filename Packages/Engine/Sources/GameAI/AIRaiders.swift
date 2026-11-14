@@ -1,9 +1,11 @@
 import GameCore
 
 extension AITurn {
-    static let raiderCampMoves = 12
-    static let raiderCampCityRange = 12
-    static let raiderCampOdds = 150
+    static let raiderCampMoves = 16
+    static let raiderCampCityRange = 16
+    static let raiderCampOdds = 125
+    static let raiderCampHunters = 3
+    static let raiderPolicyWeight = 5
 
     /// M2 §11, at war or at peace: free line units attack raiders on good odds; then, for each
     /// remembered camp within `raiderCampCityRange` of an own city, the nearest healthy free line
@@ -42,7 +44,8 @@ extension AITurn {
     /// of an own city: the nearest healthy free line units within `raiderCampMoves` moves (by
     /// cost, then id) until their power is `raiderCampOdds`% of the visible raiders within 2 of
     /// the camp and they outnumber them; none go when that many are not at hand. They gather
-    /// within 3 of the camp, then close in; an unguarded camp is walked onto by whoever reaches it.
+    /// within 3 of the camp until those near enough suffice, then close in; an unguarded camp
+    /// is walked onto by whoever reaches it.
     mutating func clearCamp(_ camp: Int) {
         let v = view
         guard v.cities.contains(where: { v.index(of: $0.position).map { v.aiDistance($0, camp) <= Self.raiderCampCityRange } ?? false })
@@ -75,7 +78,8 @@ extension AITurn {
             squadPower += power(c.unit.type)
         }
         guard !squad.isEmpty, squadPower >= need, squad.count > guardCount else { return }
-        let gathered = squad.allSatisfy { u in v.index(of: u.position).map { v.aiDistance($0, camp) <= 3 } ?? false }
+        let near = squad.filter { u in v.index(of: u.position).map { v.aiDistance($0, camp) <= 3 } ?? false }
+        let gathered = near.reduce(0) { $0 + power($1.type) } >= need && near.count > guardCount
         note("squad \(squad.map(\.id)) for the raider camp at \(hex) (power \(squadPower) vs \(need), \(gathered ? "closing in" : "gathering"))")
         for u in squad where live {
             acted.insert(u.id)

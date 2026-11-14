@@ -422,7 +422,10 @@ extension AITurn {
     mutating func choosePolicies() {
         let v = view
         guard let gov = v.government else { return }
-        let ranked = v.availablePolicies.sorted { ($0.aiWeight ?? 0, $1.id) > ($1.aiWeight ?? 0, $0.id) }
+        // M2 §17.2: a bonus against raiders weighs more while a raider camp is known.
+        let raiderBonus = v.knownRaiderCamps.isEmpty ? 0 : Self.raiderPolicyWeight
+        func weight(_ p: PolicyDef) -> Int { (p.aiWeight ?? 0) + (p.bonuses.raiderStrength ?? 0 > 0 ? raiderBonus : 0) }
+        let ranked = v.availablePolicies.sorted { (weight($0), $1.id) > (weight($1), $0.id) }
         let current = v.policies
         var pick: [PolicyDef] = []
         if v.isFreeChangeTurn {

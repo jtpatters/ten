@@ -296,7 +296,7 @@ extension GameState {
             if let (cls, bonus) = classBonus(of: unit, against: defender) { s.add(.classBonus(cls), bonus) }
             if case .city = defender { s.add(.vsCity, def.vsCity ?? 0) }
             s.add(.promotion, promotionBonus(of: unit, attacking: true, ranged: ranged, against: defender))
-            s.add(.government, governmentStrength(of: unit))
+            s.add(.government, governmentStrength(of: unit, against: defender))
             attack = s
         }
 
@@ -325,7 +325,7 @@ extension GameState {
             if let r = shortage(of: unit) { s.add(.shortage(r), shortagePenalty(unit)) }
             if let (cls, bonus) = classBonus(of: unit, against: attacker) { s.add(.classBonus(cls), bonus) }
             s.add(.promotion, promotionBonus(of: unit, attacking: false, ranged: ranged, against: attacker))
-            s.add(.government, governmentStrength(of: unit))
+            s.add(.government, governmentStrength(of: unit, against: attacker))
             defence = s
         }
         return Clash(attacker: attacker, defender: defender, from: from, target: target, ranged: ranged,

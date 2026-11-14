@@ -153,8 +153,9 @@ extension GameState {
         units.contains { $0.position == city.position && $0.owner == city.owner && !$0.type.isCivilian }
     }
 
-    /// Strength from the owner's government and policies: class bonuses, and in enemy territory.
-    func governmentStrength(of unit: Unit) -> Int {
+    /// Strength from the owner's government and policies: class bonuses, in enemy territory, and
+    /// against raiders.
+    func governmentStrength(of unit: Unit, against other: CombatSide) -> Int {
         let bonuses = bonuses(of: unit.owner)
         guard !bonuses.isEmpty else { return 0 }
         let cls = rules.unit(unit.type).unitClass
@@ -166,6 +167,8 @@ extension GameState {
            owner != unit.owner, isAtWar(owner, unit.owner) {
             s += territory
         }
+        let otherOwner = switch other { case let .unit(o): o.owner; case let .city(c): c.owner }
+        if isRaider(otherOwner) { s += bonuses.reduce(0) { $0 + ($1.raiderStrength ?? 0) } }
         return s
     }
 
