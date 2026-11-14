@@ -103,6 +103,7 @@ New Game, `newgame` and `-autostart` always place them.
 | `naval` | Sailing and Shipbuilding learnt; a Galley and a Quadrireme on the coast nearest the capital and a Warrior embarked beside them (M2 §3.2, §8.4); the Galley selected. |
 | `stability` | The capital with a Monument and two citizens over its Housing: overcrowded, Restless, slow growth and a City Unrest item (M2 §5.1, §5.2); the capital selected. |
 | `quarters` | The capital at population 9 with Writing, Currency, Bronze Working, Engineering and Apprenticeship, a Campus, a Market and (where it fits) an Aqueduct built, and legal sites left for a Workshop or Barracks (M2 §5.3, §18.2); the capital selected. |
+| `loyalty` | Turn 3: a forward viewer city at Loyalty 12 beside the rival capital at population 12, falling towards a revolt, and a second viewer city that revolted into a Free City (M2 §5.5, §12.5); the forward city selected. |
 
 The `scenario` command's result ends with the scenario's note when it has one: the units and
 tiles to use next (`rivals`, `walls`, `repreview`, `tribal-villages`).

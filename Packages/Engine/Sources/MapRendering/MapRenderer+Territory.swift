@@ -72,10 +72,9 @@ extension MapRenderer {
     /// eight styles share them, as everywhere else: `Palette.player`).
     func writeTerritoryBits() {
         let owners = inputs.territory
-        let styles = UInt8(Palette.playerStyles.count)
         writeTileBits(byte: 0, mask: TileBits.ownerMask) { i in
             guard i < owners.count, owners[i] != 0 else { return 0 }
-            return ((owners[i] - 1) % styles + 1) << TileBits.ownerShift
+            return UInt8(Palette.styleIndex(Int(owners[i]) - 1) + 1) << TileBits.ownerShift
         }
         territoryArt.territoryVersion += 1
     }
@@ -177,8 +176,7 @@ extension MapRenderer {
     func borderEdges() -> [(tile: Int, direction: Int, group: Int)] {
         let owners = inputs.territory
         guard owners.contains(where: { $0 != 0 }) else { return [] }
-        let styles = UInt8(Palette.playerStyles.count)
-        func owner(_ i: Int) -> Int { i < owners.count && owners[i] != 0 ? Int((owners[i] - 1) % styles) + 1 : 0 }
+        func owner(_ i: Int) -> Int { i < owners.count && owners[i] != 0 ? Palette.styleIndex(Int(owners[i]) - 1) + 1 : 0 }
         var edges: [(tile: Int, direction: Int, group: Int)] = []
         for i in 0..<state.map.tileCount {
             let o = owner(i)

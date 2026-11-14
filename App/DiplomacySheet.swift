@@ -11,7 +11,8 @@ struct DiplomacySheet: View {
 
     var body: some View {
         let view = session.view
-        let others = view.players.filter { $0.id != session.viewer }
+        // Civs only: the Free Cities are always at war and take no part in diplomacy (M2 §12.5).
+        let others = view.players.filter { $0.id != session.viewer && $0.isMajor }
         let met = others.filter { view.hasMet($0.id) }
         VStack(alignment: .leading, spacing: 0) {
             CardHeader(title: "Diplomacy", systemImage: "globe.europe.africa.fill", onClose: onDone)

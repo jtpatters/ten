@@ -115,7 +115,7 @@ struct CityPanel: View {
                 // In a duel the original capital decides the game (M1 §10): said while at peace
                 // too, in the danger colour at war.
                 if view.capitalAtStake == city.id {
-                    let atWar = view.players.contains { $0.id != session.viewer && view.isAtWar(with: $0.id) }
+                    let atWar = view.players.contains { $0.id != session.viewer && $0.isMajor && view.isAtWar(with: $0.id) }
                     Label("If \(city.name) falls, you lose the game", systemImage: "exclamationmark.shield.fill")
                         .font(HUD.body(.caption).weight(.semibold))
                         .foregroundStyle(atWar ? HUD.danger : HUD.inkSoft)
@@ -158,6 +158,10 @@ struct CityPanel: View {
             if let yields { YieldStrip(population: city.population, yields: yields) }
             if let growth { GrowthRow(growth: growth) }
             if let wellbeing = view.wellbeing(of: city.id) { WellbeingRow(wellbeing: wellbeing, population: city.population) }
+            if let loyalty = city.loyalty, let breakdown = view.loyaltyBreakdown(of: city.id) {
+                LoyaltyRow(loyalty: loyalty, breakdown: breakdown, turnsToRevolt: view.turnsUntilRevolt(of: city.id),
+                           foreignName: breakdown.topForeign.map { session.civName(of: $0) })
+            }
             if city.hp < maxHP {
                 HStack(spacing: HUD.Space.s) {
                     Image(systemName: "heart.fill").font(.system(size: 12, weight: .semibold))
@@ -1334,5 +1338,93 @@ private struct BuiltQuarterList: View {
         if let housing = def.housing { parts.append("\(YieldChip.signed(housing)) Housing") }
         if let stability = def.stability { parts.append("\(YieldChip.signed(stability)) Stability") }
         return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+    }
+}
+
+/// Loyalty ("Loyalty 72 ▼4/turn", red when falling) and the turns to a revolt (M2 §5.5); a tap
+/// opens the breakdown.
+struct LoyaltyRow: View {
+    var loyalty: Int
+    var breakdown: LoyaltyBreakdown
+    var turnsToRevolt: Int?
+    var foreignName: String?
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HUD.Space.s) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+            } label: {
+                HStack(spacing: HUD.Space.m) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "flag.fill").font(.system(size: 12, weight: .semibold))
+                        Text("Loyalty \(loyalty)").font(HUD.body(.subheadline).weight(.semibold))
+                        Text(trend).font(HUD.body(.caption).weight(.semibold))
+                    }
+                    .foregroundStyle(breakdown.total < 0 ? HUD.danger : HUD.ink)
+                    Spacer(minLength: HUD.Space.s)
+                    if let turnsToRevolt {
+                        Text(turnsToRevolt == 1 ? "revolts next turn" : "revolts in \(turnsToRevolt) turns")
+                            .font(HUD.body(.caption).weight(.semibold))
+                            .foregroundStyle(HUD.danger)
+                    }
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(HUD.inkSoft)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Loyalty \(loyalty), \(YieldChip.signed(breakdown.total)) per turn"
+                                + (turnsToRevolt.map { ", revolts in \($0) turns" } ?? "") + ".")
+            .accessibilityHint(expanded ? "Hides the breakdown." : "Shows the breakdown.")
+            if expanded { details }
+        }
+    }
+
+    /// "▼4/turn", "▲2/turn", "steady".
+    private var trend: String {
+        breakdown.total < 0 ? "▼\(-breakdown.total)/turn" : breakdown.total > 0 ? "▲\(breakdown.total)/turn" : "steady"
+    }
+
+    private var details: some View {
+        let b = breakdown
+        return Grid(alignment: .leading, horizontalSpacing: HUD.Space.m, verticalSpacing: 4) {
+            GridRow {
+                Text("PRESSURE").font(HUD.label()).tracking(0.8).foregroundStyle(HUD.inkSoft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("")
+            }
+            info("From your cities", b.ownPressure)
+            info("From \(foreignName ?? "foreign cities")", b.foreignPressure)
+            row("Pressure", b.pressure)
+            row("Capital", b.capital)
+            row("Garrison", b.garrison)
+            row("Stability", b.stability)
+            row("Recently captured", b.captured)
+            row("Enemy units", b.enemies)
+            GridRow {
+                Text("Per turn").font(HUD.title(.caption))
+                Text(YieldChip.signed(b.total)).font(HUD.numeric(.caption)).foregroundStyle(b.total < 0 ? HUD.danger : HUD.ink)
+            }
+        }
+        .padding(HUD.Space.m)
+        .parchmentWell()
+    }
+
+    private func info(_ name: String, _ value: Int) -> some View {
+        GridRow {
+            Text(name).font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
+            Text("\(value)").font(HUD.body(.caption).monospacedDigit()).foregroundStyle(HUD.inkSoft).gridColumnAlignment(.trailing)
+        }
+    }
+
+    private func row(_ name: String, _ value: Int) -> some View {
+        GridRow {
+            Text(name).font(HUD.body(.caption))
+            Text(value == 0 ? "·" : value > 0 ? "+\(value)" : "−\(-value)")
+                .font(HUD.body(.caption).monospacedDigit())
+                .foregroundStyle(value < 0 ? HUD.danger : value == 0 ? HUD.inkFaint : HUD.ink)
+                .gridColumnAlignment(.trailing)
+        }
     }
 }

@@ -407,3 +407,24 @@ extension PlayerView {
         return state.quarterAdjacency(quarter.kind, at: t, owner: player, centre: centre)
     }
 }
+
+// MARK: Loyalty
+
+extension PlayerView {
+    /// An own city's Loyalty change and where it comes from (M2 §5.5); nil without Loyalty, and
+    /// in a game from before it (no Free Cities), where Loyalty never changes.
+    public func loyaltyBreakdown(of id: CityID) -> LoyaltyBreakdown? {
+        guard state.freeCities != nil else { return nil }
+        return city(id).flatMap { state.loyaltyBreakdown($0) }
+    }
+
+    /// Turns until an own city revolts at its current trend; nil when it is not losing Loyalty
+    /// or cannot revolt (no Free Cities).
+    public func turnsUntilRevolt(of id: CityID) -> Int? {
+        guard state.freeCities != nil else { return nil }
+        return city(id).flatMap { state.turnsUntilRevolt($0) }
+    }
+
+    /// The Free Cities faction, when the game has one (M2 §12.5).
+    public var freeCities: PlayerID? { state.freeCities }
+}
