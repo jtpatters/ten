@@ -165,7 +165,13 @@ extension Palette {
 
     static let players: [CGColor] = playerStyles.map(\.color)
 
-    static func playerStyle(_ index: Int) -> PlayerStyle { playerStyles[index % playerStyles.count] }
+    /// The style a player draws in: the Free Cities (M2 §12.5) take the neutral charcoal, the
+    /// last style; the civs cycle through the styles.
+    static func styleIndex(_ player: Int) -> Int {
+        player == Heraldry.freeCities?.rawValue ? playerStyles.count - 1 : player % playerStyles.count
+    }
 
-    static func player(_ id: PlayerID) -> CGColor { players[id.rawValue % players.count] }
+    static func playerStyle(_ index: Int) -> PlayerStyle { playerStyles[styleIndex(index)] }
+
+    static func player(_ id: PlayerID) -> CGColor { playerStyle(id.rawValue).color }
 }

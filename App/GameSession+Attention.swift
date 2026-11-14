@@ -53,6 +53,8 @@ enum AttentionItem: Hashable, Sendable {
     case promotion(UnitID)
     /// An own city below Content (M2 §5.2).
     case unstable(CityID)
+    /// A city that revolts within the rules' warning turns (M2 §5.5).
+    case loyaltyFalling(CityID)
 
     /// The queue's order: the kind (as listed in M1 §16), then its subject.
     struct Key: Comparable {
@@ -78,6 +80,7 @@ enum AttentionItem: Hashable, Sendable {
         case let .news(id): Key(rank: 11, subject: id)
         case let .promotion(id): Key(rank: 12, subject: id.rawValue)
         case let .unstable(id): Key(rank: 13, subject: id.rawValue)
+        case let .loyaltyFalling(id): Key(rank: 14, subject: id.rawValue)
         }
     }
 
@@ -98,6 +101,7 @@ enum AttentionItem: Hashable, Sendable {
         case .news: "News"
         case .promotion: "Promotion Due"
         case .unstable: "City Unrest"
+        case .loyaltyFalling: "Loyalty Falling"
         }
     }
 
@@ -117,13 +121,14 @@ enum AttentionItem: Hashable, Sendable {
         case .news: "newspaper"
         case .promotion: "star.circle"
         case .unstable: "exclamationmark.bubble"
+        case .loyaltyFalling: "flag.slash"
         }
     }
 
     /// Items that only inform: they leave the queue once shown.
     var isInformational: Bool {
         switch self {
-        case .settlerWaiting, .productionBlocked, .upkeep, .cityUnderAttack, .bombard, .warDeclared, .news, .promotion, .unstable: true
+        case .settlerWaiting, .productionBlocked, .upkeep, .cityUnderAttack, .bombard, .warDeclared, .news, .promotion, .unstable, .loyaltyFalling: true
         case .unit, .emptyQueue, .research, .peaceProposal, .capturedCity: false
         }
     }
@@ -145,6 +150,7 @@ enum AttentionItem: Hashable, Sendable {
         case let .news(id): "news \(id)"
         case let .promotion(id): "promotion \(id.rawValue)"
         case let .unstable(id): "unstable \(id.rawValue)"
+        case let .loyaltyFalling(id): "loyaltyFalling \(id.rawValue)"
         }
     }
 }
@@ -203,6 +209,9 @@ extension GameSession {
         items += news.map { .news($0.id) }
         items += view.units.filter { !view.promotionsOffered($0.id).isEmpty }.map { .promotion($0.id) }
         items += cities.filter { (view.wellbeing(of: $0.id)?.state ?? .content) < .content }.map { .unstable($0.id) }
+        if let warning = view.rules.loyalty?.warningTurns {
+            items += cities.filter { (view.turnsUntilRevolt(of: $0.id) ?? .max) <= warning }.map { .loyaltyFalling($0.id) }
+        }
         return items.filter { !attentionSeen.contains($0) }
     }
 
@@ -256,7 +265,7 @@ extension GameSession {
         case let .cityUnderAttack(id):
             showCity(id)
             requestCityPanel(.defence)
-        case let .unstable(id):
+        case let .unstable(id), let .loyaltyFalling(id):
             showCity(id)
             requestCityPanel(.overview)
         case let .bombard(id):

@@ -62,7 +62,7 @@ enum Scenarios {
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
                         "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads", "naval",
-                        "stability", "quarters"]
+                        "stability", "quarters", "loyalty"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -149,6 +149,9 @@ enum Scenarios {
         case "quarters":
             foundCapital(&state, player: viewer)
             made = try quarters(&state)
+        case "loyalty":
+            foundCapital(&state, player: viewer)
+            made = try loyalty(&state)
         case "stability":
             foundCapital(&state, player: viewer)
             made = try stability(&state)
@@ -607,6 +610,7 @@ extension Scenarios {
             .first(where: { map.distance($0, near) > 1 && map.distance($0, far) > 1 }) {
             state.addUnit(.scout, owner: viewer, at: spot)
         }
+        DebugTools.refreshAllKnowledge(in: &state)
         try declareWar(&state)
         // The enemy's phase: an Archer of theirs wounds the Warrior, then leaves.
         try GameEngine.apply(.endTurn, by: viewer, to: &state)
@@ -726,6 +730,31 @@ extension Scenarios {
     /// Bronze Working, Engineering and Apprenticeship, with a Campus and a Market on their best
     /// tiles and an Aqueduct where it may stand, so a Workshop or Barracks has a few legal sites
     /// left; the capital selected.
+    /// A forward city beside a large rival capital, losing Loyalty fast, and a viewer city that
+    /// revolted into a Free City (M2 §5.5, §12.5).
+    static func loyalty(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0), rival = PlayerID(1)
+        guard state.freeCities != nil else { throw Failure(description: "no Free Cities in these rules") }
+        play(&state, untilTurn: 3)
+        guard let rivalCapital = state.players[rival.rawValue].capital else { throw Failure(description: "the rival has no capital") }
+        DebugTools.setCity(rivalCapital, population: 12, in: &state)
+        guard let site = citySite(state, player: rival, minimumDistance: 4) else { throw Failure(description: "no forward site") }
+        let settler = state.addUnit(.settler, owner: viewer, at: site)
+        let events = try GameEngine.apply(.foundCity(unit: settler), by: viewer, to: &state)
+        guard let forward = GameSession.foundedCity(in: events, by: viewer) else { throw Failure(description: "no forward city") }
+        DebugTools.setLoyalty(forward, 12, in: &state)
+        let rebel = try foundViewerCity(&state)
+        guard DebugTools.revolt(rebel, in: &state) else { throw Failure(description: "the city did not revolt") }
+        // Scouts in sight of the Free City and of the rival capital.
+        for (city, toward) in [(rebel, state.city(forward)?.position), (rivalCapital, state.city(forward)?.position)] {
+            guard let centre = state.city(city)?.position,
+                  let spot = spots(state, around: centre, distance: 1...2, for: .scout, owner: viewer, toward: toward).first else { continue }
+            state.addUnit(.scout, owner: viewer, at: spot)
+        }
+        return Made(state: state, focus: .city(forward),
+                    note: "Open the forward city's panel and tap the Loyalty row; the grey city is the Free City.")
+    }
+
     static func quarters(_ state: inout GameState) throws -> Made {
         let viewer = PlayerID(0)
         guard let capital = state.cities.first(where: { $0.owner == viewer }) else { throw Failure(description: "no capital") }

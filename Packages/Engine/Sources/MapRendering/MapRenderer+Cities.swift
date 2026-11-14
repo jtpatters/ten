@@ -279,7 +279,7 @@ extension MapRenderer {
     /// A city's pieces in drawing order.
     func cityPieces(_ city: ShownCity, table: TownAtlasTable, opacity: Float) -> [SpriteInstance] {
         let s = cityUnit()
-        let color = Palette.playerStyles[city.marker.owner.rawValue % Palette.playerStyles.count].rgb
+        let color = Palette.playerStyle(city.marker.owner.rawValue).rgb
         return city.layout.pieces.map { placed in
             let edge = placed.piece.edge * placed.scale * s, foot = placed.piece.foot
             return SpriteInstance(position: [city.center.x + placed.at.x * s, city.center.y + placed.at.y * s, 0, 0],
@@ -307,7 +307,7 @@ extension MapRenderer {
     func cityToken(_ city: ShownCity, medallion: Float, emblem: SIMD4<Float>, opacity: Float) -> SpriteInstance {
         let size = medallion * Self.cityTokenSize, up = camera.up
         let lift = size * Self.cityTokenLift
-        let style = Palette.playerStyles[city.marker.owner.rawValue % Palette.playerStyles.count]
+        let style = Palette.playerStyle(city.marker.owner.rawValue)
         return SpriteInstance(position: [city.center.x, city.center.y + up.y * lift, up.z * lift, -1], sizeAnchor: [size, size, 0.5, 0.5],
                               uv: emblem, tint: SIMD4(style.rgb, opacity),
                               flags: [1, CitySpriteKind.token.rawValue, city.fogged ? 1 : 0, city.marker.capital ? 1 : 0])

@@ -243,6 +243,7 @@ final class GameSession {
         self.store = store
         self.diagnostic = diagnostic
         self.mapGenMilliseconds = mapGenMilliseconds
+        Heraldry.freeCities = state.freeCities
         renderer = MapRenderer(state: state, viewer: PlayerID(0))
         renderer.fogEnabled = !diagnostic
         overlay = MapOverlay(frame: .zero)

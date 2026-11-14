@@ -75,7 +75,7 @@ struct GameOverCard: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             VStack(spacing: HUD.Space.xs) {
-                ForEach(view.players.sorted { ($0.score, -$0.id.rawValue) > ($1.score, -$1.id.rawValue) }, id: \.id) { player in
+                ForEach(view.players.filter(\.isMajor).sorted { ($0.score, -$0.id.rawValue) > ($1.score, -$1.id.rawValue) }, id: \.id) { player in
                     HStack(spacing: HUD.Space.s) {
                         PlayerEmblem(player: player.id, size: 22)
                         VStack(alignment: .leading, spacing: 0) {

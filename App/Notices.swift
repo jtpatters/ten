@@ -42,7 +42,7 @@ struct Notice: Identifiable, Equatable, Codable, Sendable {
         /// a line per explorer.
         case explore
         case production, growth, starving, research, met, warOnViewer, war, peaceProposal, peace, peaceDeclined,
-             cityFounded, cityCaptured, cityLost, cityTaken, cityRazed, cityAttacked, unitLost, unitCaptured,
+             cityFounded, cityCaptured, cityLost, cityTaken, cityRazed, cityRevolted, cityJoined, cityAttacked, unitLost, unitCaptured,
              captured, enemyFell, upkeep, moveInterrupted, eliminated, unitAttacked, evicted, troopsNear, cityDiscovered
         /// A Settler's march ended where it can found a city (SettlerNotices.swift).
         case settlerArrived
@@ -521,6 +521,24 @@ enum NoticeMaker {
                     add(.cityCaptured, "\(civName(to)) captured \(name)", "flag", place: at, subject: .city(city))
                 }
 
+            case let .cityRevolted(city, name, from, _, at):
+                // Loyalty 0 (M2 §5.5): the city leaves its civ and becomes a Free City.
+                if from == me {
+                    add(.cityRevolted, "\(name) revolted and became a Free City!", "flag.slash.fill", tone: .bad,
+                        importance: .alarm, place: at, subject: .city(city))
+                } else {
+                    add(.cityRevolted, "\(name) revolted against \(civName(from)) and became a Free City", "flag.slash",
+                        place: at, subject: .city(city))
+                }
+
+            case let .cityJoined(city, name, _, to, at):
+                if to == me {
+                    add(.cityJoined, "The Free City of \(name) joined you!", "flag.fill", tone: .good, importance: .important,
+                        place: at, subject: .city(city))
+                } else {
+                    add(.cityJoined, "The Free City of \(name) joined \(civName(to))", "flag", place: at, subject: .city(city))
+                }
+
             case let .cityRazed(city, name, owner, at) where owner != me:
                 add(.cityRazed, "\(name) was razed", "flame", place: at, subject: .city(city))
 
@@ -633,7 +651,8 @@ enum NoticeMaker {
             var named: [CityID] = []
             for record in records {
                 switch record.event {
-                case let .cityFounded(city, _, _, _), let .cityCaptured(city, _, _, _, _): named.append(city)
+                case let .cityFounded(city, _, _, _), let .cityCaptured(city, _, _, _, _), let .cityRevolted(city, _, _, _, _),
+                     let .cityJoined(city, _, _, _, _): named.append(city)
                 default: break
                 }
             }

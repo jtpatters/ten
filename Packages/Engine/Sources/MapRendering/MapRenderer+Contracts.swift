@@ -327,6 +327,10 @@ extension MapRenderer {
 /// The players' colors and emblems, so the App draws banners, cards and chips in the map's
 /// heraldry (`PlayerPalette.swift`).
 public enum Heraldry {
+    /// The Free Cities (M2 §12.5), drawn in neutral grey: set by the App when a game opens,
+    /// before its renderer draws.
+    nonisolated(unsafe) public static var freeCities: PlayerID?
+
     public static func color(_ player: PlayerID) -> CGColor {
         Palette.player(player)
     }
@@ -341,7 +345,7 @@ public enum Heraldry {
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         // Sprite cells are drawn into their rect inset by a twentieth (`SpriteSet`).
         let edge = CGFloat(pixels)
-        UnitSprite.emblem(player: player.rawValue % Palette.playerStyles.count)
+        UnitSprite.emblem(player: Palette.styleIndex(player.rawValue))
             .draw(in: CGRect(x: 0, y: 0, width: edge, height: edge).insetBy(dx: edge / 20, dy: edge / 20), ctx: ctx)
         return ctx.makeImage()
     }

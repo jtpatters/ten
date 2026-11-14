@@ -252,7 +252,6 @@ extension MapRenderer {
         unitArt.tapSize = figureTapSize(footY: footY, d: d, growth: growth) * near + medallion * 1.2 / s * far
 
         let camX = camera.target.x
-        let players = Palette.playerStyles.count
         let bounds = visibleGround()
         let reach = max(far > 0 ? medallion : 0, s)
         var shown: [ShownUnit] = []
@@ -269,7 +268,7 @@ extension MapRenderer {
                 || p.y < bounds.lo.y - 2.6 * s - reach || p.y > bounds.hi.y + 1.5 * reach { continue }
             let hex = visual.moving ? nil : layout.hex(at: CGPoint(x: CGFloat(p.x), y: CGFloat(p.y)))
             // A unit is dimmed once its animations are over.
-            shown.append(ShownUnit(id: id, p: p, type: visual.type, owner: visual.owner.rawValue % players,
+            shown.append(ShownUnit(id: id, p: p, type: visual.type, owner: Palette.styleIndex(visual.owner.rawValue),
                                    dimmed: visual.dimmed && visual.steps.isEmpty, east: east, hex: hex, opacity: visual.opacity,
                                    flash: visual.flash, hp: Float(visual.hp) / 100, hpWas: Float(visual.hp) / 100 + visual.hpTrail,
                                    fortified: visual.fortified))
@@ -524,7 +523,7 @@ extension MapRenderer {
                 claim(nil)
             }
             for town in towns {
-                let owner = town.marker.owner.rawValue % players
+                let owner = Palette.styleIndex(town.marker.owner.rawValue)
                 sprites.append(cityToken(town, medallion: medallion, emblem: table.emblems[owner], opacity: far))
                 claim(state.map.normalize(town.marker.hex).map { PickTarget(hex: $0, city: town.marker.id) })
             }
