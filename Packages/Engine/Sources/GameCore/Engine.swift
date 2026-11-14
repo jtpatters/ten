@@ -254,6 +254,7 @@ public enum GameEngine {
         case let .purchase(cityID, item):
             let index = try ownedCity(cityID, by: player, in: state)
             let city = state.cities[index]
+            if case .quarter = item { throw .rejected(reason: "quarters cannot be bought") }
             if let problem = state.itemProblem(item, in: city) ?? state.completionProblem(item, in: city) {
                 throw .rejected(reason: problem)
             }
@@ -394,6 +395,19 @@ public enum GameEngine {
                 return "\(state.itemName(item)): \(problem)"
             }
             if case .building = item, items[..<i].contains(item) { return "\(state.itemName(item)) is queued twice" }
+            if case let .quarter(kind, at) = item {
+                for case let .quarter(k, a) in items[..<i] {
+                    if k == kind { return "\(state.itemName(item)) is queued twice" }
+                    if a == at { return "two quarters queued on one tile" }
+                }
+            }
+        }
+        let quarters = items.compactMap { item -> QuarterKind? in
+            if case let .quarter(kind, _) = item, state.countsTowardCap(kind) { return kind }
+            return nil
+        }
+        if !quarters.isEmpty, state.cappedQuarterCount(city) + quarters.count > state.quarterCap(of: city) {
+            return "at most \(state.quarterCap(of: city)) quarters at population \(city.population)"
         }
         return nil
     }
@@ -405,6 +419,7 @@ extension GameState {
         switch item {
         case let .unit(type): type.displayName
         case let .building(id): rules.building(id)?.name ?? id.rawValue
+        case let .quarter(kind, _): rules.quarter(kind)?.name ?? kind.rawValue
         }
     }
 }

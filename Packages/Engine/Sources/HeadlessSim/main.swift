@@ -416,10 +416,23 @@ struct GameReport {
             for b in state.stabilityBreakdowns(for: player.id).values {
                 sum.buildings += b.buildings; sum.luxuries += b.luxuries; sum.need += b.need
                 sum.empireSize += b.empireSize; sum.overcrowding += b.overcrowding; sum.occupied += b.occupied
+                sum.quarters += b.quarters
             }
         }
-        return "buildings \(sum.buildings), luxuries \(sum.luxuries), need −\(sum.need), empire \(sum.empireSize), "
-            + "overcrowding \(sum.overcrowding), occupied \(sum.occupied)"
+        return "buildings \(sum.buildings), luxuries \(sum.luxuries), quarters \(sum.quarters), need −\(sum.need), "
+            + "empire \(sum.empireSize), overcrowding \(sum.overcrowding), occupied \(sum.occupied)"
+    }
+
+    /// "quarters: 31 (campus 12, market 9, …)" and the buildings standing in them (M2 §5.3).
+    var quarterLine: String {
+        var kinds = [QuarterKind: Int](), buildings = [BuildingID: Int]()
+        for city in state.cities {
+            for q in city.quarters ?? [] { kinds[q.kind, default: 0] += 1 }
+            for b in city.buildings where state.rules.building(b)?.quarter != nil { buildings[b, default: 0] += 1 }
+        }
+        let total = kinds.values.reduce(0, +)
+        return "quarters: \(total) (" + kinds.keys.sorted().map { "\($0) \(kinds[$0]!)" }.joined(separator: ", ")
+            + "); in them " + buildings.keys.sorted().map { "\($0) \(buildings[$0]!)" }.joined(separator: ", ")
     }
 
     func playerLine(_ player: Player) -> String {
@@ -768,6 +781,7 @@ if options.games == 1 {
     if !report.state.rules.eras.isEmpty { print(report.eraLine) }
     if !report.state.rules.resources.isEmpty { print(report.resourceLine) }
     if report.state.rules.stability != nil { print(report.cityLine) }
+    if report.state.rules.quarters != nil { print(report.quarterLine) }
     if report.villages.enabled { print(report.villageLine) }
     print("outcome: " + report.outcomeLine)
     for player in state.players { print(report.playerLine(player)) }

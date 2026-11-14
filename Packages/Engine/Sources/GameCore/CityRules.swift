@@ -88,6 +88,14 @@ extension GameState {
             if city.has(id) { return "already built" }
             if let tech = def.tech, !player.knows(tech) { return "needs \(techName(tech))" }
             if def.requiresRiver == true, map.tiles[map.index(of: city.position)!].riverEdges == 0 { return "needs a river" }
+            if let kind = def.quarter {
+                guard let q = quarter(kind, of: city) else { return "needs a \(rules.quarter(kind)?.name ?? kind.rawValue)" }
+                if q.isPillaged { return "its quarter is pillaged" }
+            }
+            if let other = def.requires, !city.has(other) { return "needs \(rules.building(other)?.name ?? other.rawValue)" }
+            if let other = def.excludes, city.has(other) { return "not with \(rules.building(other)?.name ?? other.rawValue)" }
+        case let .quarter(kind, at):
+            if let problem = quarterKindProblem(kind, in: city) ?? quarterSiteProblem(kind, at: at, in: city) { return problem }
         }
         return nil
     }
@@ -97,6 +105,9 @@ extension GameState {
     /// Why a finished `item` could not appear now (nil: it can): a unit needs the city's
     /// population and a tile to stand on. Such an item waits.
     func completionProblem(_ item: ProductionItem, in city: City) -> String? {
+        if case let .quarter(kind, at) = item {
+            return quarterKindProblem(kind, in: city) ?? quarterSiteProblem(kind, at: at, in: city)
+        }
         guard case let .unit(type) = item else { return nil }
         let def = rules.unit(type)
         if city.population < def.minPopulation { return "needs population \(def.minPopulation)" }
@@ -148,6 +159,9 @@ extension GameState {
             fx.touchTile(map.index(of: city.position)!)
             fx.emit(.productionCompleted(city: city.id, item: item, at: city.position), .owner(city.owner))
             if def.food != 0 { assignCitizens(index) }
+        case let .quarter(kind, at):
+            buildQuarter(kind, at: at, inCity: index, &fx)
+            fx.emit(.productionCompleted(city: city.id, item: item, at: city.position), .owner(city.owner))
         }
     }
 
@@ -168,7 +182,7 @@ extension GameState {
             return
         }
         let item = city.queue[slot].item
-        let cost = rules.cost(of: item)
+        let cost = cost(of: city.queue[slot])
         let progress = city.queue[slot].progress + production + city.storedProgress
         cities[index].storedProgress = 0
         guard progress >= cost else {
@@ -215,7 +229,9 @@ extension GameState {
             if let i = old.firstIndex(where: { $0.item == item }) {
                 queue.append(old.remove(at: i))
             } else {
-                queue.append(QueueEntry(item))
+                var entry = QueueEntry(item)
+                if case let .quarter(kind, _) = item { entry.cost = quarterCost(kind) }
+                queue.append(entry)
             }
         }
         cities[index].storedProgress += old.reduce(0) { $0 + $1.progress }
@@ -233,6 +249,9 @@ extension GameState {
         }
         complete(item, inCity: index, &fx)
     }
+
+    /// The production a queue entry needs: a quarter's fixed cost, else the rules'.
+    public func cost(of entry: QueueEntry) -> Int { entry.cost ?? rules.cost(of: entry.item) }
 
     /// The gold price of an item (M1 §5).
     public func purchasePrice(of item: ProductionItem) -> Int {

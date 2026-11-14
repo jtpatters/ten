@@ -68,6 +68,9 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     /// Stability.
     public let housing: HousingRules?
     public let stability: StabilityRules?
+    /// Quarters (M2 §5.3); nil without the section: no quarters, and buildings needing one
+    /// cannot be built.
+    public let quarters: QuarterRules?
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
@@ -127,6 +130,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         embark = data.embark
         housing = data.housing
         stability = data.stability
+        quarters = data.quarters
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -168,16 +172,25 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public func focus(_ focus: CityFocus) -> FocusDef { focuses[focus.ordinal] }
 
     public func building(_ id: BuildingID) -> BuildingDef? { buildings.first { $0.id == id } }
+    public func quarter(_ kind: QuarterKind) -> QuarterDef? { quarters?.kinds.first { $0.id == kind } }
     public func tech(_ id: TechID) -> TechDef? { techs.first { $0.id == id } }
     /// Position in tree order.
     public func techIndex(_ id: TechID) -> Int? { techs.firstIndex { $0.id == id } }
     public func civ(_ id: CivID) -> CivDef? { civs.first { $0.id == id } }
 
-    /// Production cost of a queue item (0 for an unknown building).
+    /// A quarter's cost in world era `worldEra` (M2 §5.3): its flat cost, or base + perEra × era.
+    public func quarterCost(_ kind: QuarterKind, worldEra: Int) -> Int {
+        guard let q = quarters, let def = quarter(kind) else { return 0 }
+        return def.cost ?? q.base + q.perEra * worldEra
+    }
+
+    /// Production cost of a queue item (0 for an unknown building). A quarter's is its cost in
+    /// the first era; the queue entry keeps the cost fixed when it was queued.
     public func cost(of item: ProductionItem) -> Int {
         switch item {
         case let .unit(type): unit(type).cost
         case let .building(id): building(id)?.cost ?? 0
+        case let .quarter(kind, _): quarterCost(kind, worldEra: 0)
         }
     }
 
@@ -186,6 +199,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         switch item {
         case let .unit(type): unit(type).tech
         case let .building(id): building(id)?.tech
+        case let .quarter(kind, _): quarter(kind)?.tech
         }
     }
 
@@ -338,6 +352,7 @@ struct RulesetData: Codable, Hashable, Sendable {
     var embark: EmbarkRules?
     var housing: HousingRules?
     var stability: StabilityRules?
+    var quarters: QuarterRules?
 }
 
 /// What a resource is for (M2 §3.1).
@@ -437,6 +452,54 @@ public struct StabilityRules: Codable, Hashable, Sendable {
     public let unrest: Int
     public let unrestPct: Int
     public let revolt: Int
+}
+
+/// Quarters (M2 §5.3).
+public struct QuarterRules: Codable, Hashable, Sendable {
+    /// Cost: base + perEra × world era, fixed when queued (a kind's flat `cost` instead).
+    public let base: Int
+    public let perEra: Int
+    /// Within this distance of the centre, in the city's territory.
+    public let radius: Int
+    /// At most 1 + population / `populationPerQuarter` quarters (`capExempt` kinds aside).
+    public let populationPerQuarter: Int
+    public let kinds: [QuarterDef]
+}
+
+/// A quarter kind (M2 §5.3).
+public struct QuarterDef: Codable, Hashable, Sendable {
+    public let id: QuarterKind
+    public let name: String
+    public let tech: TechID?
+    /// A civic that unlocks it (M2 §7); until civics exist such a quarter cannot be built.
+    public let civic: String?
+    /// The yield its adjacency gives ("science", "gold", "production", "culture"); nil = none.
+    public let yield: String?
+    public let adjacency: [AdjacencyDef]
+    /// "water": Coast or Lake next to the city's land; "centreFreshWater": next to the centre and
+    /// to a river, lake or mountain; "notNextToCentre".
+    public let placement: String?
+    /// A flat cost (Aqueduct).
+    public let cost: Int?
+    /// Not counted in the cap (Aqueduct).
+    public let capExempt: Bool?
+    /// Housing in its city; `housingNoFreshWater` instead when the city has no fresh water.
+    public let housing: Int?
+    public let housingNoFreshWater: Int?
+    /// Stability in every own city within `stabilityReach` (the best one counts, not cumulative);
+    /// its buildings' Stability goes to the same reach.
+    public let stability: Int?
+    public let stabilityReach: Int?
+}
+
+/// One adjacency term (M2 §5.3), in halves. `kind`: "mountain", "feature" (`targets`: feature
+/// names), "improvement" (`targets`: improvement names), "quarter" (any quarter of the owner),
+/// "quarterKind" (`targets`: kinds), "river" (the quarter's own tile), "seaResource",
+/// "cityCentre" (its city's centre).
+public struct AdjacencyDef: Codable, Hashable, Sendable {
+    public let kind: String
+    public let targets: [String]?
+    public let halves: Int
 }
 
 /// Embarked land units and naval units (M2 §8.4).
@@ -660,6 +723,11 @@ public struct BuildingDef: Codable, Hashable, Sendable {
     public let stability: Int?
     /// Only in a city on a river (Water Mill).
     public let requiresRiver: Bool?
+    /// Only in a city with this quarter (M2 §5.4); nil = the centre.
+    public let quarter: QuarterKind?
+    /// Only in a city with this building (Castle: Walls); never with `excludes` (Barracks, Stable).
+    public let requires: BuildingID?
+    public let excludes: BuildingID?
 
     public var yields: Yields { Yields(food: food, production: production, gold: gold, science: science, culture: culture) }
 }

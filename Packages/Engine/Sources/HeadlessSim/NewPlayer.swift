@@ -482,8 +482,10 @@ struct NewPlayer {
                 switch item {
                 case let .building(b):
                     guard let def = rules.building(b), !city.has(b) else { return false }
+                    if let kind = def.quarter, city.quarters?.contains(where: { $0.kind == kind }) != true { return false }
                     return def.tech.map(v.me.knows) ?? true
                 case let .unit(t): return rules.unit(t).tech.map(v.me.knows) ?? true
+                case .quarter: return false
                 }
             }
             urgent = urgent.filter(ok)

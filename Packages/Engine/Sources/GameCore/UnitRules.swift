@@ -59,6 +59,7 @@ extension GameState {
         let t = map.index(of: unit.position)!
         guard tileOwner(t) == unit.owner else { return "tile not in your territory" }
         guard city(atTile: t) == nil else { return "not on a city centre" }
+        guard !isQuarterTile(t) else { return "not on a quarter" }
         let repair = map.tiles[t].isPillaged && map.tiles[t].improvement == improvement
         guard map.tiles[t].improvement == nil || repair else { return "tile already improved" }
         guard rules.allowsImprovement(improvement, on: map.tiles[t], resource: knownResource(at: t, for: unit.owner)) else { return "\(def.displayName) not allowed here" }
