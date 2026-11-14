@@ -216,6 +216,8 @@ extension PlayerView {
             var tile = state.map.tiles[t]
             guard rules.isWorkable(tile) else { return }
             tile.improvement = Improvement(rawValue: me.memory.tileImprovement[t])
+            tile.road = me.memory.remembersRoad(t) ? true : nil
+            if !me.visible[t] { tile.pillaged = nil }
             let y = rules.tileYields(tile, knows: knows, isCityCentre: t == centre)
             total.food += y.food
             total.production += y.production

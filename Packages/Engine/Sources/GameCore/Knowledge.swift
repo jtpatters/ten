@@ -43,6 +43,11 @@ public struct PlayerMemory: Codable, Hashable, Sendable {
     /// Tribal villages seen and not seen gone since (M1 §7.7): tile indices, sorted and unique;
     /// nil when there are none (never empty), so the key is absent from saves without them.
     public internal(set) var tribalVillages: [Int32]?
+    /// Raider camps remembered (M2 §11): sorted tile indices; nil rather than empty.
+    public internal(set) var raiderCamps: [Int32]?
+    /// Roads last seen (M2 §3.4); nil when none (never empty), so the key is absent from saves
+    /// without them.
+    public internal(set) var tileRoad: TileBitSet?
 
     public init(tileCount: Int) {
         tileOwner = Array(repeating: 0, count: tileCount)
@@ -50,6 +55,18 @@ public struct PlayerMemory: Codable, Hashable, Sendable {
         cities = []
         units = []
         tribalVillages = nil
+    }
+
+    public func remembersRoad(_ t: Int) -> Bool { tileRoad?[t] ?? false }
+
+    mutating func rememberRoad(at t: Int, _ road: Bool) {
+        if road {
+            if tileRoad == nil { tileRoad = TileBitSet(count: tileOwner.count) }
+            tileRoad![t] = true
+        } else if tileRoad?[t] == true {
+            tileRoad![t] = false
+            if tileRoad!.isEmpty { tileRoad = nil }
+        }
     }
 
     public func city(_ id: CityID) -> CitySighting? {
@@ -117,11 +134,15 @@ extension GameState {
         }
         if !cities.isEmpty {
             let owners = cityOwnerTable()
+            let patrons = minors == nil ? [] : patronTable()
             for t in 0..<count {
                 let code = tileCity[t]
                 guard code != 0 else { continue }
                 let o = owners[Int(code) - 1]
-                if o >= 0, mask & (1 << UInt64(o)) != 0 { result[o][t] = true }
+                guard o >= 0 else { continue }
+                if mask & (1 << UInt64(o)) != 0 { result[o][t] = true }
+                // A Patron sees its minors' territory (M2 §12.2).
+                if !patrons.isEmpty, patrons[o] >= 0, mask & (1 << UInt64(patrons[o])) != 0 { result[patrons[o]][t] = true }
             }
         }
         return result
@@ -131,7 +152,10 @@ extension GameState {
     /// visibility is recomputed for `fx.dirtyPlayers`; memory refreshes for newly visible tiles
     /// and for `fx.dirtyTiles` that are visible. Emits `playersMet`.
     mutating func updateKnowledge(_ fx: inout Effects) {
-        let recompute = fx.dirtyPlayers
+        var recompute = fx.dirtyPlayers
+        for m in minors ?? [] where recompute & (1 << UInt64(m.player.rawValue)) != 0 {
+            if let p = m.patron { recompute |= 1 << UInt64(p.rawValue) }
+        }
         fx.dirtyPlayers = 0
         let territory = (recompute != 0 || !fx.dirtyTiles.isEmpty) ? territoryCodes() : []
 
@@ -165,8 +189,14 @@ extension GameState {
         if players[p.rawValue].memory.tileImprovement[t] != improvement {
             players[p.rawValue].memory.tileImprovement[t] = improvement
         }
+        if map.tiles[t].hasRoad != players[p.rawValue].memory.remembersRoad(t) {
+            players[p.rawValue].memory.rememberRoad(at: t, map.tiles[t].hasRoad)
+        }
         if tribalVillages != nil || players[p.rawValue].memory.tribalVillages != nil {
             players[p.rawValue].memory.rememberTribalVillage(at: t, standing: holdsTribalVillage(t))
+        }
+        if raiders != nil || players[p.rawValue].memory.raiderCamps != nil {
+            players[p.rawValue].memory.rememberRaiderCamp(at: t, standing: holdsRaiderCamp(t))
         }
         if owner != 0, Int(owner) - 1 != p.rawValue { meet(p, PlayerID(Int(owner) - 1), &fx) }
     }

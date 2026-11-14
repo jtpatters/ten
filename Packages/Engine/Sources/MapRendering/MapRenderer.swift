@@ -250,6 +250,8 @@ public final class MapRenderer: NSObject {
     var cityArt = CityArtState()
     /// Border and movement-range ribbons, owned by `MapRenderer+Territory.swift`.
     var territoryArt = TerritoryArtState()
+    /// The road ribbons (`MapRenderer+Roads.swift`).
+    var roadArt = RoadArtState()
     /// Render-target pixels per view point (2 on Retina).
     private var pixelScale: Float = 2
     /// GPU time of the last `renderImage` call (tests and benchmarks).

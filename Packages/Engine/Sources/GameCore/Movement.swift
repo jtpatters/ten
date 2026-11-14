@@ -43,6 +43,12 @@ struct MoveKnowledge {
     /// Per elevation / feature raw value: no extra move cost for this unit (promotions).
     let freeElevation: [Bool]
     let freeFeature: [Bool]
+    /// Remembered roads (M2 §3.3) and whether road steps ignore rivers for this player.
+    let roads: TileBitSet
+    let bridges: Bool
+    /// Water and naval movement (M2 §8.4).
+    let mobility: Mobility
+    let maxMoves: Int
 
     init(state: GameState, unit: Unit) {
         let me = state.players[unit.owner.rawValue]
@@ -71,7 +77,9 @@ struct MoveKnowledge {
                     if !(isMilitary && atWar[other.owner.rawValue]) { blocked[t] = true }
                 } else {
                     blocked[t] = true
-                    if atWar[other.owner.rawValue], !ignoresZOC || state.holdsZOC(other) { map.forEachNeighbor(of: t) { n, _ in zoc[n] = true } }
+                    if atWar[other.owner.rawValue], !ignoresZOC || state.holdsZOC(other) {
+                        map.forEachNeighbor(of: t) { n, _ in if state.zocReaches(other, from: t, to: n) { zoc[n] = true } }
+                    }
                 }
             } else if other.id != unit.id, other.type.isCivilian == unit.type.isCivilian {
                 occupied[t] = true
@@ -85,17 +93,24 @@ struct MoveKnowledge {
         for city in state.cities where city.owner == unit.owner {
             ownCities[map.index(of: city.position)!] = true
         }
+        if state.isRaider(unit.owner), let villages = state.tribalVillages {
+            for site in villages.sites { blocked[Int(site)] = true }
+        }
         self.blocked = blocked
         self.occupied = occupied
         self.ownCities = ownCities
         self.zoc = zoc
         (freeElevation, freeFeature) = state.freeMove(unit)
+        roads = me.memory.tileRoad ?? TileBitSet(count: count)
+        bridges = state.rules.roads.map { me.knows($0.riverTech) } ?? false
+        mobility = state.mobility(unit.type, owner: unit.owner)
+        maxMoves = state.maxMoves(of: unit)
     }
 
     /// The unit may enter (and pass through) tile `t`, as far as its player knows.
     @inline(__always)
     func canEnter(_ t: Int) -> Bool {
-        if explored[t], !rules.isPassable(map.tiles[t]) { return false }
+        if explored[t], !mobility.allows(map.tiles[t], ownCity: ownCities[t], rules: rules) { return false }
         return !blocked[t] && !closed[Int(memoryOwner[t])]
     }
 
@@ -109,6 +124,10 @@ struct MoveKnowledge {
     /// from either explored side).
     @inline(__always)
     func cost(from: Int, to: Int, _ direction: HexDirection) -> Int {
+        if let step = GameState.embarkStep(naval: mobility.naval, fromWater: explored[from] && map.tiles[from].terrain.isWater,
+                                           toWater: explored[to] && map.tiles[to].terrain.isWater, maxMoves: maxMoves, rules: rules) {
+            return step
+        }
         var cost = 1
         if explored[to] {
             let tile = map.tiles[to]
@@ -123,8 +142,29 @@ struct MoveKnowledge {
         } else {
             river = false
         }
-        if river { cost += rules.river.crossingMoveCost }
-        return cost
+        return rules.stepPoints(cost, crossesRiver: river, road: roads[from] && roads[to], bridges: bridges)
+    }
+}
+
+extension Ruleset {
+    /// Move points for one step (M2 §3.3): the M1 cost `terrain` (plus the river crossing) ×
+    /// `movePoints`; from a road tile to a road tile `roadCost`, plus the crossing unless
+    /// `bridges`.
+    @inline(__always)
+    func stepPoints(_ terrain: Int, crossesRiver: Bool, road: Bool, bridges: Bool) -> Int {
+        let crossing = crossesRiver ? river.crossingMoveCost * movePoints : 0
+        if road, let roads { return roads.roadCost + (bridges ? 0 : crossing) }
+        return terrain * movePoints + crossing
+    }
+
+    /// `moves` M1 moves in move points: what movement fields and `movesLeft` count.
+    public func points(_ moves: Int) -> Int { moves * movePoints }
+
+    /// Move points as moves for display (M2 §3.3): "2", "1⅓", "⅔".
+    public func movesText(_ points: Int) -> String {
+        let whole = points / movePoints, part = points % movePoints
+        let fraction = part == 0 ? "" : movePoints == 3 ? (part == 1 ? "⅓" : "⅔") : "+\(part)/\(movePoints)"
+        return whole == 0 && !fraction.isEmpty ? fraction : "\(whole)" + fraction
     }
 }
 
@@ -132,21 +172,22 @@ extension GameState {
     // MARK: The real world
 
     /// Movement points for a land unit to step from tile `from` to its neighbor `to`.
-    func moveCost(from: Int, to: Int, _ direction: HexDirection,
+    func moveCost(from: Int, to: Int, _ direction: HexDirection, owner: PlayerID? = nil,
                   free: (elevations: [Bool], features: [Bool])? = nil) -> Int {
         let tile = map.tiles[to]
         var cost = 1
         if free?.elevations[Int(tile.elevation.rawValue)] != true { cost += rules.elevation(tile.elevation).moveCost }
         if free?.features[Int(tile.feature.rawValue)] != true, !(rules.feature(tile.feature).removedByCity && city(atTile: to) != nil) { cost += rules.feature(tile.feature).moveCost }
-        if map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0 { cost += rules.river.crossingMoveCost }
-        return cost
+        let river = map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0
+        let bridges = rules.roads.flatMap { r in owner.map { players[$0.rawValue].knows(r.riverTech) } } ?? false
+        return rules.stepPoints(cost, crossesRiver: river, road: map.tiles[from].hasRoad && tile.hasRoad, bridges: bridges)
     }
 
     /// Whether `unit` may enter (or pass through) tile `t`: passable, no foreign unit (except
     /// civilians alone of a player a military unit is at war with: it captures them), no
     /// foreign city, and not territory closed to it.
     func mayEnter(_ t: Int, _ unit: Unit) -> Bool {
-        guard rules.isPassable(map.tiles[t]) else { return false }
+        guard terrainAllows(t, unit.type, owner: unit.owner) else { return false }
         let hex = map.coord(at: t)
         let military = !unit.type.isCivilian
         for other in units where other.position == hex && other.owner != unit.owner {
@@ -194,7 +235,8 @@ extension GameState {
         var zoc = TileBitSet(count: map.tileCount)
         let map = self.map
         for u in units where !u.type.isCivilian && isAtWar(player, u.owner) && (!ignores || holdsZOC(u)) {
-            map.forEachNeighbor(of: map.index(of: u.position)!) { n, _ in zoc[n] = true }
+            let t = map.index(of: u.position)!
+            map.forEachNeighbor(of: t) { n, _ in if zocReaches(u, from: t, to: n) { zoc[n] = true } }
         }
         for c in cities where !ignores && isAtWar(player, c.owner) {
             map.forEachNeighbor(of: map.index(of: c.position)!) { n, _ in zoc[n] = true }
@@ -217,6 +259,7 @@ extension GameState {
         guard let start = unit(id), var here = map.index(of: start.position) else { return }
         let zoc = zoneOfControl(for: start)
         let free = freeMove(start)
+        let full = maxMoves(of: start)
         var movesLeft = start.movesLeft
         var moved: [HexCoord] = []
         var stop = (steps: 0, moves: movesLeft) // the last tile it may stop on
@@ -230,7 +273,10 @@ extension GameState {
                 interrupted = true
                 break
             }
-            let after = movesLeft - min(movesLeft, moveCost(from: here, to: next, direction, free: free))
+            let cost = Self.embarkStep(naval: start.type.isNaval, fromWater: map.tiles[here].terrain.isWater,
+                                       toWater: map.tiles[next].terrain.isWater, maxMoves: full, rules: rules)
+                ?? moveCost(from: here, to: next, direction, owner: start.owner, free: free)
+            let after = movesLeft - min(movesLeft, cost)
             let stoppable = mayStop(next, start)
             let inZOC = zoc?[next] ?? false
             if after == 0 || inZOC, !stoppable {
@@ -274,10 +320,13 @@ extension GameState {
             if !start.type.isCivilian {
                 for t in tiles.dropFirst() { captureCivilians(at: t, by: start.owner, &fx) }
             }
-            if tribalVillages != nil {
+            if tribalVillages != nil, !isRaider(start.owner) {
                 for t in tiles.dropFirst() where holdsTribalVillage(t) {
                     takeTribalVillage(at: t, by: start.owner, unit: id, city: nil, &fx)
                 }
+            }
+            if raiders != nil, players[start.owner.rawValue].isMajor {
+                for t in tiles.dropFirst() where holdsRaiderCamp(t) { clearRaiderCamp(at: t, by: start.owner, &fx) }
             }
         }
         if interrupted {

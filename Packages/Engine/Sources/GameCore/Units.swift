@@ -12,13 +12,26 @@ public enum UnitType: String, Codable, Sendable, CaseIterable {
     case settler, builder, scout, warrior, archer, spearman
     // M2 §8.1 (appended; naval units, the Trader and unique units come later).
     case horseman, heavyChariot, swordsman, catapult, manAtArms, crossbowman, pikeman, knight, trebuchet
+    // M2 §8.4 (appended).
+    case galley, quadrireme, cog, dromon
+    // M2 §8.4, §13 (appended).
+    case trader
 
     /// Hard-coded; rules validation checks it matches the data's unit class.
     public var isCivilian: Bool {
         switch self {
-        case .settler, .builder: true
+        case .settler, .builder, .trader: true
         case .scout, .warrior, .archer, .spearman: false
         case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: false
+        case .galley, .quadrireme, .cog, .dromon: false
+        }
+    }
+
+    /// Hard-coded; rules validation checks it matches the data's unit class.
+    public var isNaval: Bool {
+        switch self {
+        case .galley, .quadrireme, .cog, .dromon: true
+        default: false
         }
     }
 
@@ -38,7 +51,7 @@ public enum UnitActivity: String, Codable, Hashable, Sendable {
 
 public struct Unit: Codable, Hashable, Sendable {
     public let id: UnitID
-    public let owner: PlayerID
+    public internal(set) var owner: PlayerID
     public var type: UnitType
     public var position: HexCoord
     public var movesLeft: Int

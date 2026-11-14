@@ -8,6 +8,11 @@ public struct PlayerID: Hashable, Codable, Sendable, Comparable, CustomStringCon
 }
 
 /// One player: civ, treasury, research and knowledge (M1 §12.3). `players[i].id == PlayerID(i)`.
+/// M2 §12.5, §20: the Free Cities are a fixed non-player faction after the civs.
+public enum PlayerKind: String, Codable, Hashable, Sendable {
+    case major, free, raiders, minor
+}
+
 public struct Player: Codable, Hashable, Sendable {
     public let id: PlayerID
     public var name: String
@@ -46,9 +51,39 @@ public struct Player: Codable, Hashable, Sendable {
     /// Strategic stockpiles in `Resource.allCases` order (M2 §3.1). Nil until the first
     /// (left out of saves).
     public internal(set) var stockpile: [Int]?
+    /// What kind of player this is (M2 §12.5); nil is a major civ (left out of saves).
+    public internal(set) var kind: PlayerKind?
+    /// The civic Culture goes into (M2 §7.1); nil: Culture banks as progress.
+    public internal(set) var studying: CivicID?
+    /// The civic `setCivic` asked for; `studying` walks its missing prerequisites first.
+    public internal(set) var civicTarget: CivicID?
+    /// Culture toward `studying` (or banked). Nil until the first (left out of saves).
+    public internal(set) var civicProgress: Int?
+    /// Completed civics, sorted. Nil until the first (left out of saves).
+    public internal(set) var knownCivics: [CivicID]?
+    /// Civics whose Insight fired, sorted. Nil until the first (left out of saves).
+    public internal(set) var civicInsights: [CivicID]?
+    /// nil: the rules' default government (M2 §7.2).
+    public internal(set) var government: String?
+    /// Sorted; governments adopted at least once (the default is implied).
+    public internal(set) var governmentsAdopted: [String]?
+    /// Slotted policy ids.
+    public internal(set) var policies: [String]?
+    /// The turn a civic last completed: government and policy changes are free on it.
+    public internal(set) var freeChangeTurn: Int?
+    /// Influence toward the next envoy token (M2 §4.3).
+    public internal(set) var influence: Int?
+    public internal(set) var envoyTokens: Int?
+    public internal(set) var envoysEarned: Int?
+
+    /// A civ that takes phases, researches and can win; not the Free Cities.
+    public var isMajor: Bool { kind == nil || kind == .major }
+    /// Takes phases: the civs and the raiders (M2 §11); not the Free Cities.
+    public var takesPhases: Bool { isMajor || kind == .raiders || kind == .minor }
 
     /// A new, living player with nothing yet. An empty `civ` is filled in by `GameState.init`.
-    public init(id: PlayerID, name: String, isHuman: Bool, tileCount: Int, civ: CivID = "", gold: Int = 0) {
+    public init(id: PlayerID, name: String, isHuman: Bool, tileCount: Int, civ: CivID = "", gold: Int = 0,
+                kind: PlayerKind? = nil) {
         self.id = id
         self.name = name
         self.isHuman = isHuman
@@ -69,6 +104,7 @@ public struct Player: Codable, Hashable, Sendable {
         self.techCredit = nil
         self.insights = nil
         self.stockpile = nil
+        self.kind = kind
     }
 
     public func knows(_ tech: TechID) -> Bool { knownTechs.contains(tech) }
@@ -121,6 +157,13 @@ public struct GameState: Codable, Hashable, Sendable {
     /// them, so the key is absent from saves and the state hash. Internal: players learn of
     /// them only through their memory (`PlayerView.knownTribalVillages`).
     var tribalVillages: TribalVillageState?
+    /// Raider camps and rebels (M2 §11); nil in a game without raiders.
+    public internal(set) var raiders: RaiderState?
+    /// Minor factions (M2 §12), in player order; nil in a game without them.
+    public internal(set) var minors: [MinorFaction]?
+    /// Trade routes by id (M2 §13); nil while there are none.
+    public internal(set) var tradeRoutes: [TradeRoute]?
+    public internal(set) var nextRouteID: Int?
     /// The world era's index (M2 §2); nil in a game whose rules have no eras (left out of saves).
     public internal(set) var worldEra: Int?
 
@@ -140,7 +183,7 @@ public struct GameState: Codable, Hashable, Sendable {
         self.map = map
         var players = players
         var free = rules.civs.map(\.id).filter { civ in !players.contains { $0.civ == civ } }
-        for i in players.indices where players[i].civ.rawValue.isEmpty {
+        for i in players.indices where players[i].civ.rawValue.isEmpty && players[i].isMajor {
             players[i].civ = free.isEmpty ? rules.civs[i % rules.civs.count].id : free.removeFirst()
         }
         if !players.isEmpty { players[0].lastPhaseStart = 1 }
@@ -152,7 +195,11 @@ public struct GameState: Codable, Hashable, Sendable {
         self.tileCity = Array(repeating: 0, count: map.tileCount)
         var relations: [Relation] = []
         for i in players.indices {
-            for j in players.indices where j > i { relations.append(Relation(PlayerID(i), PlayerID(j))) }
+            for j in players.indices where j > i {
+                var relation = Relation(PlayerID(i), PlayerID(j))
+                if [players[i].kind, players[j].kind].contains(where: { $0 == .free || $0 == .raiders }) { relation.stance = .war }
+                relations.append(relation)
+            }
         }
         self.relations = relations
         self.outcome = nil
@@ -167,14 +214,32 @@ public struct GameState: Codable, Hashable, Sendable {
     /// in a start's sight are known on turn 1.
     public static func newGame(seed: UInt64, map: HexMap, startPositions: [HexCoord], humanPlayers: Set<Int> = [0],
                                rules: Ruleset = .standard, civs: [CivID]? = nil, mapSizeName: String = "",
-                               placeTribalVillages: Bool = false) -> GameState {
-        let players = startPositions.indices.map { i -> Player in
+                               placeTribalVillages: Bool = false, placeMinors: Bool = false) -> GameState {
+        var players = startPositions.indices.map { i -> Player in
             let civ = civs.flatMap { i < $0.count ? $0[i] : nil } ?? rules.civs[i % rules.civs.count].id
             let name = rules.civ(civ)?.name ?? "Player \(i + 1)"
             return Player(id: PlayerID(i), name: name, isHuman: humanPlayers.contains(i), tileCount: map.tileCount,
                           civ: civ, gold: rules.constants.start.gold)
         }
+        let minorSites = placeMinors ? minorSites(map: map, starts: startPositions, rules: rules, seed: seed,
+                                                  count: rules.minors?.count(mapSize: mapSizeName) ?? 0) : []
+        let minorPlayers = minorPlayers(sites: minorSites, firstID: players.count, rules: rules, seed: seed, tileCount: map.tileCount)
+        players += minorPlayers.map(\.0)
+        if rules.raiders != nil {
+            players.append(Player(id: PlayerID(players.count), name: "Raiders", isHuman: false,
+                                  tileCount: map.tileCount, kind: .raiders))
+        }
+        if rules.loyalty != nil {
+            players.append(Player(id: PlayerID(players.count), name: "Free Cities", isHuman: false,
+                                  tileCount: map.tileCount, kind: .free))
+        }
         var state = GameState(seed: seed, map: map, players: players, rules: rules, mapSizeName: mapSizeName)
+        if rules.raiders != nil { state.raiders = RaiderState() }
+        var setupFx = Effects()
+        if !minorPlayers.isEmpty {
+            state.minors = minorPlayers.map { MinorFaction(player: $0.0.id, type: $0.1, envoys: [Int](repeating: 0, count: players.count)) }
+            state.foundMinorCities(at: minorSites, &setupFx)
+        }
         for (i, start) in startPositions.enumerated() {
             let owner = PlayerID(i)
             for type in rules.constants.start.units {
@@ -225,10 +290,11 @@ public struct GameState: Codable, Hashable, Sendable {
     mutating func insertUnit(_ type: UnitType, owner: PlayerID, at position: HexCoord, movesLeft: Int? = nil,
                              charges: Int? = nil) -> UnitID {
         let def = rules.unit(type)
+        let extraCharges = def.charges > 0 ? bonus(\.builderCharges, for: owner) + bonus(\.newBuilderCharges, for: owner) : 0
         let id = UnitID(nextUnitID)
         nextUnitID += 1
         units.append(Unit(id: id, owner: owner, type: type, position: map.normalize(position)!,
-                          movesLeft: movesLeft ?? def.moves, charges: charges ?? def.charges, hp: rules.constants.healing.maxHP))
+                          movesLeft: movesLeft ?? def.moves * rules.movePoints, charges: charges ?? def.charges + extraCharges, hp: rules.constants.healing.maxHP))
         return id
     }
 
@@ -335,8 +401,11 @@ public struct GameState: Codable, Hashable, Sendable {
 
     // MARK: Players
 
-    /// Living players, in player order.
-    public var livingPlayers: [PlayerID] { players.filter(\.isAlive).map(\.id) }
+    /// Living major players, in player order (not the Free Cities).
+    public var livingPlayers: [PlayerID] { players.filter { $0.isAlive && $0.isMajor }.map(\.id) }
+
+    /// The Free Cities faction (M2 §12.5), when the rules have Loyalty.
+    public var freeCities: PlayerID? { players.last.flatMap { $0.kind == .free ? $0.id : nil } }
 
     // MARK: Visibility
 

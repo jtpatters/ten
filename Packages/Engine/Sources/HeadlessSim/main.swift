@@ -61,6 +61,7 @@ enum Mode: String { case random, scripted, ai }
 struct Options {
     var mode = Mode.random
     var size = MapSize.standard
+    var script = MapScript.pangaea
     var seed: UInt64 = 42
     var turns = 50
     var games = 1
@@ -99,6 +100,7 @@ while let arg = args.next() {
     case "--scripted": parsed.mode = .scripted
     case "--ai": parsed.mode = .ai
     case "--size": parsed.size = args.next().flatMap(MapSize.init(rawValue:)) ?? parsed.size
+    case "--script": parsed.script = args.next().flatMap(MapScript.init(rawValue:)) ?? parsed.script
     case "--seed": parsed.seed = args.next().flatMap { UInt64($0) } ?? parsed.seed
     case "--turns": parsed.turns = args.next().flatMap { Int($0) } ?? parsed.turns
     case "--games": parsed.games = max(1, args.next().flatMap { Int($0) } ?? parsed.games)
@@ -118,7 +120,7 @@ while let arg = args.next() {
     case "--newbie-rush": parsed.newbieRush = true
     case "--placement-timing": parsed.placementTiming = true
     default:
-        print("usage: headless-sim [--random | --scripted | --ai] [--games N] [--size duel|small|standard|large] [--seed N] "
+        print("usage: headless-sim [--random | --scripted | --ai] [--games N] [--size duel|small|standard|large] [--script pangaea|continents|archipelago] [--seed N] "
             + "[--turns N] [--extra-units N] [--check-every-phase] [--trace] [--narrate] [--lint-detail] [--p0 ai|scripted|turtle|newbie|shadow] "
             + "[--profile] [--early] [--rules ruleset.json] [--starts] [--newbie-rush] [--placement-timing]")
         print("  early-game checks: --ai --games 40 --size duel --seed 1 --turns 80 --p0 newbie --early")
@@ -221,20 +223,43 @@ struct Profile {
 /// Counts of the events that show combat, capture and diplomacy happened.
 struct EventCounts {
     var combats = 0, kills = 0, civiliansCaptured = 0, citiesCaptured = 0, citiesRazed = 0, citiesFounded = 0
-    var wars = 0, peaces = 0, eliminations = 0
+    var wars = 0, peaces = 0, eliminations = 0, citiesRevolted = 0, citiesJoined = 0
+    var campsAppeared = 0, campsCleared = 0, citiesSacked = 0, rebels = 0, raiderCasualties = 0
+    var envoys = 0, patronChanges = 0, quests = 0, levies = 0, minorsEliminated = 0
+    var routesStarted = 0, routesPlundered = 0
+    /// The minors' players, for their eliminations.
+    var minorPlayers: [PlayerID] = []
+    /// The raiders' player, for their casualties.
+    var raider: PlayerID?
 
     mutating func add(_ records: [EventRecord]) {
         for record in records {
             switch record.event {
             case .combat: combats += 1
-            case .unitKilled: kills += 1
+            case let .unitKilled(_, _, owner, _):
+                kills += 1
+                if owner == raider { raiderCasualties += 1 }
             case .unitCaptured: civiliansCaptured += 1
             case .cityCaptured: citiesCaptured += 1
+            case .cityRevolted: citiesRevolted += 1
+            case .cityJoined: citiesJoined += 1
             case .cityRazed: citiesRazed += 1
             case .cityFounded: citiesFounded += 1
             case .warDeclared: wars += 1
             case .peaceSigned: peaces += 1
-            case .playerEliminated: eliminations += 1
+            case let .playerEliminated(p):
+                eliminations += 1
+                if minorPlayers.contains(p) { minorsEliminated += 1 }
+            case .envoySent: envoys += 1
+            case .tradeRouteStarted: routesStarted += 1
+            case let .tradeRouteEnded(_, _, by): if by != nil { routesPlundered += 1 }
+            case .patronChanged: patronChanges += 1
+            case .questCompleted: quests += 1
+            case .levied: levies += 1
+            case .raiderCampAppeared: campsAppeared += 1
+            case .raiderCampCleared: campsCleared += 1
+            case .citySacked: citiesSacked += 1
+            case .rebelsRose: rebels += 1
             default: break
             }
         }
@@ -242,8 +267,11 @@ struct EventCounts {
 
     var summary: String {
         "\(citiesFounded) cities founded, \(combats) combats, \(kills) units killed, \(civiliansCaptured) civilians captured, "
-            + "\(citiesCaptured) cities captured, \(citiesRazed) razed, \(wars) wars declared, \(peaces) peace treaties, "
+            + "\(citiesCaptured) cities captured, \(citiesRevolted) revolted, \(citiesJoined) joined, \(citiesRazed) razed, \(wars) wars declared, \(peaces) peace treaties, "
             + "\(eliminations) players eliminated"
+            + (campsAppeared + rebels > 0 ? "; raiders: \(campsAppeared) camps, \(campsCleared) cleared, \(raiderCasualties) raiders killed, \(citiesSacked) cities sacked, \(rebels) rebels" : "")
+            + (routesStarted == 0 ? "" : "; trade: \(routesStarted) routes started, \(routesPlundered) plundered")
+            + (minorPlayers.isEmpty ? "" : "; minors: \(envoys) envoys, \(patronChanges) Patron changes, \(quests) quests, \(levies) levies, \(minorsEliminated) conquered")
     }
 }
 
@@ -270,6 +298,8 @@ struct GameReport {
     /// Insights fired, per player.
     var insights: [Int] = []
     var promotions = 0
+    /// The turn a player first completed the civic tree (M2 §19: 120–140).
+    var civicTreeDone: Int?
     var upgrades = 0
     /// Turns that ended with some pair of players at war.
     var turnsAtWar = 0
@@ -295,6 +325,8 @@ struct GameReport {
         observer = Observer(players: state.players.count, narrate: narrate)
         early = EarlyObserver(seed: seed, p0: p0, turns: turns)
         villages = TribalVillageStats(state: state, sites: sites)
+        counts.raider = state.raiderPlayer
+        counts.minorPlayers = state.players.filter { $0.kind == .minor }.map(\.id)
         if let sites { early.startTribalVillages(sites, state: state) }
     }
 
@@ -359,6 +391,7 @@ struct GameReport {
         return "world era: " + (eras.isEmpty ? "unchanged" : eras.joined(separator: ", "))
             + "; insights " + (fired.isEmpty ? "none" : fired.joined(separator: ", "))
             + "; promotions \(promotions), upgrades \(upgrades)"
+            + "; civic tree first done " + (civicTreeDone.map { "t\($0)" } ?? "never")
     }
 
     /// "resources: 52 bonus, 30 luxury, 24 strategic; improved 18; pasture 9, …; stock p0 horses 12/2 iron 0/0" (M2 §3.1).
@@ -366,22 +399,81 @@ struct GameReport {
         let rules = state.rules
         var placed: [ResourceKind: Int] = [:]
         var built = [Int](repeating: 0, count: Improvement.allCases.count)
+        var roads = 0, pillaged = 0
         for t in state.map.tiles.indices {
             let tile = state.map.tiles[t]
             if let r = tile.resource, let def = rules.resource(r) { placed[def.kind, default: 0] += 1 }
             if let i = tile.improvement { built[Int(i.rawValue) - 1] += 1 }
+            if tile.hasRoad { roads += 1 }
+            if tile.isPillaged { pillaged += 1 }
         }
         let improvements = Improvement.allCases.enumerated().filter { built[$0.offset] > 0 }
             .map { "\(String(describing: $0.element)) \(built[$0.offset])" }.joined(separator: ", ")
         let strategic = Resource.allCases.filter { rules.resource($0)?.kind == .strategic }
-        let stocks = state.players.filter(\.isAlive).map { player in
+        let stocks = state.players.filter { $0.isAlive && $0.isMajor }.map { player in
             let sources = state.improvedSources(of: player.id)
             return "\(player.id) " + strategic.map { "\(String(describing: $0)) \(player.stock($0))/\(sources[Int($0.rawValue) - 1])" }
                 .joined(separator: " ")
         }.joined(separator: ", ")
         return "resources: \(placed[.bonus, default: 0]) bonus, \(placed[.luxury, default: 0]) luxury, "
             + "\(placed[.strategic, default: 0]) strategic; improvements " + (improvements.isEmpty ? "none" : improvements)
-            + "; stock/sources " + stocks
+            + "; roads \(roads), pillaged \(pillaged); stock/sources " + stocks
+    }
+
+    /// "cities: 40; stability thriving 3, content 30, restless 5, unrest 2, revolt 0; pop − Housing
+    /// median 0 (min −3, max 4); growth 100% 20, 50% 8, 25% 10, 0% 2" (M2 §5.1, §5.2, §19).
+    var cityLine: String {
+        let cities = state.cities
+        var states = [StabilityState: Int]()
+        var over: [Int] = [], growth = [Int: Int]()
+        for city in cities {
+            states[state.rules.stabilityState(city.stability ?? 0), default: 0] += 1
+            over.append(city.population - state.housing(of: city).total)
+            growth[state.growthPct(of: city), default: 0] += 1
+        }
+        over.sort()
+        let order: [(StabilityState, String)] = [(.thriving, "thriving"), (.content, "content"), (.restless, "restless"),
+                                                  (.unrest, "unrest"), (.revolt, "revolt")]
+        return "cities: \(cities.count); stability " + order.map { "\($0.1) \(states[$0.0, default: 0])" }.joined(separator: ", ")
+            + "; pop − Housing median \(over.isEmpty ? 0 : over[over.count / 2]) (min \(over.first ?? 0), max \(over.last ?? 0)); growth "
+            + growth.keys.sorted(by: >).map { "\($0)% \(growth[$0]!)" }.joined(separator: ", ")
+            + "; stability sums " + stabilitySums
+    }
+
+    /// Each Stability term summed over all cities (M2 §5.2), to show what drives the states.
+    private var stabilitySums: String {
+        var sum = StabilityBreakdown()
+        for player in state.players where player.isAlive {
+            for b in state.stabilityBreakdowns(for: player.id).values {
+                sum.buildings += b.buildings; sum.luxuries += b.luxuries; sum.need += b.need
+                sum.empireSize += b.empireSize; sum.overcrowding += b.overcrowding; sum.occupied += b.occupied
+                sum.quarters += b.quarters; sum.government += b.government
+            }
+        }
+        return "buildings \(sum.buildings), luxuries \(sum.luxuries), quarters \(sum.quarters), government \(sum.government), need −\(sum.need), "
+            + "empire \(sum.empireSize), overcrowding \(sum.overcrowding), occupied \(sum.occupied)"
+    }
+
+    /// "quarters: 31 (campus 12, market 9, …)" and the buildings standing in them (M2 §5.3).
+    var loyaltyLine: String {
+        let free = state.freeCities
+        let held = state.cities.filter { $0.owner != free }
+        let low = held.filter { ($0.loyalty ?? 100) < 50 }.count
+        let falling = held.filter { state.turnsUntilRevolt($0) != nil }.count
+        let lowest = held.compactMap(\.loyalty).min().map(String.init) ?? "-"
+        return "loyalty: \(state.cities.count - held.count) free cities; \(low) of \(held.count) civ cities below 50, "
+            + "\(falling) falling, lowest \(lowest)"
+    }
+
+    var quarterLine: String {
+        var kinds = [QuarterKind: Int](), buildings = [BuildingID: Int]()
+        for city in state.cities {
+            for q in city.quarters ?? [] { kinds[q.kind, default: 0] += 1 }
+            for b in city.buildings where state.rules.building(b)?.quarter != nil { buildings[b, default: 0] += 1 }
+        }
+        let total = kinds.values.reduce(0, +)
+        return "quarters: \(total) (" + kinds.keys.sorted().map { "\($0) \(kinds[$0]!)" }.joined(separator: ", ")
+            + "); in them " + buildings.keys.sorted().map { "\($0) \(buildings[$0]!)" }.joined(separator: ", ")
     }
 
     func playerLine(_ player: Player) -> String {
@@ -389,8 +481,12 @@ struct GameReport {
         let t = tallies[player.id.rawValue]
         return "  \(player.id) \(player.name): " + (player.isAlive ? "" : "eliminated, ")
             + "\(cities.count) cities (founded \(t.founded), 3rd " + (t.thirdCityTurn.map { "t\($0)" } ?? "never") + "), "
-            + "population \(cities.reduce(0) { $0 + $1.population }), \(player.knownTechs.count) techs, "
-            + "\(state.militaryUnitCount(of: player.id)) military, \(state.units(of: player.id).count) units, "
+            + "population \(cities.reduce(0) { $0 + $1.population }), \(player.knownTechs.count) techs, \(player.knownCivics?.count ?? 0) civics, "
+            + "\(state.government(of: player.id)?.name ?? "no government") (\((player.policies ?? []).joined(separator: " "))), "
+            + "\(state.militaryUnitCount(of: player.id)) military, "
+            + "\(state.units(of: player.id).filter(\.type.isNaval).count) ships "
+            + "(\(state.cities(of: player.id).filter { state.view(for: player.id).isCoastal($0) }.count) coastal cities), "
+            + "\(state.units(of: player.id).count) units, "
             + "captured \(t.captured), lost \(t.lost), razed \(t.razed), civilians \(t.civilians), units lost \(t.unitsLost), "
             + "\(player.gold) gold, score \(state.score(of: player.id))" + villages.playerSummary(player.id.rawValue)
     }
@@ -421,19 +517,19 @@ func checkInvariants(_ state: GameState, _ label: String) {
 func playGame(seed: UInt64, _ o: Options, verbose: Bool) -> GameReport {
     var generated: GeneratedMap!
     let genTime = clock.measure {
-        generated = MapGenerator.generate(MapGenSettings(size: o.size, seed: seed))
+        generated = MapGenerator.generate(MapGenSettings(size: o.size, seed: seed, script: o.script))
     }
     // p3g: `--random` and `--ai` games place tribal villages (none without the rules section).
     var state = GameState.newGame(seed: seed, map: generated.map, startPositions: generated.startPositions,
                                   humanPlayers: [], rules: gameRules, mapSizeName: o.size.rawValue,
-                                  placeTribalVillages: o.mode != .scripted)
+                                  placeTribalVillages: o.mode != .scripted, placeMinors: o.mode != .scripted)
     // Their tags (the start whose own round placed each one, nil for a shared one) come from
     // placement run again on the same inputs (DESIGN §3.2), so they must name the very sites the
     // game placed.
     var villageSites: [TribalVillageSite]?
     if o.mode != .scripted, gameRules.tribalVillages != nil {
         let sites = DebugTools.tribalVillagePlacement(seed: seed, map: generated.map, startPositions: generated.startPositions,
-                                                      rules: gameRules)
+                                                      rules: gameRules, mapSizeName: o.size.rawValue, placeMinors: true)
         let placed = DebugTools.tribalVillages(in: state)
         guard sites.map(\.hex) == placed else {
             print("error: seed \(seed): placement's tags name \(sites.map(\.hex)), the game placed \(placed)")
@@ -457,7 +553,7 @@ func playGame(seed: UInt64, _ o: Options, verbose: Bool) -> GameReport {
 
     var report = GameReport(seed: seed, state: state, narrate: o.narrate && o.mode == .ai, p0: o.p0.rawValue, turns: o.turns,
                             sites: villageSites)
-    report.aiPlayers = state.players.indices.filter { $0 != 0 || o.p0 == .ai }
+    report.aiPlayers = state.players.indices.filter { ($0 != 0 || o.p0 == .ai) && state.players[$0].isMajor }
     report.observer.lintDetail = o.lintDetail
     var rng = SplitMix64(seed: seed, salts: 0x5133)
     let lastTurn = state.turn + o.turns - 1
@@ -634,6 +730,10 @@ func playGame(seed: UInt64, _ o: Options, verbose: Bool) -> GameReport {
                 report.observer.endOfPhase(player, turn: turn, state: state)
                 report.early.endOfPhase(player, turn: turn, state: state)
             }
+            if report.civicTreeDone == nil, !state.rules.civics.isEmpty,
+               state.players.contains(where: { ($0.knownCivics?.count ?? 0) == state.rules.civics.count }) {
+                report.civicTreeDone = turn
+            }
             if state.turn != turn {
                 if state.players.indices.contains(where: { a in
                     state.players.indices.contains { b in a < b && state.isAtWar(PlayerID(a), PlayerID(b)) }
@@ -684,7 +784,7 @@ if options.placementTiming {
     var costs: [Double] = []
     for g in 0..<options.games {
         let seed = options.seed &+ UInt64(g)
-        let generated = MapGenerator.generate(MapGenSettings(size: options.size, seed: seed))
+        let generated = MapGenerator.generate(MapGenSettings(size: options.size, seed: seed, script: options.script))
         var best = [Double.infinity, Double.infinity]
         var placed = 0
         for _ in 0..<5 {
@@ -726,6 +826,9 @@ if options.games == 1 {
     print(report.warLine)
     if !report.state.rules.eras.isEmpty { print(report.eraLine) }
     if !report.state.rules.resources.isEmpty { print(report.resourceLine) }
+    if report.state.rules.stability != nil { print(report.cityLine) }
+    if report.state.rules.quarters != nil { print(report.quarterLine) }
+    if report.state.rules.loyalty != nil { print(report.loyaltyLine) }
     if report.villages.enabled { print(report.villageLine) }
     print("outcome: " + report.outcomeLine)
     for player in state.players { print(report.playerLine(player)) }
@@ -738,7 +841,7 @@ if options.games == 1 {
         }
         if options.profile { report.profile.print() }
         print("AI ms per phase from turn 140: \(report.aiLate.summary)")
-        for player in state.players { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
+        for player in state.players where player.isMajor { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
     }
 
     // Knowledge cost on the final state (M1 §12.7 budget: visibility + memory ≤ 0.2 ms per
@@ -803,6 +906,8 @@ if options.games == 1 {
     var ai = Timings(), aiLate = Timings()
     var profile = Profile()
     var threeCities = 0, warBy80 = 0, captureBy150 = 0, rejected = 0, capHits = 0
+    var raiderTotals = EventCounts()
+    var minorCount = 0, minorPatrons = 0, aiCount = 0, aiRoutes = 0, aisWithTwoRoutes = 0, aiCapacity = 0, aiIdleTraders = 0
     var lint = Lint()
     // Against a stand-in in player 0's seat (`--p0`): games the AIs won, player 0 won or nobody
     // won; cities AIs took from player 0 and player 0 took from AIs; wars on player 0.
@@ -830,7 +935,7 @@ if options.games == 1 {
             for player in report.state.players { print(report.playerLine(player)) }
             for rejection in report.rejections.prefix(5) { print("  rejected: \(rejection)") }
             if options.mode == .ai {
-                for player in report.state.players { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
+                for player in report.state.players where player.isMajor { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
                 for p in report.aiPlayers { lint.merge(report.observer.lint[p]) }
             }
             if options.mode == .ai, options.p0 != .ai {
@@ -858,6 +963,24 @@ if options.games == 1 {
             if report.everyoneFoundedThreeBy60 { threeCities += 1 }
             if report.warBy80 { warBy80 += 1 }
             if report.captureBy150 { captureBy150 += 1 }
+            raiderTotals.campsAppeared += report.counts.campsAppeared
+            raiderTotals.campsCleared += report.counts.campsCleared
+            raiderTotals.raiderCasualties += report.counts.raiderCasualties
+            raiderTotals.citiesSacked += report.counts.citiesSacked
+            raiderTotals.rebels += report.counts.rebels
+            raiderTotals.envoys += report.counts.envoys
+            raiderTotals.quests += report.counts.quests
+            raiderTotals.minorsEliminated += report.counts.minorsEliminated
+            minorCount += report.state.minors?.count ?? 0
+            for p in report.aiPlayers {
+                let routes = report.state.tradeRoutes(of: PlayerID(p)).count
+                aiCount += 1
+                aiRoutes += routes
+                aiCapacity += report.state.tradeCapacity(of: PlayerID(p))
+                aiIdleTraders += report.state.units.count { $0.owner == PlayerID(p) && $0.type == .trader }
+                if routes >= 2 { aisWithTwoRoutes += 1 }
+            }
+            minorPatrons += report.state.minors?.count { $0.patron != nil && report.state.players[$0.player.rawValue].isAlive } ?? 0
             rejected += report.rejected
             capHits += report.capHits
             hashes ^= hash &* (combined.next() | 1)
@@ -879,6 +1002,22 @@ if options.games == 1 {
         }
         print("balance: every AI founds ≥ 3 cities by turn 60: \(pct(threeCities)) [target ≥ 80%]; "
             + "war by turn 80: \(pct(warBy80)) [≥ 70%]; city captured by turn 150: \(pct(captureBy150)) [≥ 30%]")
+        let r = raiderTotals
+        if r.campsAppeared + r.rebels > 0 {
+            print(String(format: "raiders (per game): camps %.2f, cleared %.2f [target ≥ 3], raiders killed %.2f, cities sacked %.2f, rebels %.2f",
+                         Double(r.campsAppeared) / Double(n), Double(r.campsCleared) / Double(n), Double(r.raiderCasualties) / Double(n),
+                         Double(r.citiesSacked) / Double(n), Double(r.rebels) / Double(n)))
+        }
+        if aiRoutes > 0 {
+            print(String(format: "trade: %.2f routes per AI at the end (capacity %.2f, idle Traders %.2f); %d of %d AIs with ≥ 2 [target: all by turn 80]",
+                         Double(aiRoutes) / Double(max(1, aiCount)), Double(aiCapacity) / Double(max(1, aiCount)),
+                         Double(aiIdleTraders) / Double(max(1, aiCount)), aisWithTwoRoutes, aiCount))
+        }
+        if minorCount > 0 {
+            print(String(format: "minors: %d of %d with a Patron at the end (%.0f%%) [target ≥ 60%% by turn 100]; conquered per game %.2f [≤ 1]; envoys per game %.1f, quests per game %.1f",
+                         minorPatrons, minorCount, 100.0 * Double(minorPatrons) / Double(minorCount), Double(r.minorsEliminated) / Double(n),
+                         Double(r.envoys) / Double(n), Double(r.quests) / Double(n)))
+        }
     }
     villages.print()
     if options.early { EarlySummary.print(earlyRecords) }

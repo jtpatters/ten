@@ -19,6 +19,12 @@ public struct PlayerSummary: Hashable, Sendable {
     public var isHuman: Bool
     public var isAlive: Bool
     public var score: Int
+    /// A civ, not the Free Cities (M2 §12.5).
+    public var isMajor = true
+    /// The raiders (M2 §11).
+    public var isRaiders = false
+    /// A minor faction (M2 §12).
+    public var isMinor = false
 }
 
 /// A player's income per turn (M1 §12.6), from the cities' current yields.
@@ -31,7 +37,9 @@ public struct Income: Hashable, Sendable {
     public var culture: Int
     public var militaryUnits: Int
     public var freeUnits: Int
-    public var net: Int { gold - upkeep }
+    /// Gold paid for buildings and quarters (M2 §5.4).
+    public var buildings: Int = 0
+    public var net: Int { gold - upkeep - buildings }
 }
 
 /// Something a city could produce (M1 §12.6).
@@ -80,6 +88,8 @@ public enum UnitActionKind: String, Hashable, Sendable, CaseIterable {
     case foundCity, buildFarm, buildMine, buildPasture, fortify, sleep, wake, skip, cancelOrders, disband
     // M2 §4.1.
     case buildQuarry, buildPlantation, buildCamp, buildFishingBoats, buildLumberMill
+    // M2 §3.3.
+    case buildRoad, pillage
 }
 
 /// An action of the unit card (M1 §12.6, §16).
@@ -116,7 +126,8 @@ public struct PlayerView: Sendable {
 
     public var players: [PlayerSummary] {
         state.players.map { p in
-            PlayerSummary(id: p.id, name: p.name, civ: p.civ, isHuman: p.isHuman, isAlive: p.isAlive, score: state.score(of: p.id))
+            PlayerSummary(id: p.id, name: p.name, civ: p.civ, isHuman: p.isHuman, isAlive: p.isAlive, score: state.score(of: p.id),
+                          isMajor: p.isMajor, isRaiders: p.kind == .raiders, isMinor: p.kind == .minor)
         }
     }
 
@@ -146,6 +157,37 @@ public struct PlayerView: Sendable {
     /// The tribal villages the player knows of (M1 §7.7), as tile indices in order: current on
     /// visible tiles, as last seen elsewhere. From memory only.
     public var knownTribalVillages: [Int32] { me.memory.tribalVillages ?? [] }
+    /// Raider camps the player remembers (M2 §11).
+    public var knownRaiderCamps: [Int32] { me.memory.raiderCamps ?? [] }
+    /// Minor factions met, with everyone's envoys there, their Patron and quest (M2 §12).
+    public var knownMinors: [MinorFaction] { (state.minors ?? []).filter { state.hasMet(player, $0.player) } }
+    public func envoyProblem(to minor: PlayerID) -> String? { state.envoyProblem(player, to: minor) }
+    public func levyProblem(on minor: PlayerID) -> String? { state.levyProblem(player, on: minor) }
+    /// Own trade routes, and those crossing a tile visible now (M2 §13).
+    public var myTradeRoutes: [TradeRoute] { state.tradeRoutes(of: player) }
+    public var visibleTradeRoutes: [TradeRoute] {
+        state.allTradeRoutes.filter { r in r.owner == player || r.path.contains { me.visible[Int($0)] } }
+    }
+    public var tradeCapacity: Int { state.tradeCapacity(of: player) }
+    /// The city a route by own Trader `unit` would start from: the city owning its tile.
+    public func tradeOrigin(of unit: UnitID) -> CityID? {
+        guard let u = state.unit(unit), u.owner == player else { return nil }
+        return state.tradeOrigin(at: u.position, for: player)?.id
+    }
+    public func tradeRouteProblem(_ unit: UnitID, to city: CityID) -> String? {
+        guard let u = state.unit(unit), u.owner == player else { return "not your unit" }
+        return state.tradeRouteProblem(u, to: city)
+    }
+    public func tradeRouteValue(_ unit: UnitID, to city: CityID) -> Int {
+        guard let u = state.unit(unit), u.owner == player else { return 0 }
+        return state.tradeRouteValue(u, to: city)
+    }
+    public func plunderProblem(_ unit: UnitID) -> String? {
+        guard let u = state.unit(unit), u.owner == player else { return "not your unit" }
+        return state.plunderProblem(u)
+    }
+    /// The world era (M2 §3), 0 before any.
+    public var worldEra: Int { state.worldEra ?? 0 }
 
     /// Whether the player knows of a tribal village on the tile (memory only).
     public func isKnownTribalVillage(_ hex: HexCoord) -> Bool {
@@ -198,7 +240,7 @@ public struct PlayerView: Sendable {
 
     public func upgradeCost(_ id: UnitID) -> Int? {
         guard isMyPhase, let u = state.unit(id), u.owner == player, state.upgradeProblem(u) == nil else { return nil }
-        return state.upgradeCost(of: u.type)
+        return state.upgradeCost(of: u.type, for: player)
     }
 
     public func unit(_ id: UnitID) -> Unit? {
@@ -213,6 +255,12 @@ public struct PlayerView: Sendable {
     }
 
     /// An own city.
+    /// Where one of my cities may place a quarter of `kind`, best first (M2 §18.2).
+    public func quarterSites(_ kind: QuarterKind, in id: CityID) -> [(tile: HexCoord, adjacency: Int)] {
+        guard let i = state.cityIndex(id), state.cities[i].owner == player else { return [] }
+        return state.quarterSites(kind, in: state.cities[i])
+    }
+
     public func city(_ id: CityID) -> City? {
         state.city(id).flatMap { $0.owner == player ? $0 : nil }
     }
@@ -239,6 +287,8 @@ public struct PlayerView: Sendable {
         guard let t = index(of: hex), me.explored[t] else { return nil }
         var tile = state.map.tiles[t]
         tile.improvement = Improvement(rawValue: me.memory.tileImprovement[t])
+        tile.road = me.memory.remembersRoad(t) ? true : nil
+        if !me.visible[t] { tile.pillaged = nil }
         tile.resource = state.knownResource(at: t, for: player)
         return tile
     }
@@ -296,7 +346,8 @@ public struct PlayerView: Sendable {
         var y = Yields.zero
         for city in state.cities where city.owner == player { y += state.cityYields(city).total }
         return Income(gold: y.gold, upkeep: state.upkeep(of: player), science: y.science, culture: y.culture,
-                      militaryUnits: state.militaryUnitCount(of: player), freeUnits: state.freeUnitAllowance(of: player))
+                      militaryUnits: state.militaryUnitCount(of: player), freeUnits: state.freeUnitAllowance(of: player),
+                      buildings: state.buildingUpkeep(of: player))
     }
 
     // MARK: Production
@@ -319,7 +370,7 @@ public struct PlayerView: Sendable {
             let cost = rules.cost(of: item)
             var turns = production > 0 ? max(1, (max(0, cost - stored) + production - 1) / production) : nil
             if case .building = item, let row = queue.first(where: { $0.item == item }) { turns = row.turns }
-            let price = state.purchasePrice(of: item)
+            let price = state.purchasePrice(of: item, for: player)
             var queueProblem = state.itemProblem(item, in: city)
             if queueProblem == nil {
                 if city.queue.count >= maxQueue { queueProblem = "queue full" }
@@ -380,6 +431,10 @@ public struct PlayerView: Sendable {
                 names.append("+\(bonus.food) Food on \(def.name.capitalized)")
             }
         }
+        if let e = rules.embark {
+            if e.coastTech == tech { names.append("Embark on Coast and Lake") }
+            if e.oceanTech == tech { names.append("Ocean for all units") }
+        }
         return names
     }
 
@@ -410,6 +465,8 @@ public struct PlayerView: Sendable {
                 add(kind, .buildImprovement(unit: id, improvement: improvement), state.improvementProblem(improvement, by: unit))
             }
         }
+        if def.charges > 0, rules.roads != nil { add(.buildRoad, .buildRoad(unit: id), state.roadProblem(unit)) }
+        if def.isMilitary, rules.roads != nil { add(.pillage, .pillage(unit: id), state.pillageProblem(unit)) }
         if def.isMilitary { add(.fortify, .fortify(unit: id), GameEngine.activityProblem(.fortify, unit)) }
         add(.sleep, .sleep(unit: id), GameEngine.activityProblem(.sleep, unit))
         add(.wake, .wake(unit: id), GameEngine.activityProblem(.wake, unit))
@@ -465,6 +522,8 @@ public struct PlayerView: Sendable {
             var tile = state.map.tiles[t]
             guard rules.isWorkable(tile) else { return }
             tile.improvement = Improvement(rawValue: me.memory.tileImprovement[t])
+            tile.road = me.memory.remembersRoad(t) ? true : nil
+            if !me.visible[t] { tile.pillaged = nil }
             let y = rules.tileYields(tile, knows: knows, isCityCentre: t == centre)
             score += s.foodWeight * y.food + s.productionWeight * y.production + s.goldWeight * y.gold
         }

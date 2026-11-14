@@ -60,10 +60,16 @@ enum UnitSprite: SpriteSet {
     case digit(Int)
     case job(Improvement)
     case tribalVillage
+    /// A pillaged improvement's mark (M2 §3.3): a flame on a cream disc in a red rim.
+    case pillaged
+    /// A boat under a land unit on water (embarked, M2 §3.2), flat on the water.
+    case embark
 
     static var all: [UnitSprite] {
         var keys: [UnitSprite] = []
-        for type in UnitType.allCases {
+        // The four ships share the Galley's body and the Trader the Settler's (placeholder art,
+        // ART.md §10's budget).
+        for type in UnitType.allCases where hasOwnBody(type) {
             if sharesWestBody(type) {
                 keys += [.body(type, east: false)] + (dataCell(type).key == type ? [.teamMask(type)] : [])
             } else {
@@ -83,6 +89,8 @@ enum UnitSprite: SpriteSet {
         // After every older cell, so none of theirs moves.
         for kind in Improvement.allCases { keys.append(.job(kind)) }
         keys.append(.tribalVillage)
+        keys.append(.pillaged)
+        keys.append(.embark)
         return keys
     }
 
@@ -92,13 +100,27 @@ enum UnitSprite: SpriteSet {
         switch type {
         case .settler, .builder, .scout, .warrior, .archer, .spearman: false
         case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: true
+        case .galley, .quadrireme, .cog, .dromon: true
+        case .trader: false
         }
     }
+
+    /// The type whose body every ship is drawn with (M2 §8.4, placeholder art).
+    static let shipBody = UnitType.galley
+
+    /// The type whose body cells `type` is drawn with: its own, the shared ship body, or the
+    /// Settler's wagon for the Trader (M2 §13, placeholder art).
+    static func bodyType(_ type: UnitType) -> UnitType {
+        type.isNaval ? shipBody : type == .trader ? .settler : type
+    }
+
+    /// Whether `type` has body cells of its own.
+    static func hasOwnBody(_ type: UnitType) -> Bool { bodyType(type) == type }
 
     /// The M2 types' data cells hold two types each: the first in red and green, the second
     /// in blue and alpha (the same budget, ART.md §10).
     static let pairedData: [(UnitType, UnitType?)] = [(.horseman, .heavyChariot), (.swordsman, .catapult),
-                                                      (.manAtArms, .crossbowman), (.pikeman, .knight), (.trebuchet, nil)]
+                                                      (.manAtArms, .crossbowman), (.pikeman, .knight), (.trebuchet, .galley)]
 
     /// The type whose `teamMask` cell holds `type`'s data, and whether in blue and alpha.
     static func dataCell(_ type: UnitType) -> (key: UnitType, high: Bool) {
@@ -115,8 +137,10 @@ enum UnitSprite: SpriteSet {
     var cellSize: Int {
         switch self {
         case .body, .teamMask, .escortedBody, .escortedMask: Self.bodyCell
-        // M2 improvements' job glyphs: half size, which keeps the atlas within its budget.
-        case let .job(kind) where kind.rawValue > Improvement.pasture.rawValue: 64
+        // Half-size cells keep the atlas within its budget (ART.md §10): job glyphs, ship
+        // badges, the Trader's badge, the tribal village token, the pillaged and embark marks.
+        case .job, .tribalVillage, .pillaged, .embark: 64
+        case let .badge(type) where type.isNaval || type == .trader: 64
         default: 128
         }
     }
@@ -185,6 +209,15 @@ enum UnitSprite: SpriteSet {
             var f = Figure(size: cell.width)
             Self.tribalVillageBadge(&f)
             canvas.paint(f.steps, pass: .body)
+        case .pillaged:
+            var f = Figure(size: cell.width)
+            Self.pillagedBadge(&f)
+            canvas.paint(f.steps, pass: .body)
+        case .embark:
+            var f = Figure(size: cell.width)
+            f.add(f.poly([(0.05, 0.62), (0.95, 0.62), (0.8, 0.36), (0.2, 0.36)]), Material(Tone(0.5, 0.33, 0.2), grain: .wood))
+            f.add(f.rectPath(0.12, 0.56, 0.76, 0.05), Material(Tone(0.66, 0.48, 0.3)), outline: 0)
+            canvas.paint(f.steps, pass: .body)
         }
     }
 
@@ -202,11 +235,12 @@ enum UnitSprite: SpriteSet {
     /// foot, `standardFoot` in its own cell, goes here.
     static func standardMount(_ type: UnitType, east: Bool) -> SIMD2<Float> {
         let x: Float = switch type {
-        case .settler: 0.5
+        case .settler, .trader: 0.5
         case .builder: 0.684 // the surveyor's rod
         case .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 0.596
         case .scout, .horseman, .knight, .heavyChariot: 0.612
         case .catapult, .trebuchet: siegeBearer.x - 0.09 * siegeBearer.k
+        case .galley, .quadrireme, .cog, .dromon: 0.5
         }
         let k = bodyFit(type), fx = 0.5 + (x - 0.5) * k
         return [east ? 1 - fx : fx, groundLine + (standardMountY - groundLine) * k]
@@ -217,10 +251,11 @@ enum UnitSprite: SpriteSet {
     /// tail barrel, the horse's tail) stay inside the cell's margin.
     static func bodyFit(_ type: UnitType) -> Float {
         switch type {
-        case .settler: 0.93
+        case .settler, .trader: 0.93
         case .builder, .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 1
         case .scout, .horseman, .knight, .heavyChariot: 0.97
         case .catapult, .trebuchet: 0.95
+        case .galley, .quadrireme, .cog, .dromon: 1
         }
     }
 
@@ -341,14 +376,14 @@ enum UnitSprite: SpriteSet {
 
     /// Every body recorded once (both facings), shared by the atlas build and instance building.
     private static let recordings: [FigureKey: RecordedFigure] = {
-        let keys = UnitType.allCases.flatMap { type in [false, true].map { FigureKey(type: type, east: $0) } }
+        let keys = UnitType.allCases.filter(hasOwnBody).flatMap { type in [false, true].map { FigureKey(type: type, east: $0) } }
             + [false, true].map { FigureKey(type: .settler, east: $0, pole: false) }
         let done = Mutex<[FigureKey: RecordedFigure]>([:])
         DispatchQueue.concurrentPerform(iterations: keys.count) { i in
             let key = keys[i]
             var figure = Figure(size: 256, mirrored: key.east, fit: CGFloat(bodyFit(key.type)))
             switch key.type {
-            case .settler: settler(&figure, pole: key.pole)
+            case .settler, .trader: settler(&figure, pole: key.pole)
             case .builder: builder(&figure)
             case .warrior: warrior(&figure)
             case .archer: archer(&figure)
@@ -363,6 +398,7 @@ enum UnitSprite: SpriteSet {
             case .pikeman: pikeman(&figure)
             case .catapult: siege(&figure, trebuchet: false)
             case .trebuchet: siege(&figure, trebuchet: true)
+            case .galley, .quadrireme, .cog, .dromon: ship(&figure)
             }
             let recorded = RecordedFigure(steps: figure.steps, emblems: figure.emblems, size: figure.size)
             done.withLock { $0[key] = recorded }
@@ -371,7 +407,7 @@ enum UnitSprite: SpriteSet {
     }()
 
     fileprivate static func recorded(_ type: UnitType, east: Bool, pole: Bool = true) -> RecordedFigure {
-        recordings[FigureKey(type: type, east: east, pole: pole)]!
+        recordings[FigureKey(type: bodyType(type), east: east, pole: pole)]!
     }
 
     /// Touches the recordings so they are built before parallel work needs them.
@@ -561,6 +597,21 @@ enum UnitSprite: SpriteSet {
     /// Three workers in straw hats and work tunics: one swinging a pick, a surveyor with his
     /// striped rod (which carries the standard), and one in front pushing a wheelbarrow of
     /// building stone.
+    /// A ship (M2 §8.4, placeholder shared by all four): a planked hull with a band of team paint,
+    /// a ram and oars, under a mast with a team-coloured sail.
+    private static func ship(_ f: inout Figure) {
+        let wood = Tone(0.5, 0.33, 0.2)
+        for k in 0..<5 {
+            let x = 0.27 + CGFloat(k) * 0.11
+            f.add(f.limb([(x, 0.24), (x - 0.07, 0.09)], 0.014, 0.01), Material(wood.scaled(0.85)), outline: 0.008)
+        }
+        f.add(f.poly([(0.08, 0.34), (0.92, 0.34), (0.8, 0.13), (0.22, 0.13)]), Material(wood, grain: .wood))
+        f.add(f.rectPath(0.16, 0.26, 0.68, 0.045), Material(team: 1, grain: .cloth), outline: 0)
+        f.add(f.poly([(0.03, 0.17), (0.2, 0.2), (0.2, 0.14)]), Material(Tone(0.56, 0.46, 0.3), grain: .metal))
+        f.add(f.rectPath(0.49, 0.34, 0.026, 0.52), Material(wood, grain: .wood), outline: 0.01)
+        f.add(f.poly([(0.33, 0.8), (0.69, 0.8), (0.66, 0.44), (0.36, 0.44)]), Material(team: 1, grain: .cloth))
+    }
+
     private static func builder(_ f: inout Figure) {
         person(&f, Person(x: 0.26, y: 0.205, k: 0.86, skin: 0.93, head: .strawHat, torso: .tunic, lower: .tunic, legs: .wraps,
                           gear: .pickRaised, beard: false, stride: 1.2, sleeves: true))
@@ -1312,6 +1363,24 @@ enum UnitSprite: SpriteSet {
             shapes.append(saw)
         }
         f.glyph(shapes: shapes, halo: h * 0.14)
+    }
+
+    // MARK: Pillaged
+
+    /// A pillaged improvement's mark: a flame in ink on a cream disc in a red rim.
+    private static func pillagedBadge(_ f: inout Figure) {
+        let r = CGFloat(badgeDisc) / 2
+        f.add(f.ellipse(0.5, 0.5, r, r), Material(Tone(0.62, 0.16, 0.1), gloss: 0.2), outline: 0.03)
+        f.add(f.ellipse(0.5, 0.5, r - 0.075, r - 0.075), Material(cream, shade: 0.5), outline: 0)
+        let c = f.pt((0.5, 0.5)), h = f.size * 0.25
+        func q(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: c.x + x * h, y: c.y + y * h) }
+        let flame = CGMutablePath()
+        flame.move(to: q(0, -0.85))
+        flame.addCurve(to: q(0.05, 0.9), control1: q(0.85, -0.75), control2: q(0.7, 0.3))
+        flame.addCurve(to: q(-0.2, 0.05), control1: q(-0.05, 0.45), control2: q(-0.3, 0.3))
+        flame.addCurve(to: q(0, -0.85), control1: q(-0.55, 0.2), control2: q(-0.75, -0.65))
+        flame.closeSubpath()
+        f.glyph(shapes: [flame], halo: h * 0.14)
     }
 
     // MARK: Tribal villages

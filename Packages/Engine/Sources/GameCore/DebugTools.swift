@@ -153,9 +153,11 @@ public enum DebugTools {
     /// runs the same routine, so the start units stand where they do in the real game. Empty
     /// for rules without the section.
     public static func tribalVillagePlacement(seed: UInt64, map: HexMap, startPositions: [HexCoord],
-                                              rules: Ruleset = .standard) -> [TribalVillageSite] {
+                                              rules: Ruleset = .standard, mapSizeName: String = "",
+                                              placeMinors: Bool = false) -> [TribalVillageSite] {
         guard let villageRules = rules.tribalVillages else { return [] }
-        let state = GameState.newGame(seed: seed, map: map, startPositions: startPositions, rules: rules)
+        let state = GameState.newGame(seed: seed, map: map, startPositions: startPositions, rules: rules,
+                                      mapSizeName: mapSizeName, placeMinors: placeMinors)
         var placer = TribalVillagePlacer(state: state, startPositions: startPositions, rules: villageRules)
         return placer.place().map { TribalVillageSite(hex: map.coord(at: $0.tile), start: $0.start) }
     }
@@ -167,6 +169,65 @@ public enum DebugTools {
         guard state.players.indices.contains(player.rawValue), state.rules.tech(tech) != nil,
               !state.players[player.rawValue].knows(tech) else { return false }
         state.players[player.rawValue].knownTechs.append(tech)
+        return true
+    }
+
+    /// Gives `player` the civic outright, as if completed this turn (a free policy change).
+    /// False for an unknown player or civic, or one already known.
+    @discardableResult
+    public static func learnCivic(_ civic: CivicID, player: PlayerID, in state: inout GameState) -> Bool {
+        guard state.players.indices.contains(player.rawValue), state.rules.civic(civic) != nil,
+              !state.players[player.rawValue].knowsCivic(civic) else { return false }
+        state.learnCivic(civic, player: player)
+        if state.players[player.rawValue].civicTarget == civic || state.players[player.rawValue].studying == civic {
+            state.players[player.rawValue].studying = nil
+            state.players[player.rawValue].civicTarget = nil
+        }
+        return true
+    }
+
+    /// Puts a raider camp with no units on `hex` (M2 §11), remembered by the players who see it.
+    /// False off the map or without raiders.
+    @discardableResult
+    public static func addRaiderCamp(at hex: HexCoord, in state: inout GameState) -> Bool {
+        guard state.rules.raiders != nil, let t = state.map.index(of: hex) else { return false }
+        var raiders = state.raiders ?? RaiderState()
+        raiders.camps.append(RaiderCamp(tile: Int32(t), spawnedTurn: state.turn, units: []))
+        state.raiders = raiders
+        for p in state.players.indices where state.players[p].visible[t] {
+            state.players[p].memory.rememberRaiderCamp(at: t, standing: true)
+        }
+        return true
+    }
+
+    /// `a` and `b` meet (a minor met first gives its free envoy, M2 §12.2).
+    public static func meet(_ a: PlayerID, _ b: PlayerID, in state: inout GameState) {
+        var fx = Effects()
+        state.meet(a, b, &fx)
+    }
+
+    /// `player` remembers city `id` as it is now, as if seen. False for an unknown city.
+    @discardableResult
+    public static func revealCity(_ id: CityID, to player: PlayerID, in state: inout GameState) -> Bool {
+        guard let city = state.city(id), state.players.indices.contains(player.rawValue) else { return false }
+        state.remember(city, by: player)
+        return true
+    }
+
+    /// `player` has explored every tile within `radius` of `center`.
+    public static func explore(radius: Int, of center: HexCoord, player: PlayerID, in state: inout GameState) {
+        guard state.players.indices.contains(player.rawValue) else { return }
+        for hex in state.map.coords(within: radius, of: center) {
+            if let t = state.map.index(of: hex) { state.players[player.rawValue].explored[t] = true }
+        }
+    }
+
+    /// Sets `player`'s Influence stock and envoy tokens (M2 §4.3). False for an unknown player.
+    @discardableResult
+    public static func setInfluence(_ influence: Int, tokens: Int, player: PlayerID, in state: inout GameState) -> Bool {
+        guard state.players.indices.contains(player.rawValue) else { return false }
+        state.players[player.rawValue].influence = max(0, influence)
+        state.players[player.rawValue].envoyTokens = max(0, tokens)
         return true
     }
 
@@ -195,6 +256,51 @@ public enum DebugTools {
         state.tribalVillages = villages
         var fx = Effects()
         fx.touchTile(t)
+        state.updateKnowledge(&fx)
+        return true
+    }
+
+    /// Sets city `id`'s population and adds buildings it lacks, then reassigns its citizens
+    /// (scenarios: a city past its Housing). False, with nothing changed, for an unknown city or
+    /// a population below 1.
+    @discardableResult
+    public static func setCity(_ id: CityID, population: Int, adding buildings: [BuildingID] = [], in state: inout GameState) -> Bool {
+        guard population >= 1, let index = state.cityIndex(id) else { return false }
+        state.cities[index].population = population
+        for b in buildings where !state.cities[index].has(b) { state.cities[index].buildings.append(b) }
+        state.cities[index].buildings.sort()
+        state.assignCitizens(index)
+        return true
+    }
+
+    /// Sets city `id`'s Loyalty (scenarios), clamped to 0–100. False without Loyalty.
+    @discardableResult
+    public static func setLoyalty(_ id: CityID, _ loyalty: Int, in state: inout GameState) -> Bool {
+        guard state.rules.loyalty != nil, let index = state.cityIndex(id) else { return false }
+        state.cities[index].loyalty = max(0, min(100, loyalty))
+        return true
+    }
+
+    /// City `id` revolts at once and becomes a Free City (scenarios), as at Loyalty 0. False
+    /// without the Free Cities or for one of theirs.
+    @discardableResult
+    public static func revolt(_ id: CityID, in state: inout GameState) -> Bool {
+        guard let free = state.freeCities, let index = state.cityIndex(id), state.cities[index].owner != free else { return false }
+        var fx = Effects()
+        state.revolt(index, &fx)
+        state.updateKnowledge(&fx)
+        return true
+    }
+
+    /// Builds a quarter of `kind` on `hex` for city `id` at once (scenarios), as finishing it
+    /// would. False, with nothing changed, when the city may not have it there.
+    @discardableResult
+    public static func addQuarter(_ kind: QuarterKind, at hex: HexCoord, to id: CityID, in state: inout GameState) -> Bool {
+        guard let index = state.cityIndex(id) else { return false }
+        let city = state.cities[index]
+        guard state.quarterKindProblem(kind, in: city) == nil, state.quarterSiteProblem(kind, at: hex, in: city) == nil else { return false }
+        var fx = Effects()
+        state.buildQuarter(kind, at: hex, inCity: index, &fx)
         state.updateKnowledge(&fx)
         return true
     }

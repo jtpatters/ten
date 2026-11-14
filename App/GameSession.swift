@@ -82,6 +82,8 @@ final class GameSession {
     var describedAction: UnitActionKind?
     /// The unit whose card lists the promotions on offer (Promote, or Next's "Promotion Due").
     var promotingUnit: UnitID?
+    /// The Trader whose route destinations the unit card lists (M2 §13).
+    var tradePicking: UnitID?
 
     // MARK: Phases
 
@@ -186,6 +188,8 @@ final class GameSession {
     var settlerWaitShown: Set<CityID> = []
     /// The tech the viewer learnt last (the research panel's header).
     var lastResearched: LearntTech?
+    /// The civic last completed, for the civic panel to say so that turn.
+    var lastCivic: LearntCivic?
     /// Cities captured this phase that the viewer chose to keep.
     var keptCities: Set<CityID> = []
     /// "N items need attention — End Turn?" on screen, with N; asked once per game (M1 §16).
@@ -200,11 +204,18 @@ final class GameSession {
     var confirmingLoad = false
     /// The city choosing a bombard target: its panel steps aside and the map is the target picker.
     var bombardTargeting: CityID?
+    /// The city choosing a tile for a quarter (M2 §18.2): its panel steps aside and the map
+    /// marks the legal sites with their adjacency.
+    var quarterPlacing: QuarterPlacing?
+    /// The city choosing a tile to buy (M2 §7.4), its panel stepped aside.
+    var tileBuying: CityID?
     /// What the city panel should show (a new city's production list); the token changes with
     /// every request.
     var cityPanelRequest = CityPanelRequest(focus: .overview, token: 0)
     /// The tech panel, diplomacy sheet or notices log, when open.
     var openPanel: Panel?
+    /// A section the open panel should scroll to once (cleared when it has).
+    var panelAnchor: String?
     /// The Save Game prompt and its name field.
     var isShowingSave = false
     var saveName = ""
@@ -240,6 +251,7 @@ final class GameSession {
         self.store = store
         self.diagnostic = diagnostic
         self.mapGenMilliseconds = mapGenMilliseconds
+        Heraldry.freeCities = state.freeCities
         renderer = MapRenderer(state: state, viewer: PlayerID(0))
         renderer.fogEnabled = !diagnostic
         overlay = MapOverlay(frame: .zero)
@@ -566,6 +578,10 @@ final class GameSession {
 
     func syncWorld() {
         MapAdapter.syncWorld(renderer, state: state, viewer: viewer, diagnostic: diagnostic)
+        overlay.quarterMarks = MapAdapter.quarterMarks(state: state, viewer: viewer, diagnostic: diagnostic)
+        let view = state.view(for: viewer)
+        overlay.campMarks = view.knownRaiderCamps.map { view.coord(at: Int($0)) }
+        overlay.tradeRoutes = view.visibleTradeRoutes.map { $0.path.map { view.coord(at: Int($0)) } }
     }
 
     /// A refusal or failure as a sentence for a toast or alert.
@@ -616,6 +632,16 @@ final class GameSession {
         guard let hex = view.normalize(raw) else { return }
         let wasInspecting = inspectedHex != nil
         inspectedHex = nil
+        // 0. Placing a quarter: a marked site queues it.
+        if quarterPlacing != nil {
+            placeQuarter(at: hex)
+            return
+        }
+        // 0b. Buying a tile: a marked tile is bought.
+        if tileBuying != nil {
+            buyTile(at: hex)
+            return
+        }
 
         // 1. The end of a previewed route: the second tap moves.
         if pendingPath?.destination == hex, selectedUnit != nil {
@@ -865,6 +891,8 @@ final class GameSession {
         attentionCard = nil
         if selection != self.selection {
             bombardTargeting = nil
+            quarterPlacing = nil
+            tileBuying = nil
             // Another city's panel opens on its overview.
             if case .city = selection { cityPanelRequest = CityPanelRequest(focus: .overview, token: cityPanelRequest.token &+ 1) }
         }
@@ -918,6 +946,8 @@ final class GameSession {
         explore.described = nil
         attentionCard = nil
         bombardTargeting = nil
+        quarterPlacing = nil
+        tileBuying = nil
         selection = nil
         refreshSelection()
     }
@@ -1041,6 +1071,7 @@ final class GameSession {
     /// out of sight) is cleared.
     func refreshSelection() {
         overlay.invalidateBanners()
+        if quarterPlacing == nil, tileBuying == nil { overlay.siteLabels = [] }
         let view = self.view
         switch selection {
         case let .unit(id)?:
@@ -1076,7 +1107,14 @@ final class GameSession {
             renderer.setMovementRange([])
             renderer.setAttackTargets(targets.map(\.target))
             renderer.setWorkedTiles(city.workedTiles)
-            renderer.setTileScores([])
+            if tileBuying == id, let purchase = view.tilePurchase(of: id) {
+                renderer.setTileScores(MapAdapter.purchaseScores(view, tiles: purchase.tiles))
+                overlay.siteLabels = purchase.tiles.map { MapOverlay.SiteLabel(hex: $0, text: "\(purchase.price)") }
+            } else {
+                let sites = quarterPlacing?.city == id ? quarterSites() : []
+                renderer.setTileScores(MapAdapter.quarterSiteScores(view, sites: sites))
+                overlay.siteLabels = sites.map { MapOverlay.SiteLabel(hex: $0.tile, text: "+\($0.adjacency)") }
+            }
             if let plan = pendingAttack, plan.attacker != .city(id) || !targets.contains(plan.option) {
                 cancelAttack()
             } else {
@@ -1116,7 +1154,7 @@ final class GameSession {
     /// The panels presented over the map on request (the tech panel, the diplomacy sheet, the
     /// notices log).
     enum Panel: Equatable {
-        case research, diplomacy, notices
+        case research, civics, government, diplomacy, notices, minors
     }
 
     /// Esc: closes the combat preview, else leaves bombard target mode, else drops the
@@ -1126,6 +1164,10 @@ final class GameSession {
             cancelAttack()
         } else if bombardTargeting != nil {
             endBombard()
+        } else if quarterPlacing != nil {
+            endQuarter()
+        } else if tileBuying != nil {
+            endBuyTile()
         } else if pendingPath != nil {
             clearPreviews()
         } else if inspectedHex != nil {

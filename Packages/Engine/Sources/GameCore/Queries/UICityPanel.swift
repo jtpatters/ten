@@ -17,6 +17,18 @@ public struct CityGrowth: Hashable, Sendable {
     public var turnsToShrink: Int?
 }
 
+/// An own city's Housing and Stability (M2 §5.1, §5.2).
+public struct CityWellbeing: Hashable, Sendable {
+    public var housing: HousingBreakdown
+    /// Percent of a positive food surplus that goes into the store.
+    public var growthPct: Int
+    /// The Stability its yields use (from its phase start) and its state.
+    public var stability: Int
+    public var state: StabilityState
+    /// Its Stability by source as things stand now (the next phase start's value).
+    public var breakdown: StabilityBreakdown
+}
+
 /// Why a queued item waits instead of taking production (M1 §5 "An item waits while it cannot").
 public enum ProductionWait: Hashable, Sendable {
     /// A unit that needs this population to complete (a Settler in a city of population 1).
@@ -81,9 +93,20 @@ public struct UpkeepForecast: Hashable, Sendable {
     public var disbanded: Int
     /// Military units that complete at that phase start, before upkeep is paid (counted).
     public var completing: Int = 0
+    /// Upkeep the treasury cannot pay even after disbanding; the phase's science falls by it (M2 §5.4).
+    public var shortfall: Int = 0
 }
 
 extension PlayerView {
+    /// An own city's Housing and Stability (nil without the rules or for another's city).
+    public func wellbeing(of id: CityID) -> CityWellbeing? {
+        guard rules.stability != nil, let city = city(id), let index = state.cityIndex(id) else { return nil }
+        let breakdown = state.stabilityBreakdowns(for: city.owner)[index] ?? StabilityBreakdown()
+        let stability = city.stability ?? breakdown.total
+        return CityWellbeing(housing: state.housing(of: city), growthPct: state.growthPct(of: city), stability: stability,
+                             state: rules.stabilityState(stability), breakdown: breakdown)
+    }
+
     /// An own city's food store, threshold, surplus and the phases until it grows or shrinks.
     public func growth(of id: CityID) -> CityGrowth? {
         guard let city = city(id) else { return nil }
@@ -143,7 +166,7 @@ extension PlayerView {
         // population (food comes first) and the production has reached its cost.
         let fillLimit = state.waitingHeadFillLimit(city)
         return city.queue.enumerated().map { index, entry in
-            let cost = rules.cost(of: entry.item)
+            let cost = state.cost(of: entry, owner: city.owner)
             var wait = productionWait(entry.item, in: city)
             if index == 0, let limit = fillLimit, case let .unit(type) = entry.item {
                 let def = rules.unit(type)
@@ -245,13 +268,14 @@ extension PlayerView {
         let completing = militaryUnitsCompleting()
         var military = income.militaryUnits + completing
         let gold = me.gold + income.gold
-        func upkeep(_ units: Int) -> Int { max(0, units - free) * perUnit }
+        func upkeep(_ units: Int) -> Int { max(0, units - free) * perUnit + income.buildings }
         var disbanded = 0
         while gold - upkeep(military) < 0, military > free {
             military -= 1
             disbanded += 1
         }
-        return UpkeepForecast(goldAfter: max(0, gold - upkeep(military)), disbanded: disbanded, completing: completing)
+        return UpkeepForecast(goldAfter: max(0, gold - upkeep(military)), disbanded: disbanded, completing: completing,
+                              shortfall: max(0, upkeep(military) - gold))
     }
 
     /// Own cities whose next production completes a military unit at the player's next phase
@@ -265,7 +289,7 @@ extension PlayerView {
                   let entry = city.queue.first(where: { productionWait($0.item, in: city) == nil }),
                   case let .unit(type) = entry.item, !type.isCivilian else { return count }
             let production = state.cityYields(city).total.production
-            return entry.progress + city.storedProgress + production >= rules.cost(of: entry.item) ? count + 1 : count
+            return entry.progress + city.storedProgress + production >= state.cost(of: entry, owner: city.owner) ? count + 1 : count
         }
     }
 
@@ -318,5 +342,126 @@ private struct PopulationForecast {
                 }
             }
         }
+    }
+}
+
+// MARK: Quarters
+
+/// A legal site for a quarter, with the adjacency bonus it would have there (M2 §18.2).
+public struct QuarterSite: Hashable, Sendable {
+    public var tile: HexCoord
+    public var adjacency: Int
+}
+
+/// A quarter kind as the city panel lists it (M2 §18.2): its cost now, phases at the city's
+/// production, its legal sites best first, and why it may not be placed now (nil: it may).
+public struct QuarterOption: Hashable, Sendable {
+    public var kind: QuarterKind
+    public var name: String
+    /// The yield its adjacency gives ("science", "gold", ...); nil: none.
+    public var yield: String?
+    public var cost: Int
+    public var turns: Int?
+    public var sites: [QuarterSite]
+    public var problem: String?
+}
+
+extension PlayerView {
+    /// Every quarter kind for an own city, in rules order, but the ones it has built.
+    public func quarterOptions(for id: CityID) -> [QuarterOption] {
+        guard let city = city(id), let kinds = rules.quarters?.kinds else { return [] }
+        let production = state.cityYields(city).total.production
+        let queued = city.queue.compactMap { entry -> QuarterKind? in
+            if case let .quarter(kind, _) = entry.item { return kind }
+            return nil
+        }
+        let cappedQueued = queued.filter { state.countsTowardCap($0) }.count
+        let cap = state.quarterCap(of: city)
+        return kinds.filter { state.quarter($0.id, of: city) == nil }.map { def in
+            let cost = state.quarterCost(def.id)
+            var problem = state.quarterKindProblem(def.id, in: city)
+            if problem == nil {
+                if queued.contains(def.id) { problem = "already queued" }
+                else if city.queue.count >= rules.constants.production.maxQueue { problem = "queue full" }
+                else if state.countsTowardCap(def.id), state.cappedQuarterCount(city) + cappedQueued >= cap {
+                    problem = "at most \(cap) quarters at population \(city.population)"
+                }
+            }
+            let sites = problem == nil ? state.quarterSites(def.id, in: city).map { QuarterSite(tile: $0.tile, adjacency: $0.adjacency) } : []
+            if problem == nil, sites.isEmpty { problem = "no tile for it" }
+            return QuarterOption(kind: def.id, name: def.name, yield: def.yield, cost: cost,
+                                 turns: production > 0 ? max(1, (cost + production - 1) / production) : nil,
+                                 sites: sites, problem: problem)
+        }
+    }
+
+    /// How many quarters an own city may have (cap-exempt kinds aside), at its population.
+    public func quarterCap(of id: CityID) -> Int? {
+        city(id).map { state.quarterCap(of: $0) }
+    }
+
+    /// A built quarter's adjacency bonus where it stands, for its own city (0 when pillaged).
+    public func quarterAdjacency(_ quarter: CityQuarter, of id: CityID) -> Int {
+        guard let city = city(id), !quarter.isPillaged, let t = state.map.index(of: quarter.tile),
+              let centre = state.map.index(of: city.position) else { return 0 }
+        return state.quarterAdjacency(quarter.kind, at: t, owner: player, centre: centre)
+    }
+}
+
+// MARK: Loyalty
+
+extension PlayerView {
+    /// An own city's Loyalty change and where it comes from (M2 §5.5); nil without Loyalty, and
+    /// in a game from before it (no Free Cities), where Loyalty never changes.
+    public func loyaltyBreakdown(of id: CityID) -> LoyaltyBreakdown? {
+        guard state.freeCities != nil else { return nil }
+        return city(id).flatMap { state.loyaltyBreakdown($0) }
+    }
+
+    /// Turns until an own city revolts at its current trend; nil when it is not losing Loyalty
+    /// or cannot revolt (no Free Cities).
+    public func turnsUntilRevolt(of id: CityID) -> Int? {
+        guard state.freeCities != nil else { return nil }
+        return city(id).flatMap { state.turnsUntilRevolt($0) }
+    }
+
+    /// The Free Cities faction, when the game has one (M2 §12.5).
+    public var freeCities: PlayerID? { state.freeCities }
+}
+
+/// A city's specialists (M2 §5.3): its slots (one per building in each unpillaged quarter),
+/// the citizens filling them, and what those yield.
+public struct CitySpecialists: Hashable, Sendable {
+    public var slots: [QuarterKind]
+    public var filled: [QuarterKind]
+    public var yields: Yields
+}
+
+/// A city's next tile (M2 §7.4): its price, the tiles it could buy, and why it cannot buy one
+/// now (nil: it can).
+public struct TilePurchase: Hashable, Sendable {
+    public var price: Int
+    public var tiles: [HexCoord]
+    public var problem: String?
+}
+
+extension PlayerView {
+    /// An own city's specialists; nil when it has no slot and no specialist.
+    public func specialists(of id: CityID) -> CitySpecialists? {
+        guard let city = city(id), city.owner == player else { return nil }
+        let slots = state.specialistSlots(city)
+        let filled = state.activeSpecialists(city)
+        guard !slots.isEmpty || !filled.isEmpty else { return nil }
+        return CitySpecialists(slots: slots, filled: filled,
+                               yields: filled.reduce(Yields.zero) { $0 + state.specialistYields($1) })
+    }
+
+    /// An own city's tile buying; nil without the rules or for another's city.
+    public func tilePurchase(of id: CityID) -> TilePurchase? {
+        guard let city = city(id), city.owner == player, let price = state.tilePrice(for: city) else { return nil }
+        let tiles = state.purchasableTiles(for: city)
+        let gold = me.gold
+        let problem: String? = tiles.isEmpty ? "no tile to buy" : gold < price ? "needs \(price) Gold (have \(gold))" : nil
+        return TilePurchase(price: price, tiles: tiles, problem: problem)
     }
 }

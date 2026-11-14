@@ -51,8 +51,9 @@ struct LegacySave {
 
     /// The standard rules data as it was when the fixture was saved: without its tribal
     /// village section, without M2's eras, progression, Insights and later techs (M2 2.1a), and
-    /// without M2's units, promotions and wall damage (2.1b), and without M2's resources,
-    /// stockpiles and resource improvements (2.1c). It no longer validates (every unit
+    /// without M2's units, promotions and wall damage (2.1b), without embarking and the naval AI's
+    /// ship share (§3.2, §8.4), and without M2's resources,
+    /// stockpiles, resource improvements and roads (2.1c). It no longer validates (every unit
     /// type needs a definition); its hash is the recorded content hash.
     static func m1Data() throws -> RulesetData { try decode(m1Object().m1) }
 
@@ -69,6 +70,28 @@ struct LegacySave {
         let m2Resources = json["resources"], m2Stockpile = json["stockpile"]
         json.removeValue(forKey: "resources")
         json.removeValue(forKey: "stockpile")
+        // M2 2.1c roads (M2 §3.3).
+        json.removeValue(forKey: "roads")
+        // M2 naval units' embarking rules (M2 §3.2).
+        json.removeValue(forKey: "embark")
+        // M2 2.2 Housing and Stability (M2 §5.1, §5.2) and the Water Mill.
+        json.removeValue(forKey: "housing")
+        json.removeValue(forKey: "stability")
+        // M2 2.2b quarters (M2 §5.3) and their buildings, and the Castle.
+        json.removeValue(forKey: "quarters")
+        // M2 2.2c Loyalty and the Free Cities (M2 §5.5, §12.5).
+        json.removeValue(forKey: "loyalty")
+        // M2 2.2d buying tiles (M2 §7.4), building upkeep (M2 §5.4) and the Science and Culture focuses.
+        json.removeValue(forKey: "tileBuying")
+        // M2 2.3 civics, governments and policies (M2 §7.1–7.3).
+        json.removeValue(forKey: "civics")
+        json.removeValue(forKey: "governance")
+        // M2 2.4 (raiders, minor factions, trade).
+        for key in ["raiders", "minors", "trade"] { json.removeValue(forKey: key) }
+        json["focuses"] = (json["focuses"] as? [[String: Any]] ?? []).filter { !["science", "culture"].contains($0["focus"] as? String ?? "") }
+        let m1Buildings = ["palace", "monument", "granary", "walls", "library", "market"]
+        json["buildings"] = (json["buildings"] as? [[String: Any]] ?? []).filter { m1Buildings.contains($0["id"] as? String ?? "") }
+            .map { b in b.filter { !["housing", "stability", "requiresRiver", "quarter", "requires", "excludes", "upkeep"].contains($0.key) } }
         let improvements = json["improvements"] as? [[String: Any]] ?? []
         json["improvements"] = improvements.prefix(3).map { imp in imp.filter { !["resources", "techBonuses"].contains($0.key) } }
         for key in ["tribalVillages", "eras", "progression", "promotions", "promotionXP"] { json.removeValue(forKey: key) }
@@ -89,12 +112,16 @@ struct LegacySave {
         json["ai"] = ai
         let units = json["units"] as? [[String: Any]] ?? []
         let m1Units = units.prefix(6).map { unit in
-            var unit = unit.filter { !["upgradesTo", "rangedAfterMove", "wallDamagePct", "resource"].contains($0.key) }
+            var unit = unit.filter { !["upgradesTo", "rangedAfterMove", "wallDamagePct", "resource", "vsCity"].contains($0.key) }
             if unit["type"] as? String == "spearman" { unit["classBonuses"] = [["against": "cavalry", "strength": 10]] }
             return unit
         }
         var m1 = json
         m1["units"] = Array(m1Units)
+        // The naval AI's ship share (M2 §8.4).
+        var m1AI = ai
+        m1AI.removeValue(forKey: "shipsPerCoastalCityPct")
+        m1["ai"] = m1AI
         var playable = json
         playable["units"] = Array(m1Units) + units.dropFirst(6).map { unit in unit.filter { $0.key != "tech" } }
         playable["resources"] = m2Resources
@@ -204,6 +231,10 @@ struct LegacySave {
         for _ in 0..<6 { PersistenceFixture.playPhase(&later) }
         #expect(later.tribalVillages == nil && later.players.allSatisfy { $0.memory.tribalVillages == nil })
         #expect(later.checkInvariants().isEmpty)
+        // Nor any Free Cities (M2 §12.5): no such player, and Loyalty neither shows nor threatens a revolt.
+        #expect(later.freeCities == nil && later.players.allSatisfy(\.isMajor))
+        #expect(later.cities.allSatisfy { later.view(for: $0.owner).loyaltyBreakdown(of: $0.id) == nil })
+        #expect(later.cities.allSatisfy { later.view(for: $0.owner).turnsUntilRevolt(of: $0.id) == nil })
     }
 
     /// A game with tribal villages (the populated fixture: two, with gifts given, one

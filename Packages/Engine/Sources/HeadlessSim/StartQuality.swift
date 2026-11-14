@@ -125,7 +125,7 @@ enum StartQuality {
         var records: [StartRecord] = []
         for g in 0..<o.games {
             let seed = o.seed &+ UInt64(g)
-            let generated = MapGenerator.generate(MapGenSettings(size: o.size, seed: seed))
+            let generated = MapGenerator.generate(MapGenSettings(size: o.size, seed: seed, script: o.script))
             var starts = generated.startPositions.enumerated().map { measure($0.element, player: $0.offset, map: generated.map, rules: rules) }
             // Each player founds its capital on its start, in its own phase, through the engine.
             var state = GameState.newGame(seed: seed, map: generated.map, startPositions: generated.startPositions,

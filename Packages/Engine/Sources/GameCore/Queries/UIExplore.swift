@@ -172,7 +172,7 @@ extension PlayerView {
         let thisPhase = path?.steps.filter { $0.turn <= 1 } ?? []
         // At war it walks a tile at a time (the first it may stop on), so that an enemy coming
         // into its sight (moves reveal, they do not stop, M1 §8.6) stops it with moves left.
-        let atWar = state.players.contains { $0.id != player && isAtWar(with: $0.id) }
+        let atWar = state.players.contains { $0.id != player && $0.isMajor && isAtWar(with: $0.id) }
         func mayEnd(_ step: PathStep) -> Bool {
             guard let t = index(of: step.hex), safe?[t] ?? true else { return false }
             return !units.contains { $0.id != id && $0.position == step.hex && $0.type.isCivilian == unit.type.isCivilian }
@@ -205,7 +205,7 @@ extension PlayerView {
     func exploreGoal(_ unit: Unit, field: [Int32], frontier: [Int], claimed: [HexCoord], current: Int? = nil,
                      tuning: ExploreTuning) -> Int? {
         let def = rules.unit(unit.type)
-        let sight = def.sight, maxMoves = max(1, def.moves)
+        let sight = def.sight, maxMoves = max(1, def.moves) * rules.movePoints
         let taken = claimed.compactMap { index(of: $0) }
         typealias Key = (score: Int, gain: Int, cost: Int, tile: Int)
         func better(_ a: Key, than b: Key?) -> Bool {
@@ -246,7 +246,7 @@ extension PlayerView {
         let taken = claimed.compactMap { index(of: $0) }
         func open(_ t: Int) -> Bool { field.indices.contains(t) && field[t] > 0 && !taken.contains(t) }
         if let current, SortedTiles.contains(known, current), open(current) { return current }
-        let limit = turns.map { $0 * max(1, rules.unit(unit.type).moves) } ?? Int.max
+        let limit = turns.map { $0 * max(1, rules.unit(unit.type).moves) * rules.movePoints } ?? Int.max
         var best: (cost: Int32, tile: Int)?
         for village in known {
             let t = Int(village)
@@ -389,10 +389,9 @@ extension PlayerView {
                 cost += rules.feature(tile.feature).moveCost
             }
         }
-        if explored[from], state.map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0 {
-            cost += rules.river.crossingMoveCost
-        }
-        return cost
+        let river = explored[from] && state.map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0
+        // An enemy may know Engineering: assume it does (the wider reach).
+        return rules.stepPoints(cost, crossesRiver: river, road: me.memory.remembersRoad(from) && me.memory.remembersRoad(to), bridges: true)
     }
 
     // MARK: Finds
@@ -467,6 +466,10 @@ extension MoveKnowledge {
         zoc = base.zoc
         freeElevation = base.freeElevation
         freeFeature = base.freeFeature
+        roads = base.roads
+        bridges = base.bridges
+        mobility = base.mobility
+        maxMoves = base.maxMoves
     }
 }
 

@@ -442,7 +442,7 @@ private func villageRules(_ change: (inout [String: Any]) -> Void) throws -> Rul
         try nextTurn(&state)
         #expect(state.players[0].knows("pottery") && state.players[0].researchProgress == 0)
         try nextTurn(&builderState)
-        #expect(builderState.unit(id)?.movesLeft == builderState.rules.unit(.builder).moves)
+        #expect(builderState.unit(id)?.movesLeft == builderState.rules.points(builderState.rules.unit(.builder).moves))
         expectSound(state)
         expectSound(builderState)
     }
@@ -473,7 +473,7 @@ private func villageRules(_ change: (inout [String: Any]) -> Void) throws -> Rul
                 let builder = try #require(state.units.first { $0.type == .builder })
                 #expect(builder.position == hex(3, 1) && builder.movesLeft == 0)
                 try nextTurn(&state)
-                #expect(state.unit(builder.id)?.movesLeft == state.rules.unit(.builder).moves)
+                #expect(state.unit(builder.id)?.movesLeft == state.rules.points(state.rules.unit(.builder).moves))
             }
             expectSound(state)
         }
@@ -509,7 +509,7 @@ private func villageRules(_ change: (inout [String: Any]) -> Void) throws -> Rul
                 #expect(records.contains { $0.event == .techResearched(player: PlayerID(0), tech: "pottery") })
             case .builder:
                 let builder = try #require(state.units.first { $0.type == .builder })
-                #expect(builder.position == claim && builder.movesLeft == state.rules.unit(.builder).moves)
+                #expect(builder.position == claim && builder.movesLeft == state.rules.points(state.rules.unit(.builder).moves))
             }
             expectSound(state)
         }
@@ -760,7 +760,7 @@ private func side(of t: Int, _ steps: [[Int]]) -> (start: Int, steps: Int, margi
                                       civs: Array(rules.civs.map(\.id).reversed()), mapSizeName: size.rawValue,
                                       placeTribalVillages: true)
         #expect(DebugTools.tribalVillages(in: other) == sites.map(\.hex), "\(label)")
-        #expect(game.tribalVillages?.gifts == [Int](repeating: 0, count: starts.count), "\(label)")
+        #expect(game.tribalVillages?.gifts == [Int](repeating: 0, count: game.players.count), "\(label)")
         expectSound(game)
 
         // Equal own-side counts, by tag.

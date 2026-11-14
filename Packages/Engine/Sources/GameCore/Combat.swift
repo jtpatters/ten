@@ -38,6 +38,8 @@ public struct StrengthModifier: Hashable, Sendable {
         case shortage(Resource)
         /// The unit's class bonus against the other side's class (rules data).
         case classBonus(UnitClass)
+        /// Attacker: its class's modifier against cities (rules data).
+        case vsCity
         /// The unit's promotions that apply (M2 §8.3).
         case promotion
         /// City Strength: per citizen.
@@ -48,6 +50,8 @@ public struct StrengthModifier: Hashable, Sendable {
         case hills
         /// City Strength with a military unit in the city.
         case garrison
+        /// The owner's government and policies (M2 §7.2–7.3).
+        case government
     }
 
     public var kind: Kind
@@ -70,11 +74,13 @@ public struct StrengthModifier: Hashable, Sendable {
         case .wounded: "Wounded"
         case let .shortage(r): "Out of \(caseName(r).capitalized)"
         case let .classBonus(c): "vs \(caseName(c).prefix(1).uppercased() + caseName(c).dropFirst())"
+        case .vsCity: "vs City"
         case .promotion: "Promotions"
         case .population: "Population"
         case .walls: "Walls"
         case .hills: "Hills"
         case .garrison: "Garrison"
+        case .government: "Government"
         }
     }
 }
@@ -207,7 +213,8 @@ extension GameState {
         }
         let elevation = map.tiles[centre].elevation
         s.add(.hills, rules.elevation(elevation).cityStrength)
-        if sees(centre), units.contains(where: { $0.position == city.position && $0.owner == city.owner && !$0.type.isCivilian }) {
+        s.add(.government, bonus(\.cityStrength, for: city.owner))
+        if sees(centre), units.contains(where: { $0.position == city.position && $0.owner == city.owner && !$0.type.isCivilian && !$0.type.isNaval }) {
             s.add(.garrison, c.garrisonStrength)
         }
         return s
@@ -273,7 +280,9 @@ extension GameState {
         let attack: Strength
         switch attacker {
         case let .city(city):
-            attack = cityStrength(city, sees: sees)
+            var s = cityStrength(city, sees: sees)
+            s.add(.government, bonus(\.bombard, for: city.owner))
+            attack = s
         case let .unit(unit):
             let def = rules.unit(unit.type)
             var s = Strength(base: ranged ? def.rangedStrength : def.strength)
@@ -285,7 +294,9 @@ extension GameState {
             s.add(.wounded, woundPenalty(unit))
             if let r = shortage(of: unit) { s.add(.shortage(r), shortagePenalty(unit)) }
             if let (cls, bonus) = classBonus(of: unit, against: defender) { s.add(.classBonus(cls), bonus) }
+            if case .city = defender { s.add(.vsCity, def.vsCity ?? 0) }
             s.add(.promotion, promotionBonus(of: unit, attacking: true, ranged: ranged, against: defender))
+            s.add(.government, governmentStrength(of: unit, against: defender))
             attack = s
         }
 
@@ -294,6 +305,11 @@ extension GameState {
         case let .city(city):
             let siege = if case let .unit(u) = attacker { rules.unit(u.type).unitClass == .siege } else { false }
             defence = cityStrength(city, sees: sees, walls: !siege)
+        case let .unit(unit) where isEmbarked(unit) && rules.embark != nil:
+            // Embarked (M2 §8.4): a fixed strength, no terrain, fortification or support.
+            var s = Strength(base: rules.embark!.strength)
+            s.add(.wounded, woundPenalty(unit))
+            defence = s
         case let .unit(unit):
             var s = Strength(base: rules.unit(unit.type).strength)
             let tile = map.tiles[target]
@@ -309,6 +325,7 @@ extension GameState {
             if let r = shortage(of: unit) { s.add(.shortage(r), shortagePenalty(unit)) }
             if let (cls, bonus) = classBonus(of: unit, against: attacker) { s.add(.classBonus(cls), bonus) }
             s.add(.promotion, promotionBonus(of: unit, attacking: false, ranged: ranged, against: attacker))
+            s.add(.government, governmentStrength(of: unit, against: attacker))
             defence = s
         }
         return Clash(attacker: attacker, defender: defender, from: from, target: target, ranged: ranged,
@@ -362,6 +379,7 @@ extension GameState {
         let def = rules.unit(unit.type)
         guard def.isMilitary else { return "civilians cannot attack" }
         guard unit.movesLeft > 0 else { return "no moves left" }
+        if isEmbarked(unit) { return "embarked units cannot attack" }
         // Siege units fire only before moving in the phase (M2 §8.1).
         if unit.attacked == true { return "already attacked this phase" }
         if !firesAfterMoving(unit), unit.movesLeft < maxMoves(of: unit) { return "\(unit.type.displayName)s cannot fire after moving" }
@@ -379,6 +397,11 @@ extension GameState {
             if distance < 1 || distance > range(of: unit) { return "target out of range" }
         } else if distance != 1 {
             return "target not adjacent"
+        } else if case .unit = target {
+            // M2 §8.4: naval melee fights only on water, land melee never attacks water.
+            let water = map.tiles[t].terrain.isWater
+            if def.unitClass.isNaval, !water { return "ships cannot attack units on land" }
+            if !def.unitClass.isNaval, water { return "cannot attack units at sea" }
         }
         return nil
     }
@@ -398,7 +421,11 @@ extension GameState {
         guard let attacker = unit(id), let from = map.index(of: attacker.position) else { return }
         let def = rules.unit(attacker.type)
         let ranged = def.isRanged
-        if case let .city(city) = target, !ranged, city.hp == 0, capturesCities(attacker.type), let index = cityIndex(city.id) {
+        if case let .city(city) = target, !ranged, city.hp == 0, isRaider(attacker.owner), let index = cityIndex(city.id) {
+            sackCity(index, by: id, &fx)
+            return
+        }
+        if case let .city(city) = target, !ranged, city.hp == 0, capturesCities(attacker.type), !isMinor(attacker.owner), let index = cityIndex(city.id) {
             captureCity(index, by: id, &fx)
             return
         }
@@ -410,8 +437,9 @@ extension GameState {
         // Attacking ends the attacker's moves (one move for a skirmisher, M2 §8.3) and clears
         // its activity and orders.
         let skirmish = promotionDefs(attacker).contains { $0.moveAfterAttack == true }
+        let move = rules.movePoints
         updateUnit(id) { u in
-            u.movesLeft = skirmish ? max(0, u.movesLeft - 1) : 0
+            u.movesLeft = skirmish ? max(0, u.movesLeft - move) : 0
             if skirmish { u.attacked = true }
             u.activity = .none
             u.destination = nil
@@ -450,6 +478,9 @@ extension GameState {
             updateUnit(id) { $0.position = hex }
             fx.emit(.unitMoved(unit: id, from: attacker.position, path: [hex]), .tiles([from, t]))
             captureCivilians(at: t, by: attacker.owner, &fx)
+            if raiders != nil, players[attacker.owner.rawValue].isMajor, holdsRaiderCamp(t) {
+                clearRaiderCamp(at: t, by: attacker.owner, &fx)
+            }
         }
     }
 
@@ -525,6 +556,19 @@ extension GameState {
         let hex = map.coord(at: t)
         let victims = units.filter { $0.position == hex && $0.owner != captor && $0.type.isCivilian && isAtWar(captor, $0.owner) }
         for victim in victims {
+            if isRaider(captor) {
+                killUnit(victim.id, &fx)
+                fx.touchPlayer(victim.owner)
+                continue
+            }
+            if victim.type == .trader, let t = rules.trade {
+                // M2 §8.4: a captured Trader is removed and the captor gets Gold.
+                killUnit(victim.id, &fx)
+                players[captor.rawValue].gold += t.traderCaptureGold
+                fx.touchPlayer(victim.owner)
+                fx.touchPlayer(captor)
+                continue
+            }
             let def = rules.unit(victim.type)
             let type = def.capturedAs ?? victim.type
             let charges = def.capturedCharges ?? victim.charges
@@ -575,6 +619,9 @@ extension GameState {
         cities[index].storedProgress = rules.constants.city.capturedProduction // 0 by default (p3f experiment)
         cities[index].hp = rules.constants.city.capturedHP
         cities[index].capturedTurn = turn
+        cities[index].loyalty = rules.loyalty?.capturedStart
+        cities[index].freeCityLeader = nil
+        cities[index].freeCityTurns = nil
         cities[index].bombarded = true
         cities[index].lastAttackedPhase = phaseCount
 
@@ -646,7 +693,7 @@ extension GameState {
     /// A player with cities but no capital gets the Palace in their largest city (ties: lower
     /// id), M1 §5.
     mutating func ensureCapital(of player: PlayerID, _ fx: inout Effects) {
-        guard players[player.rawValue].capital == nil else { return }
+        guard players[player.rawValue].capital == nil, players[player.rawValue].isMajor else { return }
         var best: City?
         for city in cities where city.owner == player {
             if let b = best, b.population >= city.population { continue }

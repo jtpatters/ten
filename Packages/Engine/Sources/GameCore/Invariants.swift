@@ -14,6 +14,7 @@ extension GameState {
         check(players.indices.contains(currentPlayer.rawValue), "current player \(currentPlayer) does not exist")
         if outcome == nil, players.indices.contains(currentPlayer.rawValue) {
             check(players[currentPlayer.rawValue].isAlive, "current player \(currentPlayer) is eliminated")
+            check(players[currentPlayer.rawValue].takesPhases, "current player \(currentPlayer) takes no phases")
         }
         check(relations.count == players.count * (players.count - 1) / 2, "relation count")
         var k = 0
@@ -25,7 +26,9 @@ extension GameState {
         }
         check(tileCity.count == count, "territory size")
         for r in relations {
-            if r.stance == .war { check(r.met, "\(r.a) and \(r.b) at war without having met") }
+            let free = [players[r.a.rawValue].kind, players[r.b.rawValue].kind].contains { $0 == .free || $0 == .raiders }
+            if free { check(r.stance == .war && r.proposalFrom == nil, "\(r.a)-\(r.b): the Free Cities at peace") }
+            if r.stance == .war, !free { check(r.met, "\(r.a) and \(r.b) at war without having met") }
             if let from = r.proposalFrom {
                 check(r.stance == .war && r.involves(from), "\(r.a)-\(r.b): peace proposal at peace or from a third player")
             }
@@ -43,9 +46,9 @@ extension GameState {
                 continue
             }
             check(players.indices.contains(unit.owner.rawValue) && players[unit.owner.rawValue].isAlive, "\(unit.id) of a dead player")
-            check(rules.isPassable(map.tiles[t]), "\(unit.id) on impassable \(unit.position)")
+            check(terrainAllows(t, unit.type, owner: unit.owner), "\(unit.id) on impassable \(unit.position)")
             check(unit.hp > 0 && unit.hp <= rules.constants.healing.maxHP, "\(unit.id) hp \(unit.hp)")
-            check(unit.movesLeft >= 0 && unit.movesLeft <= rules.unit(unit.type).moves + promotionMoves(unit), "\(unit.id) moves \(unit.movesLeft)")
+            check(unit.movesLeft >= 0 && unit.movesLeft <= maxMoves(of: unit), "\(unit.id) moves \(unit.movesLeft)")
             check(occupant[t] == -1 || occupant[t] == unit.owner.rawValue, "units of two players on \(unit.position)")
             occupant[t] = unit.owner.rawValue
             if unit.type.isCivilian { civilian[t] += 1 } else { military[t] += 1 }
@@ -77,11 +80,12 @@ extension GameState {
             }
             check(Set(queuedBuildings).count == queuedBuildings.count, "\(city.id) building queued twice")
             check(queuedBuildings.allSatisfy { !city.has($0) }, "\(city.id) queues a building it has")
-            check(city.workedTiles.count <= city.population, "\(city.id) works more tiles than citizens")
+            check(city.workedTiles.count + (city.specialists?.count ?? 0) <= city.population,
+                  "\(city.id) works more tiles and slots than citizens")
             check(Set(city.workedTiles).count == city.workedTiles.count, "\(city.id) works a tile twice")
             for hex in city.workedTiles {
                 guard let t = map.index(of: hex) else { continue }
-                check(tileCity[t] == Int32(city.id.rawValue + 1) && t != centre && rules.isWorkable(map.tiles[t])
+                check(tileCity[t] == Int32(city.id.rawValue + 1) && t != centre && rules.isWorkable(map.tiles[t]) && !isQuarterTile(t)
                       && map.distance(hex, city.position) <= rules.constants.city.workRadius,
                       "\(city.id) works \(hex) it may not")
             }
@@ -90,6 +94,20 @@ extension GameState {
             check(city.wallHP >= 0 && city.wallHP <= maxWall, "\(city.id) wall HP \(city.wallHP) of \(maxWall)")
             if let captured = city.capturedTurn { check(captured >= city.foundedTurn && captured <= turn, "\(city.id) captured in turn \(captured)") }
             check(map.tiles[centre].improvement == nil, "\(city.id) centre improved")
+            let quarters = city.quarters ?? []
+            check(city.quarters?.isEmpty != true, "\(city.id) empty quarter list")
+            if let loyalty = city.loyalty { check((0...100).contains(loyalty), "\(city.id) loyalty \(loyalty)") }
+            if city.freeCityLeader != nil || city.freeCityTurns != nil {
+                check(city.owner == freeCities && city.freeCityLeader != nil && (city.freeCityTurns ?? 0) > 0,
+                      "\(city.id) Free City state on a civ's city")
+            }
+            check(Set(quarters.map(\.kind)).count == quarters.count && Set(quarters.map(\.tile)).count == quarters.count,
+                  "\(city.id) quarters not unique")
+            for q in quarters {
+                let t = map.index(of: q.tile)
+                check(rules.quarter(q.kind) != nil && t != nil && t != centre && tileCity[t ?? centre] == Int32(city.id.rawValue + 1)
+                      && map.tiles[t ?? centre].improvement == nil, "\(city.id) quarter \(q.kind) at \(q.tile)")
+            }
         }
         let liveCities = Set(cities.map { $0.id.rawValue + 1 })
         for t in 0..<count where tileCity[t] != 0 {
@@ -129,20 +147,41 @@ extension GameState {
             check(p.gold >= 0, "\(p.id) gold \(p.gold)")
             check(p.knownTechs == p.knownTechs.sorted() && Set(p.knownTechs).count == p.knownTechs.count, "\(p.id) techs not sorted")
             check(p.knownTechs.allSatisfy { rules.tech($0) != nil }, "\(p.id) knows an unknown tech")
+            let civics = p.knownCivics ?? []
+            check(civics == civics.sorted() && Set(civics).count == civics.count, "\(p.id) civics not sorted")
+            check(civics.allSatisfy { rules.civic($0) != nil }, "\(p.id) knows an unknown civic")
+            if let id = p.government { check(rules.government(id) != nil, "\(p.id) has an unknown government") }
+            let adopted = p.governmentsAdopted ?? []
+            check(adopted == adopted.sorted() && Set(adopted).count == adopted.count, "\(p.id) governments not sorted")
+            if let slotted = p.policies {
+                let defs = slotted.compactMap(rules.policy)
+                check(defs.count == slotted.count && Set(slotted).count == slotted.count, "\(p.id) has bad policies")
+                if let gov = government(of: p.id) { check(gov.fits(defs), "\(p.id) policies overflow their slots") }
+            }
             if let current = p.researching { check(!p.knows(current), "\(p.id) researches a known tech") }
             let palaces = cities.filter { $0.owner == p.id && $0.has(palace) }
             check(palaces.count <= 1, "\(p.id) has \(palaces.count) palaces")
             if let capital = p.capital { check(palaces.first?.id == capital, "\(p.id) capital is not the palace city") }
             // A player with cities has a capital (the Palace moves when it is lost, M1 §5).
             let hasCities = cities.contains { $0.owner == p.id }
-            check(hasCities == (p.capital != nil), "\(p.id) has \(hasCities ? "cities but no capital" : "a capital but no city")")
+            if p.isMajor {
+                check(hasCities == (p.capital != nil), "\(p.id) has \(hasCities ? "cities but no capital" : "a capital but no city")")
+            } else if p.kind == .minor {
+                check(cities.count { $0.owner == p.id } <= 1 && hasCities == (p.capital != nil), "\(p.id) minor with \(cities.count { $0.owner == p.id }) cities")
+                check(minor(p.id)?.envoys.count == players.count, "\(p.id) minor without its envoy table")
+            } else if p.kind == .raiders {
+                check(p.capital == nil && !hasCities && p.id == raiderPlayer, "\(p.id) raiders with a city")
+            } else {
+                check(p.capital == nil && palaces.isEmpty && p.id == freeCities, "\(p.id) Free Cities with a capital")
+            }
             check(p.visible.count == count && p.explored.count == count, "\(p.id) bitset size")
             check(p.visible == fresh[i], "\(p.id) visibility is stale")
             check(p.explored.isSuperset(of: p.visible), "\(p.id) sees unexplored tiles")
             check(p.memory.tileOwner.count == count && p.memory.tileImprovement.count == count, "\(p.id) memory size")
             var staleTiles = 0
             p.visible.forEachIndex { t in
-                if p.memory.tileOwner[t] != territory[t] || p.memory.tileImprovement[t] != (map.tiles[t].improvement?.rawValue ?? 0) {
+                if p.memory.tileOwner[t] != territory[t] || p.memory.tileImprovement[t] != (map.tiles[t].improvement?.rawValue ?? 0)
+                    || p.memory.remembersRoad(t) != map.tiles[t].hasRoad {
                     staleTiles += 1
                 }
             }

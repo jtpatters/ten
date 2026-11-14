@@ -63,7 +63,7 @@ extension PlayerView {
         guard let first = sources.first else { return nil }
         let map = state.map
         let explored = me.explored
-        let moves = rules.unit(type).moves
+        let moves = rules.unit(type).moves * rules.movePoints
         let k = MoveKnowledge(state: state, unit: Unit(id: UnitID(-1), owner: player, type: type, position: first, movesLeft: moves))
         var region = [Int32](repeating: -1, count: tileCount)
         var regions: Int32 = 0
@@ -327,5 +327,9 @@ extension MoveKnowledge {
         zoc = base.zoc
         freeElevation = base.freeElevation
         freeFeature = base.freeFeature
+        roads = base.roads
+        bridges = base.bridges
+        mobility = base.mobility
+        maxMoves = base.maxMoves
     }
 }

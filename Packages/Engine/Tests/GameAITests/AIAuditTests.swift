@@ -169,7 +169,8 @@ private func attacks(_ command: Command, by id: UnitID) -> Bool {
 @Suite struct AICityAuditTests {
     /// The priority list (M1 §13 Cities), item by item: the defence quota; a Warrior early to
     /// explore without a Scout; a Settler for a good site; a Builder for unimproved worked
-    /// tiles; the Monument early; then Granary, Library, Market.
+    /// tiles; the Monument early; a Trader once there is route capacity; then Granary, the
+    /// Campus, Library, the Market quarter, Market.
     @Test func priorityListInOrder() throws {
         var state = makeState()
         let city = addCity(&state, p0, at: hex(6, 6))
@@ -187,10 +188,19 @@ private func attacks(_ command: Command, by id: UnitID) -> Bool {
         #expect(wantedQueue(state, city).first == .building("monument"))
         updateCity(&state, city) { $0.buildings.append("monument") }
         state.players[0].knownTechs += ["pottery", "writing", "currency"]
+        #expect(wantedQueue(state, city).first == .unit(.trader)) // M2 §13: route capacity free
+        state.addUnit(.trader, owner: p0, at: hex(6, 6))
         #expect(wantedQueue(state, city).first == .building("granary"))
-        updateCity(&state, city) { $0.buildings.append("granary") }
+        updateCity(&state, city) { $0.buildings.append("granary"); $0.population = 3 }
+        // M2 §5.3: the Library and Market wait for their quarters, each on its best site.
+        let campus = try #require(state.view(for: p0).quarterSites("campus", in: city).first?.tile)
+        #expect(wantedQueue(state, city).first == .quarter("campus", at: campus))
+        updateCity(&state, city) { $0.quarters = [CityQuarter(kind: "campus", tile: campus)] }
         #expect(wantedQueue(state, city).first == .building("library"))
         updateCity(&state, city) { $0.buildings.append("library") }
+        let market = try #require(state.view(for: p0).quarterSites("market", in: city).first?.tile)
+        #expect(market != campus && wantedQueue(state, city).first == .quarter("market", at: market))
+        updateCity(&state, city) { $0.quarters! += [CityQuarter(kind: "market", tile: market)] }
         #expect(wantedQueue(state, city).first == .building("market"))
     }
 
@@ -864,7 +874,7 @@ private func attacks(_ command: Command, by id: UnitID) -> Bool {
         refreshKnowledge(&state)
         try #require(state.map.distance(taken, target) <= state.rules.unit(.archer).range)
         var turn = planned(state)
-        let moves = state.rules.unit(.archer).moves
+        let moves = state.maxMoves(of: state.unit(archer)!)
         let hit = turn.attack(archer, AttackOption(target: target, defender: .unit(foe), from: taken, moveCost: 1))
         #expect(!hit)
         #expect(!turn.acted.contains(archer))

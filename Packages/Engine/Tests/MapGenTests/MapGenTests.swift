@@ -97,7 +97,7 @@ import GameCore
     @Test func newGamePlacesStartingUnits() {
         let result = MapGenerator.generate(MapGenSettings(size: .duel, seed: 3))
         let state = GameState.newGame(seed: 3, map: result.map, startPositions: result.startPositions)
-        for player in state.players {
+        for player in state.players where player.isMajor {
             let units = state.units(of: player.id)
             #expect(units.map(\.type) == [.settler, .warrior, .scout])
             #expect(player.explored.setCount > 0)

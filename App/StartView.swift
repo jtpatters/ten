@@ -9,6 +9,7 @@ struct StartView: View {
     let model: AppModel
 
     @AppStorage("newGameSize") private var size: MapSize = .duel
+    @AppStorage("newGameScript") private var script: MapScript = .pangaea
     @AppStorage("newGameCiv") private var civRaw = AppModel.defaultCiv.rawValue
     @AppStorage(AppModel.diagnosticKey) private var diagnostic = false
     @State private var seedText = LaunchOptions.current.seedText ?? String(UInt64.random(in: 1...999_999))
@@ -117,6 +118,19 @@ struct StartView: View {
             }
 
             VStack(alignment: .leading, spacing: HUD.Space.s) {
+                Text("Land").font(HUD.title(.subheadline))
+                Picker("Map script", selection: $script) {
+                    ForEach(MapScript.allCases) { script in
+                        Text(script.displayName).tag(script)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(Self.scriptNote(script))
+                    .font(HUD.body(.caption))
+                    .foregroundStyle(HUD.inkSoft)
+            }
+
+            VStack(alignment: .leading, spacing: HUD.Space.s) {
                 Text("Civilisation").font(HUD.title(.subheadline))
                 Menu {
                     Picker("Civilisation", selection: $civRaw) {
@@ -191,7 +205,8 @@ struct StartView: View {
                 let trimmed = Self.trimmedSeed(seedText)
                 guard let seed = trimmed.isEmpty ? UInt64.random(in: 1...999_999) : UInt64(trimmed) else { return }
                 seedText = String(seed)
-                let setup = AppModel.NewGameSetup(size: size, seed: seed, civ: civ?.id ?? AppModel.defaultCiv, diagnostic: diagnostic)
+                let setup = AppModel.NewGameSetup(size: size, seed: seed, civ: civ?.id ?? AppModel.defaultCiv, diagnostic: diagnostic,
+                                                  script: script)
                 Task { await model.startNewGame(setup) }
             } label: {
                 Label("Start", systemImage: "flag.fill")
@@ -205,6 +220,15 @@ struct StartView: View {
 
     static func trimmedSeed(_ text: String) -> String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// What each land pattern makes (M2 §3.5).
+    static func scriptNote(_ script: MapScript) -> String {
+        switch script {
+        case .pangaea: "One great landmass: every civilisation can walk to every other."
+        case .continents: "Two continents split by ocean; on Small and larger, civilisations start on both."
+        case .archipelago: "Many smaller islands and more sea; ships matter early."
+        }
     }
 
     /// Why the seed field cannot start a game (letters typed on a hardware keyboard, a number

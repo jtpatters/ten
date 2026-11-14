@@ -79,7 +79,7 @@ func frontierStep(_ unit: Unit, _ v: PlayerView) -> FrontierStep {
         }
         return best.map { v.coord(at: $0.tile) }
     }
-    if let goal = village(within: seek * max(1, v.rules.unit(unit.type).moves)) { return .move(goal) }
+    if let goal = village(within: seek * max(1, v.rules.unit(unit.type).moves) * v.rules.movePoints) { return .move(goal) }
     let frontier = v.aiFrontier()
     if let destination = unit.destination, let d = v.index(of: destination), frontier.contains(d) { return .going }
     if !frontier.isEmpty, unit.movesLeft > 0 {
@@ -133,7 +133,7 @@ struct NewPlayer {
         }
     }
 
-    var atWar: Bool { view.players.contains { $0.id != me && $0.isAlive && view.isAtWar(with: $0.id) } }
+    var atWar: Bool { view.players.contains { $0.id != me && $0.isAlive && $0.isMajor && view.isAtWar(with: $0.id) } }
 
     func isFighter(_ type: UnitType) -> Bool { !type.isCivilian && rules.unit(type).unitClass != .recon }
     func isRanged(_ type: UnitType) -> Bool { rules.unit(type).isRanged }
@@ -166,7 +166,7 @@ struct NewPlayer {
 
     mutating func diplomacy() {
         for proposer in view.peaceProposals { issue(.respondToPeace(from: proposer, accept: true)) }
-        for other in view.players where other.id != me && other.isAlive && view.isAtWar(with: other.id) {
+        for other in view.players where other.id != me && other.isAlive && other.isMajor && view.isAtWar(with: other.id) {
             if view.peaceProblem(to: other.id) == nil { issue(.proposePeace(to: other.id)) }
         }
     }
@@ -291,7 +291,7 @@ struct NewPlayer {
             issue(.foundCity(unit: unit.id))
             return
         }
-        let field = v.movementField(for: unit.id, limit: 16)
+        let field = v.movementField(for: unit.id, limit: v.rules.points(16))
         var best: (value: Int, tile: Int)?
         for t in candidateSites(v) where !chosenSites.contains(where: { v.aiDistance($0, t) <= 3 }) {
             guard field.indices.contains(t), field[t] >= 0, let score = siteValue(t, v) else { continue }
@@ -482,8 +482,10 @@ struct NewPlayer {
                 switch item {
                 case let .building(b):
                     guard let def = rules.building(b), !city.has(b) else { return false }
+                    if let kind = def.quarter, city.quarters?.contains(where: { $0.kind == kind }) != true { return false }
                     return def.tech.map(v.me.knows) ?? true
                 case let .unit(t): return rules.unit(t).tech.map(v.me.knows) ?? true
+                case .quarter: return false
                 }
             }
             urgent = urgent.filter(ok)

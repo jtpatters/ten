@@ -34,6 +34,7 @@ struct Notice: Identifiable, Equatable, Codable, Sendable {
         case unit(UnitID)
         case player(PlayerID)
         case tech(TechID)
+        case civic(CivicID)
     }
 
     /// Notices of one kind merge into one line.
@@ -42,7 +43,7 @@ struct Notice: Identifiable, Equatable, Codable, Sendable {
         /// a line per explorer.
         case explore
         case production, growth, starving, research, met, warOnViewer, war, peaceProposal, peace, peaceDeclined,
-             cityFounded, cityCaptured, cityLost, cityTaken, cityRazed, cityAttacked, unitLost, unitCaptured,
+             cityFounded, cityCaptured, cityLost, cityTaken, cityRazed, cityRevolted, cityJoined, cityAttacked, unitLost, unitCaptured,
              captured, enemyFell, upkeep, moveInterrupted, eliminated, unitAttacked, evicted, troopsNear, cityDiscovered
         /// A Settler's march ended where it can found a city (SettlerNotices.swift).
         case settlerArrived
@@ -58,6 +59,10 @@ struct Notice: Identifiable, Equatable, Codable, Sendable {
         /// M2 §6.2, §8: an Insight's credit, the world entering an era, an own unit upgraded or
         /// promoted.
         case insight, worldEra, upgraded, promoted
+        /// M2 §7.1, §4.3: a civic completed, an envoy token earned.
+        case civic, envoy
+        /// M2 §11, §12, §13: raider camps, sacks and rebels; minor factions; trade routes.
+        case raiders, minor, trade
     }
 
     /// Set by `NoticeCenter.post` (0 before).
@@ -521,6 +526,24 @@ enum NoticeMaker {
                     add(.cityCaptured, "\(civName(to)) captured \(name)", "flag", place: at, subject: .city(city))
                 }
 
+            case let .cityRevolted(city, name, from, _, at):
+                // Loyalty 0 (M2 §5.5): the city leaves its civ and becomes a Free City.
+                if from == me {
+                    add(.cityRevolted, "\(name) revolted and became a Free City!", "flag.slash.fill", tone: .bad,
+                        importance: .alarm, place: at, subject: .city(city))
+                } else {
+                    add(.cityRevolted, "\(name) revolted against \(civName(from)) and became a Free City", "flag.slash",
+                        place: at, subject: .city(city))
+                }
+
+            case let .cityJoined(city, name, _, to, at):
+                if to == me {
+                    add(.cityJoined, "The Free City of \(name) joined you!", "flag.fill", tone: .good, importance: .important,
+                        place: at, subject: .city(city))
+                } else {
+                    add(.cityJoined, "The Free City of \(name) joined \(civName(to))", "flag", place: at, subject: .city(city))
+                }
+
             case let .cityRazed(city, name, owner, at) where owner != me:
                 add(.cityRazed, "\(name) was razed", "flame", place: at, subject: .city(city))
 
@@ -583,6 +606,95 @@ enum NoticeMaker {
                 let name = view.rules.tech(tech)?.name ?? tech.rawValue
                 add(.insight, "Insight: +\(credit) Science toward \(name)", "lightbulb.fill", tone: .good, subject: .tech(tech))
 
+            case let .civicInsightGained(player, civic, credit) where player == me:
+                let name = view.rules.civic(civic)?.name ?? civic.rawValue
+                add(.insight, "Insight: +\(credit) Culture toward \(name)", "lightbulb.fill", tone: .good, subject: .civic(civic))
+
+            case let .civicCompleted(player, civic) where player == me:
+                let name = view.rules.civic(civic)?.name ?? civic.rawValue
+                let unlocks = view.unlocks(of: civic)
+                let text = unlocks.isEmpty ? "Completed \(name)" : "Completed \(name): \(unlocks.joined(separator: ", "))"
+                add(.civic, text + ". Policies change free this turn", "theatermasks.fill", tone: .good, importance: .important,
+                    subject: .civic(civic))
+
+            case let .envoyEarned(player, tokens) where player == me:
+                add(.envoy, tokens == 1 ? "Envoy token earned from Influence" : "\(tokens) envoy tokens earned from Influence",
+                    "person.wave.2.fill", tone: .good)
+
+            case let .raiderCampAppeared(at):
+                add(.raiders, "A raider camp appeared", "tent.fill", tone: .bad, place: at)
+
+            case let .raiderCampCleared(player, at, gold):
+                if player == me {
+                    add(.raiders, "You cleared a raider camp: +\(gold) Gold", "tent", tone: .good, importance: .important, place: at)
+                } else {
+                    add(.raiders, "\(civName(player)) cleared a raider camp", "tent", place: at)
+                }
+
+            case let .citySacked(city, _, gold, at):
+                if view.city(city) != nil {
+                    add(.raiders, "Raiders sacked \(cityName(city)): −\(gold) Gold", "flame.fill", tone: .bad, importance: .alarm,
+                        place: at, subject: .city(city))
+                } else {
+                    add(.raiders, "Raiders sacked \(cityName(city))", "flame", place: at, subject: .city(city))
+                }
+
+            case let .rebelsRose(city, _, at) where view.city(city) != nil:
+                add(.raiders, "Rebels rose in \(cityName(city))", "flame.fill", tone: .bad, importance: .important, place: at,
+                    subject: .city(city))
+
+            case let .envoySent(player, minor, envoys) where player == me:
+                add(.envoy, "Envoy sent to \(civName(minor)): \(envoys) there now", "person.wave.2.fill", tone: .good,
+                    subject: .player(minor))
+
+            case let .patronChanged(minor, patron):
+                if patron == me {
+                    add(.minor, "You are now the Patron of \(civName(minor))", "crown.fill", tone: .good, importance: .important,
+                        subject: .player(minor))
+                } else if let patron {
+                    add(.minor, "\(civName(patron)) is now the Patron of \(civName(minor))", "crown", subject: .player(minor))
+                } else {
+                    add(.minor, "\(civName(minor)) has no Patron now", "crown", subject: .player(minor))
+                }
+
+            case let .questCompleted(minor, player):
+                if player == me {
+                    add(.minor, "Quest for \(civName(minor)) completed: +1 envoy", "checkmark.seal.fill", tone: .good,
+                        importance: .important, subject: .player(minor))
+                } else {
+                    add(.minor, "\(civName(player)) completed \(civName(minor))'s quest", "checkmark.seal", subject: .player(minor))
+                }
+
+            case let .levied(minor, player, units):
+                if player == me {
+                    add(.minor, "\(civName(minor))'s army serves you: \(units) \(units == 1 ? "unit" : "units")", "figure.2",
+                        tone: .good, importance: .important, subject: .player(minor))
+                } else {
+                    add(.minor, "\(civName(player)) levied \(civName(minor))'s army", "figure.2", subject: .player(minor))
+                }
+
+            case let .levyEnded(minor, player) where player == me:
+                add(.minor, "\(civName(minor))'s levied army went home", "figure.2", subject: .player(minor))
+
+            case let .tradeRouteStarted(_, owner, from, to):
+                if owner == me {
+                    add(.trade, "Trade route from \(cityName(from)) to \(cityName(to)) started", "shippingbox.fill", tone: .good,
+                        subject: .city(from))
+                } else if view.city(to) != nil {
+                    add(.trade, "\(CivText.article(adjective(owner)).capitalized) \(adjective(owner)) trade route to \(cityName(to)) started",
+                        "shippingbox", subject: .city(to))
+                }
+
+            case let .tradeRouteEnded(_, owner, plunderedBy):
+                if owner == me, let raider = plunderedBy {
+                    add(.trade, "\(civName(raider)) plundered your trade route", "shippingbox", tone: .bad, importance: .important)
+                } else if owner == me {
+                    add(.trade, "A trade route ended; its Trader is home", "shippingbox")
+                } else if plunderedBy == me {
+                    add(.trade, "You plundered \(CivText.article(adjective(owner))) \(adjective(owner)) trade route", "shippingbox",
+                        tone: .good)
+                }
+
             case let .worldEraAdvanced(era):
                 let name = view.rules.eras.indices.contains(era) ? "the \(view.rules.eras[era].name) Era" : "a new era"
                 add(.worldEra, "The world enters \(name)", "globe.europe.africa.fill", importance: .important)
@@ -633,7 +745,8 @@ enum NoticeMaker {
             var named: [CityID] = []
             for record in records {
                 switch record.event {
-                case let .cityFounded(city, _, _, _), let .cityCaptured(city, _, _, _, _): named.append(city)
+                case let .cityFounded(city, _, _, _), let .cityCaptured(city, _, _, _, _), let .cityRevolted(city, _, _, _, _),
+                     let .cityJoined(city, _, _, _, _): named.append(city)
                 default: break
                 }
             }

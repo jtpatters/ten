@@ -106,6 +106,10 @@ struct AITurn {
         }
         timed("proposePeace") { $0.proposePeaceIfWanted() }
         timed("research") { $0.chooseResearch() }
+        timed("civics") { $0.chooseCivic() }
+        timed("government") { $0.chooseGovernment() }
+        timed("policies") { $0.choosePolicies() }
+        timed("envoys") { $0.sendEnvoys() }
         timed("firstCity") { $0.foundFirstCity() }
         // Tactics in the order of M1 §13; 4 also applies at peace.
         let atWar = !plan.enemies.isEmpty
@@ -115,16 +119,19 @@ struct AITurn {
             timed("3 meleeAttacks") { $0.meleeAttacks() }
         }
         timed("4 retreatWounded") { $0.retreatWounded() }
+        timed("fightRaiders") { $0.fightRaiders() }
         if atWar {
             timed("5 defendCities") { $0.defendCities() }
             timed("6 captureCivilians") { $0.captureCivilians() }
         }
         timed("improveUnits") { $0.improveUnits() }
         timed("buyThreatDefenders") { $0.buyThreatDefenders() }
+        timed("traders") { $0.useTraders() }
         timed("moveSettlers") { $0.moveSettlers() }
         timed("moveBuilders") { $0.moveBuilders() }
         timed("explore") { $0.explore() }
         timed("moveMilitary") { $0.moveMilitary() }
+        if atWar { timed("pillage") { $0.pillage() } }
         timed("secureCivilians") { $0.secureCivilians() }
         timed("manageCities") { $0.manageCities() }
         timed("fortifyNewUnits") { $0.fortifyNewUnits() }
@@ -285,7 +292,7 @@ struct AITurn {
     /// Units bought this phase (after the military moved) fortify where they appear.
     mutating func fortifyNewUnits() {
         for unit in view.units where !unit.type.isCivilian && !acted.contains(unit.id) && unit.activity == .none
-            && unit.destination == nil && !unit.zocStopped && unit.movesLeft == rules.unit(unit.type).moves {
+            && unit.destination == nil && !unit.zocStopped && unit.movesLeft == rules.unit(unit.type).moves * rules.movePoints {
             guard live else { return }
             fortify(unit)
         }
@@ -311,8 +318,10 @@ struct AITurn {
         let c = rules.unit(type).unitClass
         return c == .melee || c == .antiCavalry
     }
-    /// Military and not recon: counts for defence and armies (M1 §7, §13).
-    func isFighter(_ type: UnitType) -> Bool { !type.isCivilian && !isRecon(type) }
+    /// Military, not recon and not naval: counts for defence and armies (M1 §7, §13).
+    func isFighter(_ type: UnitType) -> Bool { !type.isCivilian && !type.isNaval && !isRecon(type) }
+    /// Military and not naval: garrisons cities and guards civilians.
+    func isGuard(_ type: UnitType) -> Bool { !type.isCivilian && !type.isNaval }
     /// Known tech and, for a unit that needs one, enough of its strategic resource (M2 §3.1).
     func fieldable(_ type: UnitType, _ v: PlayerView) -> Bool {
         (rules.unit(type).tech.map(v.me.knows) ?? true) && v.aiResourceProblem(type) == nil

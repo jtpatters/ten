@@ -413,6 +413,30 @@ import simd
         #expect(r.tileBytes[land * 4 + 1] & TileBits.improvementMask == 0 && r.tileBytes[land * 4] & TileBits.improvementHigh != 0)
     }
 
+    /// Roads (M2 §3.3): a band from each road tile's centre toward every explored road tile
+    /// beside it, nothing on unexplored tiles; pillaged marks only from `setPillaged`.
+    @Test func roadsAndPillagedMarksFollowTheInputs() throws {
+        let f = try Self.field()
+        let r = f.renderer
+        r.fogEnabled = false
+        let a = f.state.map.index(of: f.c)!
+        let neighbours = HexDirection.allCases.compactMap { f.state.map.normalize(f.c.neighbor($0)).flatMap(f.state.map.index(of:)) }
+        var roads = [Bool](repeating: false, count: f.state.map.tileCount)
+        roads[a] = true
+        roads[neighbours[0]] = true
+        r.setRoads(roads)
+        let bands = r.roadGeometry().filter { $0.position.w == OverlayStyle.road.rawValue }
+        #expect(bands.count == 12, "two half bands meeting at the shared edge")
+        roads[neighbours[0]] = false
+        r.setRoads(roads)
+        #expect(r.roadGeometry().count == 6, "a lone road: one short band")
+        r.setRoads([])
+        #expect(r.roadGeometry().isEmpty)
+        r.setPillaged([f.c, f.c])
+        #expect(r.inputs.pillaged == [f.c])
+        #expect(r.unitAtlas.uv(.pillaged) != .zero)
+    }
+
     /// Mine entrances (with their spoil) stand on every bare hill that could take a mine and
     /// herds on every open pasture site, placed once; each shows only while its tile has that
     /// improvement, and open-land scatter clears from farms. The decor atlas keeps its size.

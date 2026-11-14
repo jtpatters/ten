@@ -30,11 +30,22 @@ struct LearntTech: Equatable, Sendable {
     var turn: Int
 }
 
+/// A civic completed, and in which turn.
+struct LearntCivic: Equatable, Sendable {
+    var civic: CivicID
+    var turn: Int
+}
+
 /// One thing that needs the viewer's attention, in the queue's order.
 enum AttentionItem: Hashable, Sendable {
     case unit(UnitID)
     case emptyQueue(CityID)
     case research
+    /// No civic being studied (M2 §7.1).
+    case civic
+    /// A civic was completed: policies and government change free this turn (M2 §7.3), by
+    /// that turn.
+    case policyChange(Int)
     /// A unit (the Settler) first in the queue waits for the city to grow.
     case settlerWaiting(CityID)
     /// The unit first in the queue has no tile to appear on.
@@ -51,6 +62,10 @@ enum AttentionItem: Hashable, Sendable {
     case news(Int)
     /// An own unit has the experience for a promotion (M2 §8.3).
     case promotion(UnitID)
+    /// An own city below Content (M2 §5.2).
+    case unstable(CityID)
+    /// A city that revolts within the rules' warning turns (M2 §5.5).
+    case loyaltyFalling(CityID)
 
     /// The queue's order: the kind (as listed in M1 §16), then its subject.
     struct Key: Comparable {
@@ -65,6 +80,8 @@ enum AttentionItem: Hashable, Sendable {
         case let .unit(id): Key(rank: 0, subject: id.rawValue)
         case let .emptyQueue(id): Key(rank: 1, subject: id.rawValue)
         case .research: Key(rank: 2, subject: 0)
+        case .civic: Key(rank: 2, subject: 1)
+        case let .policyChange(turn): Key(rank: 15, subject: turn)
         case let .settlerWaiting(id): Key(rank: 3, subject: id.rawValue)
         case let .productionBlocked(id): Key(rank: 4, subject: id.rawValue)
         case .upkeep: Key(rank: 5, subject: 0)
@@ -75,6 +92,8 @@ enum AttentionItem: Hashable, Sendable {
         case let .capturedCity(id): Key(rank: 10, subject: id.rawValue)
         case let .news(id): Key(rank: 11, subject: id)
         case let .promotion(id): Key(rank: 12, subject: id.rawValue)
+        case let .unstable(id): Key(rank: 13, subject: id.rawValue)
+        case let .loyaltyFalling(id): Key(rank: 14, subject: id.rawValue)
         }
     }
 
@@ -84,6 +103,8 @@ enum AttentionItem: Hashable, Sendable {
         case .unit: "Next Unit"
         case .emptyQueue: "Choose Production"
         case .research: "Choose Research"
+        case .civic: "Choose Civic"
+        case .policyChange: "Free Policy Change"
         case .settlerWaiting: "Settler Waiting"
         case .productionBlocked: "Production Blocked"
         case .upkeep: "Upkeep Warning"
@@ -94,6 +115,8 @@ enum AttentionItem: Hashable, Sendable {
         case .capturedCity: "Keep or Raze"
         case .news: "News"
         case .promotion: "Promotion Due"
+        case .unstable: "City Unrest"
+        case .loyaltyFalling: "Loyalty Falling"
         }
     }
 
@@ -102,6 +125,8 @@ enum AttentionItem: Hashable, Sendable {
         case .unit: "arrow.right.circle"
         case .emptyQueue: "hammer"
         case .research: "flask"
+        case .civic: "theatermasks"
+        case .policyChange: "building.columns"
         case .settlerWaiting: "person.badge.clock"
         case .productionBlocked: "exclamationmark.triangle"
         case .upkeep: "circle.slash"
@@ -112,14 +137,16 @@ enum AttentionItem: Hashable, Sendable {
         case .capturedCity: "flag"
         case .news: "newspaper"
         case .promotion: "star.circle"
+        case .unstable: "exclamationmark.bubble"
+        case .loyaltyFalling: "flag.slash"
         }
     }
 
     /// Items that only inform: they leave the queue once shown.
     var isInformational: Bool {
         switch self {
-        case .settlerWaiting, .productionBlocked, .upkeep, .cityUnderAttack, .bombard, .warDeclared, .news, .promotion: true
-        case .unit, .emptyQueue, .research, .peaceProposal, .capturedCity: false
+        case .settlerWaiting, .productionBlocked, .upkeep, .cityUnderAttack, .bombard, .warDeclared, .news, .promotion, .unstable, .loyaltyFalling, .policyChange: true
+        case .unit, .emptyQueue, .research, .civic, .peaceProposal, .capturedCity: false
         }
     }
 
@@ -129,6 +156,8 @@ enum AttentionItem: Hashable, Sendable {
         case let .unit(id): "unit \(id.rawValue)"
         case let .emptyQueue(id): "emptyQueue \(id.rawValue)"
         case .research: "research"
+        case .civic: "civic"
+        case let .policyChange(turn): "policyChange \(turn)"
         case let .settlerWaiting(id): "settlerWaiting \(id.rawValue)"
         case let .productionBlocked(id): "productionBlocked \(id.rawValue)"
         case .upkeep: "upkeep"
@@ -139,6 +168,8 @@ enum AttentionItem: Hashable, Sendable {
         case let .capturedCity(id): "capturedCity \(id.rawValue)"
         case let .news(id): "news \(id)"
         case let .promotion(id): "promotion \(id.rawValue)"
+        case let .unstable(id): "unstable \(id.rawValue)"
+        case let .loyaltyFalling(id): "loyaltyFalling \(id.rawValue)"
         }
     }
 }
@@ -180,6 +211,12 @@ extension GameSession {
         if view.me.researching == nil, view.rules.techs.contains(where: { !view.me.knows($0.id) }) {
             items.append(.research)
         }
+        if view.me.studying == nil, view.rules.civics.contains(where: { !view.me.knowsCivic($0.id) }) {
+            items.append(.civic)
+        }
+        if view.isFreeChangeTurn, view.government != nil {
+            items.append(.policyChange(view.me.freeChangeTurn ?? view.turn))
+        }
         for city in cities {
             guard let head = city.queue.first, let wait = view.productionWait(head.item, in: city.id) else { continue }
             switch wait {
@@ -196,6 +233,10 @@ extension GameSession {
         items += cities.filter { $0.capturedTurn == view.turn && !keptCities.contains($0.id) }.map { .capturedCity($0.id) }
         items += news.map { .news($0.id) }
         items += view.units.filter { !view.promotionsOffered($0.id).isEmpty }.map { .promotion($0.id) }
+        items += cities.filter { (view.wellbeing(of: $0.id)?.state ?? .content) < .content }.map { .unstable($0.id) }
+        if let warning = view.rules.loyalty?.warningTurns {
+            items += cities.filter { (view.turnsUntilRevolt(of: $0.id) ?? .max) <= warning }.map { .loyaltyFalling($0.id) }
+        }
         return items.filter { !attentionSeen.contains($0) }
     }
 
@@ -249,11 +290,18 @@ extension GameSession {
         case let .cityUnderAttack(id):
             showCity(id)
             requestCityPanel(.defence)
+        case let .unstable(id), let .loyaltyFalling(id):
+            showCity(id)
+            requestCityPanel(.overview)
         case let .bombard(id):
             showCity(id)
             beginBombard(id)
         case .research:
             openPanel = .research
+        case .civic:
+            openPanel = .civics
+        case .policyChange:
+            openPanel = .government
         case .upkeep:
             deselect()
             attentionCard = .upkeep
@@ -304,6 +352,8 @@ extension GameSession {
             if case let .player(player)? = notice.subject, !warDeclaredBy.contains(player) { warDeclaredBy.append(player) }
         case .research:
             if case let .tech(tech)? = notice.subject { lastResearched = LearntTech(tech: tech, turn: notice.turn) }
+        case .civic:
+            if case let .civic(civic)? = notice.subject { lastCivic = LearntCivic(civic: civic, turn: notice.turn) }
         case .peaceProposal, .cityTaken:
             break // their own items: the proposal, Keep/Raze
         case .tribalVillageGift:

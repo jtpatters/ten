@@ -38,7 +38,7 @@ private func continueGame(_ state: GameState, until turn: Int) async -> GameStat
         #expect(run.capHits == 0)
         #expect(run.brokenInvariants.isEmpty, "\(run.brokenInvariants.prefix(5))")
         #expect(state.outcome != nil || state.turn == 151)
-        #expect(run.founded.allSatisfy { $0 >= 3 }, "cities founded: \(run.founded)")
+        #expect(run.founded.indices.allSatisfy { !state.players[$0].isMajor || run.founded[$0] >= 3 }, "cities founded: \(run.founded)")
         #expect(!run.warTurns.isEmpty, "no war in 150 turns")
         #expect(run.maxCommandsInAPhase < state.rules.ai.maxCommandsPerPhase)
         // Deterministic (M1 §12.7).
@@ -110,6 +110,6 @@ private func continueGame(_ state: GameState, until turn: Int) async -> GameStat
         #expect(run.unfinishedPhases == 0)
         #expect(run.rejections.isEmpty, "\(run.rejections.prefix(5))")
         #expect(state.checkInvariants().isEmpty)
-        #expect(run.founded.allSatisfy { $0 >= 1 }, "cities founded: \(run.founded)")
+        #expect(run.founded.indices.allSatisfy { !state.players[$0].isMajor || run.founded[$0] >= 1 }, "cities founded: \(run.founded)")
     }
 }

@@ -78,7 +78,7 @@ struct GameView: View {
 
     /// The sheets, one at a time.
     enum GameSheet: String, Identifiable {
-        case city, research, diplomacy, notices, load
+        case city, research, civics, government, diplomacy, notices, minors, load
         var id: String { rawValue }
     }
 
@@ -95,7 +95,7 @@ struct GameView: View {
     /// Whether `card` shows anything.
     private var showsCard: Bool {
         session.state.outcome != nil || session.attentionCard != nil || session.pendingAttack != nil
-            || session.bombardTargeting != nil || session.inspectedHex != nil || session.selectedUnit != nil
+            || session.bombardTargeting != nil || session.quarterPlacing != nil || session.tileBuying != nil || session.inspectedHex != nil || session.selectedUnit != nil
     }
 
     var body: some View {
@@ -127,6 +127,8 @@ struct GameView: View {
         .animation(.easeInOut(duration: 0.2), value: session.waitingFor)
         .animation(.easeInOut(duration: 0.2), value: session.attentionCard)
         .animation(.easeInOut(duration: 0.2), value: session.bombardTargeting)
+        .animation(.easeInOut(duration: 0.2), value: session.quarterPlacing)
+        .animation(.easeInOut(duration: 0.2), value: session.tileBuying)
         // At this level so that turning a phone upright (no side panel there) clears it too.
         .onChange(of: sidePanelCity != nil, initial: true) { _, shows in cover.hasSidePanel = shows }
         .onChange(of: cover.insets(sideCard: short && showsCard), initial: true) { _, insets in session.setMapInsets(insets) }
@@ -291,6 +293,10 @@ struct GameView: View {
             AttackCard(session: session, plan: plan, compact: compact)
         } else if let city = session.bombardTargeting {
             BombardHintCard(session: session, city: city)
+        } else if let placing = session.quarterPlacing {
+            QuarterHintCard(session: session, placing: placing)
+        } else if let city = session.tileBuying {
+            BuyTileHintCard(session: session, city: city)
         } else if let hex = session.inspectedHex {
             if session.inspectMode == .tile {
                 TileSheet(session: session, hex: hex)
@@ -310,7 +316,10 @@ struct GameView: View {
         if model.isShowingLoad { return .load }
         switch session.openPanel {
         case .research?: return .research
+        case .civics?: return .civics
+        case .government?: return .government
         case .diplomacy?: return .diplomacy
+        case .minors?: return .minors
         case .notices?: return .notices
         case nil: break
         }
@@ -324,7 +333,7 @@ struct GameView: View {
             guard sheet == nil, let shown = wantedSheet else { return }
             switch shown {
             case .load: model.isShowingLoad = false
-            case .research, .diplomacy, .notices: session.openPanel = nil
+            case .research, .civics, .government, .diplomacy, .minors, .notices: session.openPanel = nil
             case .city:
                 cover.sheetTop = nil
                 // Turning the phone on its side also closes the sheet (the side panel takes
@@ -366,8 +375,23 @@ struct GameView: View {
                 .presentationDetents([.large])
                 .presentationSizing(.page)
                 .presentationBackground(HUD.parchmentTop)
+        case .civics:
+            CivicPanel(session: session) { session.openPanel = nil }
+                .presentationDetents([.large])
+                .presentationSizing(.page)
+                .presentationBackground(HUD.parchmentTop)
+        case .government:
+            GovernmentPanel(session: session) { session.openPanel = nil }
+                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationSizing(.form)
+                .presentationBackground(HUD.parchmentTop)
         case .diplomacy:
             DiplomacySheet(session: session) { session.openPanel = nil }
+                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationSizing(.form)
+                .presentationBackground(HUD.parchmentTop)
+        case .minors:
+            MinorFactionSheet(session: session) { session.openPanel = nil }
                 .presentationDetents(compact ? [.medium, .large] : [.large])
                 .presentationSizing(.form)
                 .presentationBackground(HUD.parchmentTop)
@@ -411,6 +435,20 @@ struct GameView: View {
                     session.openPanel = .research
                 } label: {
                     Label("Research…", systemImage: YieldChip.Kind.science.systemImage)
+                }
+                if !session.view.rules.civics.isEmpty {
+                    Button {
+                        session.openPanel = .civics
+                    } label: {
+                        Label("Civics…", systemImage: YieldChip.Kind.culture.systemImage)
+                    }
+                }
+                if session.view.government != nil {
+                    Button {
+                        session.openPanel = .government
+                    } label: {
+                        Label("Government…", systemImage: "building.columns")
+                    }
                 }
                 Button {
                     session.openPanel = .notices

@@ -48,6 +48,8 @@ struct CityBannerModel: Equatable, Sendable {
     var selected = false
     /// A foreign city out of sight, as last seen.
     var remembered = false
+    /// A minor faction's city (M2 §12): an ivory seal with its type's glyph.
+    var minor: MinorType?
 
     /// Overlap priority, most important first: the selection, own cities, capitals, the
     /// largest (M1 §16: overlapping foreign banners hide first).
@@ -124,6 +126,7 @@ extension CityBannerModel {
                 var model = CityBannerModel(id: city.id, hex: city.position, name: city.name, owner: city.owner, own: false,
                                             population: city.population, capital: city.has(rules.palace.id), health: health(city.hp))
                 model.selected = selected == city.id
+                model.minor = state.minor(city.owner)?.type
                 return model
             }
         }
@@ -134,6 +137,7 @@ extension CityBannerModel {
                                         health: health(sighting.hp))
             model.selected = selected == sighting.id
             model.remembered = !view.isVisible(sighting.position)
+            model.minor = state.minor(sighting.owner)?.type
             return model
         }
     }
@@ -302,10 +306,14 @@ enum BannerArt {
             let seal = UIBezierPath(ovalIn: sealRect)
             cg.saveGState()
             cg.setShadow(offset: CGSize(width: 1, height: 1.5), blur: 2, color: UIColor.black.withAlphaComponent(0.3).cgColor)
-            UIColor(cgColor: Heraldry.color(model.owner)).setFill()
+            (model.minor == nil ? UIColor(cgColor: Heraldry.color(model.owner)) : HUD.UI.cream).setFill()
             seal.fill()
             cg.restoreGState()
-            if let emblem = emblem(model.owner, size: m.seal * 0.68) {
+            if let minor = model.minor {
+                let e = m.seal * 0.6
+                symbol(MinorArt.symbol(minor), size: e, tint: UIColor(cgColor: Heraldry.color(model.owner)))?
+                    .draw(in: CGRect(x: sealCentre.x - e / 2, y: sealCentre.y - e / 2, width: e, height: e))
+            } else if let emblem = emblem(model.owner, size: m.seal * 0.68) {
                 let e = m.seal * 0.68
                 UIImage(cgImage: emblem, scale: Heraldry.pixelsPerPoint, orientation: .up)
                     .draw(in: CGRect(x: sealCentre.x - e / 2, y: sealCentre.y - e / 2, width: e, height: e))

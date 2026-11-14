@@ -61,7 +61,8 @@ enum Scenarios {
     @MainActor static var lastNote: String?
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
-                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources"]
+                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads", "naval",
+                        "stability", "quarters", "loyalty", "upkeep", "governance", "world"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -139,6 +140,30 @@ enum Scenarios {
         case "resources":
             foundCapital(&state, player: viewer)
             made = try resources(&state)
+        case "roads":
+            foundCapital(&state, player: viewer)
+            made = try roads(&state)
+        case "naval":
+            foundCapital(&state, player: viewer)
+            made = try naval(&state)
+        case "quarters":
+            foundCapital(&state, player: viewer)
+            made = try quarters(&state)
+        case "loyalty":
+            foundCapital(&state, player: viewer)
+            made = try loyalty(&state)
+        case "stability":
+            foundCapital(&state, player: viewer)
+            made = try stability(&state)
+        case "upkeep":
+            foundCapital(&state, player: viewer)
+            made = try upkeep(&state)
+        case "governance":
+            foundCapital(&state, player: viewer)
+            made = try governance(&state)
+        case "world":
+            foundCapital(&state, player: viewer)
+            made = try world(&state)
         default:
             throw Failure(description: "no scenario “\(name)” (try \(names.joined(separator: ", ")))")
         }
@@ -505,7 +530,7 @@ extension Scenarios {
             throw Failure(description: "player 1 never learnt \(walls.tech?.rawValue ?? "the walls' tech") with a capital")
         }
         let item = ProductionItem.building(walls.id)
-        state.players[enemy.rawValue].gold += state.purchasePrice(of: item)
+        state.players[enemy.rawValue].gold += state.purchasePrice(of: item, for: enemy)
         do {
             try GameEngine.apply(.purchase(city: city.id, item: item), by: enemy, to: &state)
         } catch {
@@ -594,6 +619,7 @@ extension Scenarios {
             .first(where: { map.distance($0, near) > 1 && map.distance($0, far) > 1 }) {
             state.addUnit(.scout, owner: viewer, at: spot)
         }
+        DebugTools.refreshAllKnowledge(in: &state)
         try declareWar(&state)
         // The enemy's phase: an Archer of theirs wounds the Warrior, then leaves.
         try GameEngine.apply(.endTurn, by: viewer, to: &state)
@@ -686,6 +712,228 @@ extension Scenarios {
         return Made(state: state, focus: .unit(builder),
                     note: "Quarry on Stone at \(text(places[0])), Plantation on Wine at \(text(places[1])), Iron at \(text(places[2])), "
                         + "Horses at \(text(places[3])); the Builder on Deer at \(text(places[4])) offers a Camp")
+    }
+
+    /// M2 §3.2, §8.4: Sailing and Shipbuilding learnt, a Galley and a Quadrireme on the water
+    /// nearest the capital and a Warrior embarked beside them; the Galley selected.
+    static func naval(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        for tech: TechID in ["sailing", "shipbuilding"] { DebugTools.learnTech(tech, player: viewer, in: &state) }
+        let centre = try home(state)
+        let water = state.map.tiles.indices
+            .filter { state.map.tiles[$0].terrain == .coast && state.units(at: state.map.coord(at: $0)).isEmpty }
+            .map { state.map.coord(at: $0) }
+            .sorted { state.map.distance($0, centre) < state.map.distance($1, centre) }
+        guard water.count >= 3 else { throw Failure(description: "no coast near the capital") }
+        let galley = state.addUnit(.galley, owner: viewer, at: water[0])
+        state.addUnit(.quadrireme, owner: viewer, at: water[1])
+        state.addUnit(.warrior, owner: viewer, at: water[2])
+        DebugTools.refreshAllKnowledge(in: &state)
+        let view = state.view(for: viewer)
+        let coastal = state.cities.first.map(view.isCoastal) ?? false
+        return Made(state: state, focus: .unit(galley),
+                    note: "Galley at \(water[0].q) \(water[0].r), Quadrireme at \(water[1].q) \(water[1].r), embarked Warrior at \(water[2].q) \(water[2].r); capital coastal: \(coastal)")
+    }
+
+    /// M2 §5.3, §18.2: the capital at population 9 (four quarters) knowing Writing, Currency,
+    /// Bronze Working, Engineering and Apprenticeship, with a Campus and a Market on their best
+    /// tiles and an Aqueduct where it may stand, so a Workshop or Barracks has a few legal sites
+    /// left; the capital selected.
+    /// A forward city beside a large rival capital, losing Loyalty fast, and a viewer city that
+    /// revolted into a Free City (M2 §5.5, §12.5).
+    static func loyalty(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0), rival = PlayerID(1)
+        guard state.freeCities != nil else { throw Failure(description: "no Free Cities in these rules") }
+        play(&state, untilTurn: 3)
+        guard let rivalCapital = state.players[rival.rawValue].capital else { throw Failure(description: "the rival has no capital") }
+        DebugTools.setCity(rivalCapital, population: 12, in: &state)
+        guard let site = citySite(state, player: rival, minimumDistance: 4) else { throw Failure(description: "no forward site") }
+        let settler = state.addUnit(.settler, owner: viewer, at: site)
+        let events = try GameEngine.apply(.foundCity(unit: settler), by: viewer, to: &state)
+        guard let forward = GameSession.foundedCity(in: events, by: viewer) else { throw Failure(description: "no forward city") }
+        DebugTools.setLoyalty(forward, 12, in: &state)
+        let rebel = try foundViewerCity(&state)
+        guard DebugTools.revolt(rebel, in: &state) else { throw Failure(description: "the city did not revolt") }
+        // Scouts in sight of the Free City and of the rival capital.
+        for (city, toward) in [(rebel, state.city(forward)?.position), (rivalCapital, state.city(forward)?.position)] {
+            guard let centre = state.city(city)?.position,
+                  let spot = spots(state, around: centre, distance: 1...2, for: .scout, owner: viewer, toward: toward).first else { continue }
+            state.addUnit(.scout, owner: viewer, at: spot)
+        }
+        return Made(state: state, focus: .city(forward),
+                    note: "Open the forward city's panel and tap the Loyalty row; the grey city is the Free City.")
+    }
+
+    static func quarters(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else { throw Failure(description: "no capital") }
+        for tech in ["writing", "currency", "bronzeWorking", "engineering", "apprenticeship", "mining"] {
+            DebugTools.learnTech(TechID(tech), player: viewer, in: &state)
+        }
+        DebugTools.setCity(capital.id, population: 9, in: &state)
+        var built: [String] = []
+        for kind: QuarterKind in ["campus", "market", "aqueduct"] {
+            if let site = state.view(for: viewer).quarterOptions(for: capital.id).first(where: { $0.kind == kind })?.sites.first,
+               DebugTools.addQuarter(kind, at: site.tile, to: capital.id, in: &state) {
+                built.append(kind.rawValue)
+            }
+        }
+        guard !built.isEmpty else { throw Failure(description: "no quarter fits around the capital") }
+        DebugTools.refreshAllKnowledge(in: &state)
+        let open = state.view(for: viewer).quarterOptions(for: capital.id).filter { $0.problem == nil }
+            .map { "\($0.kind.rawValue) \($0.sites.count)" }
+        return Made(state: state, focus: .city(capital.id),
+                    note: "built \(built.joined(separator: ", ")); sites: \(open.joined(separator: ", "))")
+    }
+
+    /// M2 §7.1–7.3, §4.3: the civics up to Political Philosophy learnt (the last this turn, so
+    /// changes are free), Oligarchy adopted with a policy in its slots, the next civic being
+    /// studied, and Influence part way to an envoy token; 200 Gold. The government panel open.
+    static func governance(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else { throw Failure(description: "no capital") }
+        for civic in ["codeOfLaws", "craftsmanship", "foreignTrade", "earlyEmpire", "stateWorkforce", "politicalPhilosophy"] {
+            DebugTools.learnCivic(CivicID(civic), player: viewer, in: &state)
+        }
+        state.players[viewer.rawValue].gold = 200
+        DebugTools.setInfluence(14, tokens: 1, player: viewer, in: &state)
+        try GameEngine.apply(.setGovernment(government: "oligarchy"), by: viewer, to: &state)
+        let open = state.view(for: viewer).availablePolicies
+        let picks = [PolicyKind.military, .economic].compactMap { kind in open.first { $0.kind == kind }?.id }
+        try GameEngine.apply(.setPolicies(policies: picks), by: viewer, to: &state)
+        if let next = state.view(for: viewer).civicOptions().first(where: \.available) {
+            try GameEngine.apply(.setCivic(civic: next.civic), by: viewer, to: &state)
+        }
+        DebugTools.refreshAllKnowledge(in: &state)
+        let view = state.view(for: viewer)
+        return Made(state: state, focus: .city(capital.id),
+                    note: "government \(view.government?.name ?? "none"), policies \(view.policies.map(\.name).joined(separator: ", ")); "
+                        + "studying \(view.me.studying?.rawValue ?? "nothing"); free change \(view.isFreeChangeTurn); "
+                        + "influence \(view.me.influence ?? 0)/\(view.envoyThreshold) (+\(view.influenceIncome)) (use panel government|civics)")
+    }
+
+    /// M2 §11–§13: the viewer has met the nearest minor faction (envoys sent, one token left),
+    /// has a Market (trade capacity 2), one Trader on a route to the minor and one at home, and
+    /// a raider camp in sight 2 tiles from the capital.
+    static func world(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else { throw Failure(description: "no capital") }
+        let map = state.map
+        guard let minor = (state.minors ?? []).min(by: { a, b in
+            let da = state.cities(of: a.player).first.map { map.distance(capital.position, $0.position) } ?? .max
+            let db = state.cities(of: b.player).first.map { map.distance(capital.position, $0.position) } ?? .max
+            return da < db
+        }), let minorCity = state.cities(of: minor.player).first else { throw Failure(description: "no minor faction") }
+        DebugTools.explore(radius: map.distance(capital.position, minorCity.position) + 3, of: capital.position, player: viewer, in: &state)
+        DebugTools.revealCity(minorCity.id, to: viewer, in: &state)
+        DebugTools.meet(viewer, minor.player, in: &state)
+        DebugTools.learnTech(TechID("currency"), player: viewer, in: &state)
+        DebugTools.setCity(capital.id, population: 4, adding: [BuildingID("market")], in: &state)
+        state.players[viewer.rawValue].gold = 150
+        DebugTools.setInfluence(0, tokens: 2, player: viewer, in: &state)
+        try GameEngine.apply(.sendEnvoy(to: minor.player), by: viewer, to: &state)
+        let first = state.addUnit(.trader, owner: viewer, at: capital.position)
+        let home = map.neighbors(of: capital.position).first { hex in
+            guard let t = map.index(of: hex) else { return false }
+            return state.rules.isPassable(map.tiles[t]) && !map.tiles[t].terrain.isWater && state.units(at: hex).isEmpty
+        } ?? capital.position
+        let second = state.addUnit(.trader, owner: viewer, at: home)
+        var routed = "no route"
+        if let unit = state.unit(first) {
+            if let problem = state.tradeRouteProblem(unit, to: minorCity.id) {
+                routed = "route refused: \(problem)"
+            } else {
+                try GameEngine.apply(.startTradeRoute(unit: first, toCity: minorCity.id), by: viewer, to: &state)
+                routed = "route to \(minorCity.name)"
+            }
+        }
+        let ring = map.coords(within: 2, of: capital.position).filter { hex in
+            guard map.distance(capital.position, hex) == 2, let t = map.index(of: hex) else { return false }
+            let tile = map.tiles[t]
+            return !tile.terrain.isWater && state.rules.isPassable(tile) && state.units(at: hex).isEmpty
+                && state.cities.allSatisfy { $0.position != hex }
+        }
+        if let camp = ring.first { DebugTools.addRaiderCamp(at: camp, in: &state) }
+        DebugTools.refreshAllKnowledge(in: &state)
+        let view = state.view(for: viewer)
+        return Made(state: state, focus: .unit(second),
+                    note: "minor \(minorCity.name) (player \(minor.player.rawValue), city \(minorCity.id.rawValue)); \(routed); "
+                        + "routes \(view.myTradeRoutes.count)/\(view.tradeCapacity); camps \(view.knownRaiderCamps.count) (use panel minors, trade)")
+    }
+
+    /// M2 §5.3, §5.4, §7.4: the capital with a Campus and its Library (a specialist slot) and a
+    /// Granary, on the Science focus so a citizen takes the slot; 60 Gold, so it can buy a tile.
+    static func upkeep(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else { throw Failure(description: "no capital") }
+        for tech in ["writing", "pottery"] { DebugTools.learnTech(TechID(tech), player: viewer, in: &state) }
+        DebugTools.setCity(capital.id, population: 6, adding: ["granary"], in: &state)
+        guard let site = state.view(for: viewer).quarterOptions(for: capital.id).first(where: { $0.kind == "campus" })?.sites.first,
+              DebugTools.addQuarter("campus", at: site.tile, to: capital.id, in: &state) else {
+            throw Failure(description: "no Campus fits around the capital")
+        }
+        DebugTools.setCity(capital.id, population: 6, adding: ["library"], in: &state)
+        try GameEngine.apply(.setFocus(city: capital.id, focus: .science), by: viewer, to: &state)
+        state.players[viewer.rawValue].gold = 60
+        DebugTools.refreshAllKnowledge(in: &state)
+        let view = state.view(for: viewer)
+        let specialists = view.specialists(of: capital.id)
+        let purchase = view.tilePurchase(of: capital.id)
+        return Made(state: state, focus: .city(capital.id),
+                    note: "specialists \(specialists?.filled.count ?? 0)/\(specialists?.slots.count ?? 0); "
+                        + "tile \(purchase?.price ?? 0) Gold, \(purchase?.tiles.count ?? 0) to buy; "
+                        + "upkeep \(view.income().buildings) (use buytile)")
+    }
+
+    /// M2 §5.1, §5.2: the capital with a Monument, two citizens over its Housing: overcrowded,
+    /// Restless (a City Unrest item) and growing slowly; the capital selected.
+    static func stability(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else {
+            throw Failure(description: "no capital")
+        }
+        DebugTools.setCity(capital.id, population: state.housing(of: capital).total + 2, adding: ["monument"], in: &state)
+        DebugTools.refreshAllKnowledge(in: &state)
+        guard let city = state.city(capital.id) else { throw Failure(description: "the capital is gone") }
+        let wellbeing = state.view(for: viewer).wellbeing(of: city.id)
+        return Made(state: state, focus: .city(city.id),
+                    note: "\(city.name): pop \(city.population), housing \(wellbeing?.housing.total ?? 0), "
+                        + "stability \(wellbeing?.stability ?? 0), growth \(wellbeing?.growthPct ?? 0)%")
+    }
+
+    /// M2 §3.3: `resources`, plus roads laid by hand from the capital out through its land and
+    /// two tiles beyond, and the Quarry pillaged; The Wheel learnt, so the Builder's card
+    /// offers a Road.
+    static func roads(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        var made = try resources(&state)
+        state = made.state
+        DebugTools.learnTech("theWheel", player: viewer, in: &state)
+        let centre = try home(state)
+        let map = state.map
+        var line = [centre]
+        var at = centre
+        for direction in [HexDirection.allCases[0], HexDirection.allCases[0], HexDirection.allCases[1], HexDirection.allCases[0]] {
+            guard let next = map.normalize(at.neighbor(direction)), state.rules.isPassable(map[next]), !map[next].terrain.isWater else { break }
+            line.append(next)
+            at = next
+        }
+        for direction in HexDirection.allCases.dropFirst(3).prefix(2) {
+            if let next = map.normalize(centre.neighbor(direction)), state.rules.isPassable(map[next]) { line.append(next) }
+        }
+        // Laid by Builders, so every player's memory of the tiles follows (`buildRoad`).
+        for hex in line where !state.map[hex].hasRoad {
+            let builder = state.addUnit(.builder, owner: viewer, at: hex)
+            _ = try? GameEngine.apply(.buildRoad(unit: builder), by: viewer, to: &state)
+            _ = try? GameEngine.apply(.disband(unit: builder), by: viewer, to: &state)
+        }
+        if let quarry = state.map.tiles.indices.first(where: { state.map.tiles[$0].improvement == .quarry }) {
+            state.map[index: quarry].pillaged = true
+        }
+        DebugTools.refreshAllKnowledge(in: &state)
+        made.state = state
+        made.note = "roads on " + line.map { "\($0.q) \($0.r)" }.joined(separator: ", ") + "; the Quarry pillaged; " + (made.note ?? "")
+        return made
     }
 
     static func tribalVillages(_ state: inout GameState) throws -> Made {

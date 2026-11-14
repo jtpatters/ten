@@ -558,6 +558,7 @@ public actor SaveStore {
             }
             let memory = player.memory
             guard memory.tileOwner.count == count, memory.tileImprovement.count == count,
+                  memory.tileRoad.map({ $0.count == count && $0.words.count == (count + 63) / 64 }) ?? true,
                   memory.tileOwner.allSatisfy({ Int($0) <= n }),
                   memory.cities.allSatisfy({ (0..<n).contains($0.owner.rawValue) }),
                   memory.units.allSatisfy({ (0..<n).contains($0.owner.rawValue) }) else { return "\(player.id) memory" }

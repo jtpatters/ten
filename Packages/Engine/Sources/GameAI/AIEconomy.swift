@@ -13,6 +13,8 @@ struct ProductionCounts {
     var scouts = 0
     /// Every military unit (recon included): upkeep.
     var military = 0
+    /// Naval units.
+    var ships = 0
     /// Non-garrison archers and melee/antiCavalry units: the army's mix.
     var armyRanged = 0
     var armyLine = 0
@@ -83,6 +85,7 @@ extension AITurn {
             if u.type == .builder { c.builders += 1 }
             if isRecon(u.type) { c.scouts += 1 }
             if !u.type.isCivilian { c.military += 1 }
+            if u.type.isNaval { c.ships += 1 }
         }
         for u in f.army {
             c.army += 1
@@ -95,6 +98,7 @@ extension AITurn {
         var c = counts
         if type == .settler { c.settlers += 1 }
         if type == .builder { c.builders += 1 }
+        if type.isNaval { c.ships += 1 }
         return c
     }
 
@@ -106,6 +110,7 @@ extension AITurn {
             if type == .builder { c.builders += 1 }
             if isRecon(type) { c.scouts += 1 }
             if !type.isCivilian { c.military += 1 }
+            if type.isNaval { c.ships += 1 }
             if isFighter(type) {
                 c.army += 1
                 if isRanged(type) { c.armyRanged += 1 } else if isLine(type) { c.armyLine += 1 }
@@ -142,6 +147,12 @@ extension AITurn {
             guard available(item, in: city, v), !list.contains(where: { $0.item == item }) else { return }
             list.append(Candidate(item: item, urgent: urgent))
         }
+        // A quarter on its best site (M2 §5.3), unless one of the kind is already queued.
+        func offerQuarter(_ kind: QuarterKind) {
+            guard !city.queue.contains(where: { if case .quarter(kind, _) = $0.item { true } else { false } }),
+                  let site = v.quarterSites(kind, in: city.id).first else { return }
+            offer(.quarter(kind, at: site.tile))
+        }
         let cities = v.cities.count
         let atWar = !plan.enemies.isEmpty
         let threatened = plan.isThreatened(city.id)
@@ -158,7 +169,10 @@ extension AITurn {
         if needsDefender(city, v), canKeepMilitary, let defender = threatened ? bestDefender(v) : cheapestFighter(v) {
             offer(.unit(defender), urgent: true)
         }
-        if threatened { offer(.building(wallsID), urgent: true) }
+        if threatened {
+            offer(.building(wallsID), urgent: true)
+            offer(.building(castleID), urgent: true)
+        }
 
         // 1b. An escort for a waiting Settler no free fighter can come to, in its escort city
         //     (p3b ai-settler-escort, AIEscorts.swift).
@@ -176,6 +190,34 @@ extension AITurn {
             if unlocatedRival(v) != nil { offer(.unit(.scout)) }
         }
 
+        // 1c. M2 §8: a city projected below Content queues its Monument first; one near its
+        //     Housing, its Granary.
+        if let w = v.wellbeing(of: city.id) {
+            if w.breakdown.total < 0 {
+                offer(.building(monumentID))
+                // M2 §5.3: an Arena reaches nearby cities, so only where none reaches yet.
+                if w.breakdown.quarters == 0 { offerQuarter("arena") }
+                offer(.building("arena"))
+            }
+            if city.population >= w.housing.total - 1 {
+                offer(.building(granaryID))
+                offerQuarter("aqueduct")
+            }
+        }
+
+        // 2a. A few ships in coastal cities after the early turns (M2 §8.4), ahead of Settlers
+        //     and the army: the quota is small, and below the defence quota and the army a
+        //     ship is never the first choice.
+        if v.turn > ai.earlyTurns, canKeepMilitary, let ship = shipToBuild(for: city, c, v) { offer(.unit(ship)) }
+
+        // 2c. M2 §17.3: line units to clear a remembered raider camp within reach of the city,
+        //     up to raiderCampHunters in the army, ahead of Settlers.
+        if canKeepMilitary, c.armyLine < Self.raiderCampHunters, let t = v.index(of: city.position),
+           v.knownRaiderCamps.contains(where: { v.aiDistance(Int($0), t) <= Self.raiderCampCityRange }),
+           let hunter = strongestLine(v) {
+            offer(.unit(hunter))
+        }
+
         // 2b. In prepare/war with at least armyFirstCities cities, Builders (step 4) and then
         //     the army (step 6) come before Settlers. Otherwise an AI that keeps finding sites
         //     spends its production on Settlers through prepare and has almost no army before
@@ -189,6 +231,9 @@ extension AITurn {
         if armyFirst, canKeepMilitary, let unit = armyUnit(c, v) {
             offer(.unit(unit))
         }
+
+        // 2d. M2 §13: Traders up to the route capacity (cheap, and a route pays for 30 turns).
+        if wantsTrader(city, v) { offer(.unit(.trader)) }
 
         // 3. Settlers.
         let enemyNear = foreignMilitaryTiles(v, enemiesOnly: true, includeRecon: true).contains { t in
@@ -217,7 +262,16 @@ extension AITurn {
         }
 
         // 7. Granary, Library, Market (the Monument first if it is still missing).
-        for building in [monumentID, granaryID, libraryID, marketID] { offer(.building(building)) }
+        //    M2 §5.3: the Campus and Market quarters first, so the Library and Market can follow;
+        //    then the Workshop and Harbor quarters and their buildings.
+        offer(.building(monumentID))
+        offer(.building(granaryID))
+        offerQuarter("campus")
+        offer(.building(libraryID))
+        offerQuarter("market")
+        for building in [marketID, waterMillID, "university", "bank"] { offer(.building(building)) }
+        for kind: QuarterKind in ["workshop", "harbor"] { offerQuarter(kind) }
+        for building: BuildingID in ["workshop", "lighthouse"] { offer(.building(building)) }
 
         // Nothing else wanted: Walls, then an army unit the treasury can keep.
         offer(.building(wallsID))
@@ -229,7 +283,9 @@ extension AITurn {
     var monumentID: BuildingID { "monument" }
     var granaryID: BuildingID { "granary" }
     var libraryID: BuildingID { "library" }
+    var castleID: BuildingID { "castle" }
     var marketID: BuildingID { "market" }
+    var waterMillID: BuildingID { "waterMill" }
     var wallsID: BuildingID { rules.buildings.first { $0.wallHP > 0 }?.id ?? "walls" }
 
     /// ⌈n · pct / 100⌉.
@@ -243,8 +299,22 @@ extension AITurn {
             return fieldable(type, v)
         case let .building(id):
             guard let def = rules.building(id), def.buildable, !city.has(id) else { return false }
-            return def.tech.map(v.me.knows) ?? true
+            if def.requiresRiver == true, (v.tile(at: city.position)?.riverEdges ?? 0) == 0 { return false }
+            if let kind = def.quarter, city.quarters?.contains(where: { $0.kind == kind && !$0.isPillaged }) != true { return false }
+            if let other = def.requires, !city.has(other) { return false }
+            if let other = def.excludes, city.has(other) { return false }
+            guard def.tech.map(v.me.knows) ?? true else { return false }
+            return upkeepAffordable(def.upkeep ?? 0, pays: def.gold, v)
+        case let .quarter(kind, at):
+            let gold = rules.quarters?.kinds.first { $0.id == kind }?.yield == "gold"
+            return upkeepAffordable(rules.quarters?.upkeep ?? 0, pays: gold ? .max : 0, v) && v.quarterSites(kind, in: city.id).contains { $0.tile == at }
         }
+    }
+
+    /// M2 §17.2: never queue an item whose upkeep would push net gold below 0, counting a
+    /// treasury that covers 20 turns of it; an item that pays its own upkeep (Market) is fine.
+    func upkeepAffordable(_ upkeep: Int, pays gold: Int, _ v: PlayerView) -> Bool {
+        upkeep <= gold || v.income().net + v.me.gold / 20 >= upkeep
     }
 
     /// M1 §13: never start a military unit if net gold after its upkeep would be < 0, unless at
@@ -253,7 +323,7 @@ extension AITurn {
     func militaryAffordable(_ military: Int, atWar: Bool, _ v: PlayerView) -> Bool {
         let income = v.income()
         let perUnit = rules.constants.upkeep.goldPerUnit
-        let net = income.gold - max(0, military + 1 - income.freeUnits) * perUnit
+        let net = income.gold - income.buildings - max(0, military + 1 - income.freeUnits) * perUnit
         if net >= 0 { return true }
         return atWar && v.me.gold >= ai.warGoldDeficitMultiplier * -net
     }
@@ -298,12 +368,31 @@ extension AITurn {
         if let archer, c.armyRanged < ai.warMinRanged || 100 * c.armyRanged < ai.archersPerMeleePct * c.armyLine {
             return archer
         }
+        return strongestLine(v) ?? archer
+    }
+
+    /// The strongest melee or anti-cavalry unit the player can field (ties: the first).
+    func strongestLine(_ v: PlayerView) -> UnitType? {
         var best: UnitType?
         for type in UnitType.allCases where isLine(type) && fieldable(type, v) {
             if let b = best, rules.unit(b).strength >= rules.unit(type).strength { continue }
             best = type
         }
-        return best ?? archer
+        return best
+    }
+
+    /// The strongest naval unit `city` can build while the player has fewer ships (alive and
+    /// queued) than shipsPerCoastalCityPct of its coastal cities, rounded up.
+    func shipToBuild(for city: City, _ c: ProductionCounts, _ v: PlayerView) -> UnitType? {
+        guard let pct = ai.shipsPerCoastalCityPct, pct > 0, v.isCoastal(city) else { return nil }
+        let coastal = v.cities.filter { v.isCoastal($0) }.count
+        guard c.ships < ceilPct(coastal, pct) else { return nil }
+        var best: UnitType?
+        for type in UnitType.allCases where type.isNaval && fieldable(type, v) {
+            if let b = best, (rules.unit(b).strength, -rules.unit(b).cost) >= (rules.unit(type).strength, -rules.unit(type).cost) { continue }
+            best = type
+        }
+        return best
     }
 
     /// The defence quota (M1 §13): a city needs a garrison (a non-recon military unit on its
@@ -336,7 +425,7 @@ extension AITurn {
     /// A met rival none of whose cities the player remembers (M1 §13 Exploring), lowest first.
     func unlocatedRival(_ v: PlayerView) -> PlayerID? {
         v.players.first { p in
-            p.id != player && p.isAlive && v.hasMet(p.id) && !v.knownCities.contains { $0.owner == p.id }
+            p.id != player && p.isAlive && p.isMajor && v.hasMet(p.id) && !v.knownCities.contains { $0.owner == p.id }
         }?.id
     }
 
@@ -377,6 +466,41 @@ extension AITurn {
     func bestImprovement(at t: Int, _ v: PlayerView) -> (Improvement, Int)? {
         bestImprovement(at: v.coord(at: t), v)
     }
+
+    /// M2 §3.3: the tiles a road between each own city (after the first, id order) and the nearest
+    /// earlier one (within roadMaxDistance tiles) still needs, along the cheapest known-terrain
+    /// route: explored land, own or unowned, without a remembered road and not a city centre.
+    /// Empty without the road tech.
+    func roadWork(_ v: PlayerView) -> [Int] {
+        guard let roads = rules.roads, v.me.knows(roads.tech) else { return [] }
+        let cities = v.cities.sorted { $0.id.rawValue < $1.id.rawValue }
+        let centres = Set(cities.compactMap { v.index(of: $0.position) })
+        let mine = UInt8(player.rawValue + 1)
+        var result: [Int] = []
+        for (i, city) in cities.enumerated() where i > 0 {
+            guard let target = cities[..<i].min(by: { a, b in
+                (v.distance(a.position, city.position), a.id.rawValue) < (v.distance(b.position, city.position), b.id.rawValue)
+            }), v.distance(target.position, city.position) <= Self.roadMaxDistance else { continue }
+            let field = v.aiTerrainCostField(from: [target.position], limit: Self.roadMaxDistance * 4)
+            guard var t = v.index(of: city.position), field[t] > 0 else { continue }
+            while field[t] > 0 {
+                var next: Int?
+                for n in v.neighbors(of: v.coord(at: t)).compactMap({ v.index(of: $0) }) where field[n] >= 0 && field[n] < field[t] {
+                    if let b = next, (field[b], b) <= (field[n], n) { continue }
+                    next = n
+                }
+                guard let n = next else { break }
+                t = n
+                guard !centres.contains(t), v.me.explored[t], !v.me.memory.remembersRoad(t) else { continue }
+                let owner = v.me.memory.tileOwner[t]
+                guard owner == 0 || owner == mine, let tile = v.tile(at: v.coord(at: t)), tile.isLand, rules.isPassable(tile) else { continue }
+                if !result.contains(t) { result.append(t) }
+            }
+        }
+        return result
+    }
+
+    static let roadMaxDistance = 8
 
     // MARK: Purchases
 

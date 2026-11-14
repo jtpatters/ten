@@ -92,7 +92,7 @@ extension AITurn {
         var f = Forces()
         let units = v.units
         for city in v.cities {
-            if let garrison = units.first(where: { $0.position == city.position && !$0.type.isCivilian }) {
+            if let garrison = units.first(where: { $0.position == city.position && isGuard($0.type) }) {
                 f.garrisons.append((city.id, garrison.id))
                 f.garrisonIDs.insert(garrison.id)
             }
@@ -117,7 +117,7 @@ extension AITurn {
         var plan = Plan()
         let forces = forces(v)
         plan.army = forces.power
-        let others = v.players.filter { $0.isAlive && $0.id != player }.map(\.id)
+        let others = v.players.filter { $0.isAlive && $0.isMajor && $0.id != player }.map(\.id)
         plan.enemies = others.filter { v.isAtWar(with: $0) }
         plan.threatened = threatenedCities(v)
         // Good sites matter while the AI may still found cities: below its maximum, or with
@@ -403,5 +403,49 @@ extension AITurn {
         if v.me.researchTarget != next || v.me.researching == nil {
             issue(.setResearch(tech: next))
         }
+    }
+
+    /// Civic orders (M2 §17.2): the cheapest civic whose prerequisites are done, tree order on ties.
+    /// The government with the most slots (later in the list on ties), when free or cheap.
+    mutating func chooseGovernment() {
+        let v = view
+        guard let current = v.government, let all = v.rules.governance?.governments else { return }
+        func score(_ g: GovernmentDef) -> Int { g.slots.reduce(0, +) * 100 + (all.firstIndex(of: g) ?? 0) }
+        guard let best = v.availableGovernments.max(by: { score($0) < score($1) }),
+              score(best) > score(current) else { return }
+        let cost = v.governmentChangeCost(to: best.id)
+        guard cost == 0 || cost * 2 <= v.me.gold else { return }
+        issue(.setGovernment(government: best.id))
+    }
+
+    /// Fills slots by `aiWeight`; outside a free-change turn only fills empty slots.
+    mutating func choosePolicies() {
+        let v = view
+        guard let gov = v.government else { return }
+        // M2 §17.2: a bonus against raiders weighs more while a raider camp is known.
+        let raiderBonus = v.knownRaiderCamps.isEmpty ? 0 : Self.raiderPolicyWeight
+        func weight(_ p: PolicyDef) -> Int { (p.aiWeight ?? 0) + (p.bonuses.raiderStrength ?? 0 > 0 ? raiderBonus : 0) }
+        let ranked = v.availablePolicies.sorted { (weight($0), $1.id) > (weight($1), $0.id) }
+        let current = v.policies
+        var pick: [PolicyDef] = []
+        if v.isFreeChangeTurn {
+            for p in ranked where gov.fits(pick + [p]) { pick.append(p) }
+            guard Set(pick.map(\.id)) != Set(current.map(\.id)) else { return }
+        } else {
+            pick = current
+            for p in ranked where !pick.contains(p) && gov.fits(pick + [p]) { pick.append(p) }
+            guard pick.count > current.count else { return }
+        }
+        let cost = v.policyChangeCost(to: pick.map(\.id))
+        guard cost == 0 || cost * 3 <= v.me.gold else { return }
+        issue(.setPolicies(policies: pick.map(\.id)))
+    }
+
+    mutating func chooseCivic() {
+        let v = view
+        guard v.me.studying == nil else { return }
+        let open = v.rules.civics.filter { c in !v.me.knowsCivic(c.id) && c.requires.allSatisfy(v.me.knowsCivic) }
+        guard let next = open.min(by: { $0.cost < $1.cost }) else { return }
+        issue(.setCivic(civic: next.id))
     }
 }

@@ -250,7 +250,8 @@ extension AITurn {
     mutating func meleeAttacks() {
         let garrisons = forces(view).garrisonIDs
         let ids = view.units.filter { u in
-            isLine(u.type) && u.movesLeft > 0 && !acted.contains(u.id) && !garrisons.contains(u.id)
+            (isLine(u.type) || rules.unit(u.type).unitClass == .navalMelee) && u.movesLeft > 0 && !acted.contains(u.id)
+                && !garrisons.contains(u.id)
         }.map(\.id)
         for id in ids {
             let v = view
@@ -396,7 +397,7 @@ extension AITurn {
     /// A garrison attacks out of its city only with a good kill chance (M1 §13 tactic 5).
     mutating func sortie(from city: City) {
         let v = view
-        guard let garrison = v.units(at: city.position).first(where: { $0.owner == player && !$0.type.isCivilian }),
+        guard let garrison = v.units(at: city.position).first(where: { $0.owner == player && isGuard($0.type) }),
               garrison.movesLeft > 0, !acted.contains(garrison.id) else { return }
         var best: (pairs: Int, tile: Int, option: AttackOption)?
         for option in v.attackOptions(for: garrison.id) where option.from == city.position {
@@ -507,11 +508,11 @@ extension AITurn {
         for city in order {
             let v = view
             guard live, let c = v.index(of: city.position) else { continue }
-            if v.units(at: city.position).contains(where: { $0.owner == player && !$0.type.isCivilian }) { continue }
+            if v.units(at: city.position).contains(where: { $0.owner == player && isGuard($0.type) }) { continue }
             var best: (cost: Int32, unit: UnitID)?
             for u in freeFighters(v) {
-                let f = field(u.id, within: ai.garrisonMaxMoveCost)
-                guard f[c] > 0, Int(f[c]) <= ai.garrisonMaxMoveCost else { continue }
+                let f = field(u.id, within: rules.points(ai.garrisonMaxMoveCost))
+                guard f[c] > 0, Int(f[c]) <= rules.points(ai.garrisonMaxMoveCost) else { continue }
                 if let b = best, (b.cost, b.unit) <= (f[c], u.id) { continue }
                 best = (f[c], u.id)
             }
@@ -541,9 +542,9 @@ extension AITurn {
                 let v = view
                 var best: (cost: Int32, unit: UnitID)?
                 for u in freeFighters(v) {
-                    let f = field(u.id, within: ai.garrisonMaxMoveCost)
+                    let f = field(u.id, within: rules.points(ai.garrisonMaxMoveCost))
                     let cost = v.aiNeighbors(of: c).compactMap { f[$0] > 0 ? f[$0] : nil }.min() ?? -1
-                    guard cost > 0, Int(cost) <= ai.garrisonMaxMoveCost else { continue }
+                    guard cost > 0, Int(cost) <= rules.points(ai.garrisonMaxMoveCost) else { continue }
                     if let b = best, (b.cost, b.unit) <= (cost, u.id) { continue }
                     best = (cost, u.id)
                 }
@@ -676,10 +677,22 @@ extension AITurn {
         return field
     }
 
+    /// M2 §3.3: at war, each own military unit (id order) with moves left on an enemy tile it may
+    /// pillage pillages it (the wounded heal by it), unless it guards a civilian there.
+    mutating func pillage() {
+        for unit in view.units where !unit.type.isCivilian && unit.movesLeft > 0 {
+            let v = view
+            guard live, let u = v.unit(unit.id),
+                  v.unitActions(for: u.id).contains(where: { $0.kind == .pillage && $0.isAvailable }),
+                  !v.units(at: u.position).contains(where: { $0.owner == player && $0.type.isCivilian }) else { continue }
+            issue(.pillage(unit: u.id))
+        }
+    }
+
     /// Garrisons fortify.
     mutating func fortifyGarrisons() {
         for city in view.cities {
-            guard live, let garrison = view.units(at: city.position).first(where: { $0.owner == player && !$0.type.isCivilian }) else {
+            guard live, let garrison = view.units(at: city.position).first(where: { $0.owner == player && isGuard($0.type) }) else {
                 continue
             }
             fortify(garrison)

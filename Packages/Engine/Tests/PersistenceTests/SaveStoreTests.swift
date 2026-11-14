@@ -78,6 +78,41 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
             #expect(loaded.state.stateHash() == state.stateHash(), "\(String(describing: outcome))")
             #expect(loaded.warnings.isEmpty && loaded.summary == summary)
             #expect(loaded.state.rules === Ruleset.standard)
+            // City Stability (M2 §5.2, additive) comes back as saved.
+            #expect(state.cities.contains { $0.stability == -2 })
+            #expect(loaded.state.cities.map(\.stability) == state.cities.map(\.stability))
+        // Quarters, a queued quarter and its fixed cost (M2 §5.3, additive) come back as saved.
+        #expect(state.cities.contains { $0.quarters?.isEmpty == false })
+        #expect(state.cities.contains { $0.queue.contains { if case .quarter = $0.item { $0.cost != nil } else { false } } })
+        #expect(loaded.state.cities.map(\.quarters) == state.cities.map(\.quarters))
+        #expect(loaded.state.cities.map(\.queue) == state.cities.map(\.queue))
+        // Loyalty and the Free Cities (M2 §5.5, §12.5, additive) come back as saved.
+        #expect(state.freeCities != nil && state.cities.contains { $0.freeCityLeader != nil && $0.freeCityTurns != nil })
+        #expect(loaded.state.players.map(\.kind) == state.players.map(\.kind))
+        #expect(loaded.state.freeCities == state.freeCities)
+        // Raiders, minor factions, trade routes and a levied unit (M2 §11–§13, additive).
+        #expect(state.raiders?.camps.isEmpty == false && state.raiders?.rebels?.isEmpty == false)
+        #expect(state.minors?.first?.levy != nil && state.minors?.first?.quest != nil && state.tradeRoutes?.isEmpty == false)
+        #expect(loaded.state.raiders == state.raiders && loaded.state.minors == state.minors)
+        #expect(loaded.state.tradeRoutes == state.tradeRoutes && loaded.state.nextRouteID == state.nextRouteID)
+        #expect(loaded.state.units.map(\.owner) == state.units.map(\.owner))
+        #expect(state.players[0].memory.raiderCamps?.isEmpty == false)
+        #expect(loaded.state.players.map(\.memory.raiderCamps) == state.players.map(\.memory.raiderCamps))
+        #expect(loaded.state.cities.map(\.loyalty) == state.cities.map(\.loyalty))
+        #expect(state.cities.contains { $0.tilesBought != nil } && state.cities.contains { $0.specialists?.isEmpty == false })
+        #expect(loaded.state.cities.map(\.tilesBought) == state.cities.map(\.tilesBought))
+        #expect(loaded.state.cities.map(\.specialists) == state.cities.map(\.specialists))
+        #expect(loaded.state.cities.map(\.freeCityLeader) == state.cities.map(\.freeCityLeader))
+        #expect(loaded.state.cities.map(\.freeCityTurns) == state.cities.map(\.freeCityTurns))
+        // Civics, government, policies and Influence (M2 §7, §4.3).
+        #expect(state.players[0].knownCivics?.isEmpty == false && state.players[0].policies?.isEmpty == false)
+        for (a, b) in zip(loaded.state.players, state.players) {
+            #expect(a.studying == b.studying && a.civicTarget == b.civicTarget && a.civicProgress == b.civicProgress)
+            #expect(a.knownCivics == b.knownCivics && a.civicInsights == b.civicInsights)
+            #expect(a.government == b.government && a.governmentsAdopted == b.governmentsAdopted && a.policies == b.policies)
+            #expect(a.freeChangeTurn == b.freeChangeTurn && a.influence == b.influence)
+            #expect(a.envoyTokens == b.envoyTokens && a.envoysEarned == b.envoysEarned)
+        }
             // The loaded game answers the same questions.
             let (a, b) = (loaded.state.view(for: PlayerID(0)), state.view(for: PlayerID(0)))
             #expect(a.dangerMap() == b.dangerMap() && a.knownCities == b.knownCities && a.income() == b.income())
@@ -145,7 +180,7 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
             hashes.append(state.stateHash())
             PersistenceFixture.playPhase(&state)
         }
-        #expect(written.map(\.url.lastPathComponent).prefix(4) == ["auto-1-0-1.ttys", "auto-1-1-2.ttys", "auto-2-0-3.ttys", "auto-2-1-4.ttys"])
+        #expect(written.map(\.url.lastPathComponent).prefix(4) == ["auto-1-0-1.ttys", "auto-1-1-2.ttys", "auto-1-2-3.ttys", "auto-2-0-4.ttys"])
         #expect(written.allSatisfy { $0.kind == .auto })
         let listed = try await store.list()
         #expect(listed.count == SaveStore.autosavesKept)
@@ -396,7 +431,7 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
         PersistenceFixture.playPhase(&state)
         let b = try await store.autosave(state)
         let c = try await store.saveBackground(state)
-        PersistenceFixture.playPhase(&state)
+        while state.turn < 2 { PersistenceFixture.playPhase(&state) } // the raiders' phase ends turn 1
         let d = try await store.save(state, name: "Rome – Turn 2", kind: .manual)
         try Data("not a save".utf8).write(to: saves.url.appending(path: "junk.ttys"))
         try Data("notes".utf8).write(to: saves.url.appending(path: "notes.txt"))

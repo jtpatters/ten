@@ -218,7 +218,7 @@ import Testing
         #expect(options.map(\.tech) == state.rules.techs.map(\.id))
         #expect(options[0].available && !options[0].known && options[0].turns == 7 && options[0].unlocks == ["Granary"])
         #expect(!options[3].available && options[3].turns == 17) // Sailing: (25 + 40) / 4
-        #expect(options[3].unlocks == ["Fishing Boats", "+1 Food on Coast", "+1 Food on Lake"])
+        #expect(options[3].unlocks == ["Galley", "Fishing Boats", "+1 Food on Coast", "+1 Food on Lake", "Embark on Coast and Lake"])
         #expect(options[5].unlocks == ["Plantation", "Farm +1 Food by fresh water"])
         #expect(options[9].turns == 35) // Currency: 25 + 45 + 70
     }
@@ -234,7 +234,7 @@ import Testing
         #expect(!settlerActions.contains { $0.kind == .fortify })
         #expect(view.unitActions(for: builder).first { $0.kind == .buildFarm }?.problem == "tile not in your territory")
         let warriorActions = view.unitActions(for: warrior)
-        #expect(warriorActions.map(\.kind) == [.fortify, .sleep, .wake, .skip, .cancelOrders, .disband])
+        #expect(warriorActions.map(\.kind) == [.pillage, .fortify, .sleep, .wake, .skip, .cancelOrders, .disband])
         #expect(warriorActions.filter(\.isAvailable).map(\.kind) == [.fortify, .sleep, .skip, .disband])
         try apply(.endTurn, &state)
         #expect(state.view(for: PlayerID(0)).unitActions(for: warrior).allSatisfy { $0.problem == "not your turn" })

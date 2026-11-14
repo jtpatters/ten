@@ -66,12 +66,13 @@ final class AutomationInbox {
 
         switch verb {
         case "newgame":
-            // newgame [size] [seed] [civ] [fog|nofog]
+            // newgame [size] [seed] [civ] [fog|nofog] [pangaea|continents|archipelago]
             let size = args.first.flatMap(MapSize.init(rawValue:)) ?? .duel
             let seed = args.count > 1 ? UInt64(args[1]) ?? 42 : 42
             let civ = args.count > 2 ? CivID(args[2]) : AppModel.defaultCiv
             let diagnostic = args.contains("nofog")
-            await model.startNewGame(AppModel.NewGameSetup(size: size, seed: seed, civ: civ, diagnostic: diagnostic))
+            let script = args.lazy.compactMap(MapScript.init(rawValue:)).first ?? .pangaea
+            await model.startNewGame(AppModel.NewGameSetup(size: size, seed: seed, civ: civ, diagnostic: diagnostic, script: script))
             try await waitIdle(model)
             return describe(model.session)
         case "scenario":
@@ -206,6 +207,67 @@ final class AutomationInbox {
             let target = now.first(where: { $0.isTarget && !$0.researching }).map { ", on the way to \($0.name)" } ?? ""
             return (set ? "" : (session.message ?? "not set") + "; ") + (current ?? "not researching") + target
                 + (session.openPanel == .research ? "; panel open" : "; panel closed")
+        case "civic":
+            // civic <civic id or name>: a tap on that civic panel row (the panel opens first)
+            let wanted = args.joined(separator: " ").lowercased()
+            let options = session.view.civicOptions()
+            guard let option = options.first(where: { $0.civic.rawValue.lowercased() == wanted || $0.name.lowercased() == wanted }) else {
+                throw Failure(description: "civic <civic>: " + options.map(\.civic.rawValue).joined(separator: ", "))
+            }
+            if session.openPanel != .civics {
+                session.openPanel = .civics
+                try await Task.sleep(for: .milliseconds(800))
+            }
+            let set = session.chooseCivic(option)
+            try await Task.sleep(for: .milliseconds(500))
+            let now = session.view.civicOptions()
+            let current = now.first(where: \.studying).map { "studying \($0.name)" + ($0.turns.map { ", \(turnsText($0))" } ?? "") }
+            return (set ? "" : (session.message ?? "not set") + "; ") + (current ?? "not studying")
+        case "government":
+            // government <id>: adopts that government (the Adopt button)
+            guard let id = args.first else { throw Failure(description: "government <id>") }
+            let ok = session.perform(.setGovernment(government: id))
+            return ok ? "government \(session.view.government?.name ?? id)" : (session.message ?? "not changed")
+        case "policies":
+            // policies [id ...]: slots exactly these policies (Apply in the government panel)
+            if let problem = session.view.policiesProblem(args) { return "not set: " + problem }
+            let ok = session.perform(.setPolicies(policies: args))
+            return ok ? "policies " + session.view.policies.map(\.id).joined(separator: " ") : (session.message ?? "not set")
+        case "envoy":
+            // envoy <minor player>: sends an envoy (Send Envoy in the minor faction sheet)
+            guard let id = args.first.flatMap(Int.init) else {
+                throw Failure(description: "envoy <player>: " + session.view.knownMinors.map { "\($0.player.rawValue)" }.joined(separator: ", "))
+            }
+            let ok = session.perform(.sendEnvoy(to: PlayerID(id)))
+            let envoys = session.view.knownMinors.first { $0.player.rawValue == id }?.envoys
+            return ok ? "envoys \(envoys.map { $0.indices.contains(session.viewer.rawValue) ? $0[session.viewer.rawValue] : 0 } ?? 0)"
+                : (session.message ?? "not sent")
+        case "levy":
+            // levy <minor player>: levies the minor's army (Levy in the minor faction sheet)
+            guard let id = args.first.flatMap(Int.init) else { throw Failure(description: "levy <player>") }
+            let ok = session.perform(.levy(minor: PlayerID(id)))
+            return ok ? "levied" : (session.message ?? "not levied")
+        case "trade":
+            // trade [<city id>|cancel]: the selected Trader's destination list, or starts its route to that city
+            guard let unit = session.selectedUnit, unit.type == .trader else { throw Failure(description: "trade: select a Trader") }
+            if args.first == "cancel" {
+                session.tradePicking = nil
+                return "closed"
+            }
+            guard let id = args.first.flatMap(Int.init) else {
+                session.tradePicking = unit.id
+                let options = session.view.knownCities.map { c in
+                    "\(c.id.rawValue) \(c.name) " + (session.view.tradeRouteProblem(unit.id, to: c.id) ?? "+\(session.view.tradeRouteValue(unit.id, to: c.id))")
+                }
+                return options.joined(separator: "; ")
+            }
+            let ok = session.perform(.startTradeRoute(unit: unit.id, toCity: CityID(id)))
+            return ok ? "routes \(session.view.myTradeRoutes.count)/\(session.view.tradeCapacity)" : (session.message ?? "not started")
+        case "plunder":
+            // plunder: the selected unit plunders the trade route where it stands
+            guard let unit = session.selectedUnit else { throw Failure(description: "plunder: select a unit") }
+            let ok = session.perform(.plunder(unit: unit.id))
+            return ok ? "plundered" : (session.message ?? session.view.plunderProblem(unit.id) ?? "not plundered")
         case "hourglass":
             // The hourglass beside Next (shown while items are pending): ends the turn early,
             // asking "N items need attention — End Turn?" once per game.
@@ -270,6 +332,30 @@ final class AutomationInbox {
             }
             try await Task.sleep(for: .milliseconds(300))
             return "targeting \(session.bombardTargeting.map { "\($0.rawValue)" } ?? "none"), " + selectionText(session)
+        case "quarter":
+            // quarter <kind>|cancel: a Quarters row of the selected city's panel (its tile
+            // choice on the map), or leaving it; the result lists the marked sites.
+            guard let city = session.selectedCity else { throw Failure(description: "no city selected") }
+            if args.first == "cancel" {
+                session.endQuarter()
+            } else {
+                guard let kind = args.first else { throw Failure(description: "quarter <kind>|cancel") }
+                session.beginQuarter(QuarterKind(kind), in: city.id)
+            }
+            try await Task.sleep(for: .milliseconds(300))
+            guard let placing = session.quarterPlacing else { return session.message ?? "placing none" }
+            let sites = session.quarterSites().map { "\($0.tile.q) \($0.tile.r) +\($0.adjacency)" }
+            return "placing \(placing.kind.rawValue): " + sites.joined(separator: ", ")
+        case "buytile":
+            // buytile [cancel]: the selected city's Buy tile (its tile choice on the map), or
+            // leaving it; the result gives the price and the marked tiles.
+            guard let city = session.selectedCity else { throw Failure(description: "no city selected") }
+            if args.first == "cancel" { session.endBuyTile() } else { session.beginBuyTile(in: city.id) }
+            try await Task.sleep(for: .milliseconds(300))
+            guard let id = session.tileBuying, let purchase = session.view.tilePurchase(of: id) else {
+                return session.message ?? "buying none"
+            }
+            return "buying for \(purchase.price): " + purchase.tiles.map { "\($0.q) \($0.r)" }.joined(separator: ", ")
         case "keep", "raze":
             guard case let .capture(id)? = session.attentionCard else { throw Failure(description: "no Keep/Raze card") }
             if verb == "keep" { session.keepCity(id) } else { session.askToRaze(id) }
@@ -504,11 +590,17 @@ final class AutomationInbox {
             ])
             return ""
         case "panel":
-            // panel research|tech|diplomacy|notices|close, or panel city <id>|production|overview|yields|defence:
+            // panel research|tech|civics|government|governments|diplomacy|minors|notices|close, or panel city <id>|production|overview|yields|defence:
             // opens a panel (the city's at one of its parts), or closes the open one
             switch args.first {
             case "research", "tech": session.openPanel = .research
+            case "civics", "civic": session.openPanel = .civics
+            case "government", "policies": session.openPanel = .government
+            case "governments":
+                session.panelAnchor = GovernmentPanel.governmentsAnchor
+                session.openPanel = .government
             case "diplomacy": session.openPanel = .diplomacy
+            case "minors", "minor": session.openPanel = .minors
             case "notices", "log": session.openPanel = .notices
             case "city":
                 guard args.count > 1, let id = Int(args[1]) else { throw Failure(description: "panel city <id>") }
@@ -521,7 +613,7 @@ final class AutomationInbox {
                 session.openPanel = nil
                 model.isShowingLoad = false
                 if case .city? = session.selection { session.deselect() } // its panel closes, as Esc
-            default: throw Failure(description: "panel research|tech|diplomacy|notices|city <id>|production|overview|yields|defence|close")
+            default: throw Failure(description: "panel research|tech|civics|government|governments|diplomacy|notices|city <id>|production|overview|yields|defence|close")
             }
             try await Task.sleep(for: .milliseconds(800))
             return openedText(session)
@@ -777,6 +869,14 @@ final class AutomationInbox {
             "nextItem": optional(session.nextAttentionItem?.description),
             "attentionCard": optional(session.attentionCard?.name),
             "openPanel": optional(session.openPanel.map { "\($0)" }),
+            "government": optional(session.view.government?.id),
+            "policies": session.view.policies.map(\.id),
+            "studying": optional(session.view.me.studying?.rawValue),
+            "influence": session.view.me.influence ?? 0,
+            "minors": session.view.knownMinors.map { "\($0.player.rawValue)" },
+            "tradeRoutes": session.view.myTradeRoutes.count,
+            "tradeCapacity": session.view.tradeCapacity,
+            "raiderCamps": session.view.knownRaiderCamps.count,
             // What the HUD covers (points): the camera centres in the rest.
             "mapInsets": ["top": Double(session.mapInsets.top), "left": Double(session.mapInsets.left),
                           "bottom": Double(session.mapInsets.bottom), "right": Double(session.mapInsets.right)],
@@ -787,6 +887,8 @@ final class AutomationInbox {
             "selectionInOpen": optional(session.selectionHex.map { session.isOnScreen($0, margin: 0) }),
             "cityPanel": optional(session.selectedCity.map { _ in "\(session.cityPanelRequest.focus)" }),
             "bombardTargeting": optional(session.bombardTargeting?.rawValue),
+            "quarterPlacing": optional(session.quarterPlacing.map { "\($0.city.rawValue) \($0.kind.rawValue)" }),
+            "tileBuying": optional(session.tileBuying?.rawValue),
             "endTurnPrompt": optional(session.endTurnPrompt),
             "pendingPurchase": optional(session.pendingPurchase.map { "\($0.name) \($0.price)" }),
             "pendingRaze": optional(session.pendingRaze?.rawValue),

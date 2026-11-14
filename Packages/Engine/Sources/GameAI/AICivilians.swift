@@ -64,13 +64,14 @@ extension AITurn {
             acted.insert(id)
             // Good sites lie within settleMaxMoveCost: a movement field cut off there is exact
             // for them (and much cheaper than a whole one on a big map).
-            let near = field(id, within: ai.settleMaxMoveCost)
+            let near = field(id, within: rules.points(ai.settleMaxMoveCost))
             var best: (value: Int, cost: Int, tile: Int)?
             for site in sites {
                 let cost = Int(near[site.tile])
-                guard cost >= 0, cost <= ai.settleMaxMoveCost,
+                guard cost >= 0, cost <= rules.points(ai.settleMaxMoveCost),
                       !chosen.contains(where: { v.aiDistance($0, site.tile) <= ai.settleSiteSpacing }) else { continue }
-                let value = site.score - ai.settleCostPenalty * cost - (towardRival.map { $0.penalty(site.tile, v) } ?? 0)
+                // Scores count per move; `cost` is in move points (M2 §3.3).
+                let value = (site.score - (towardRival.map { $0.penalty(site.tile, v) } ?? 0)) * rules.movePoints - ai.settleCostPenalty * cost
                 if let b = best, (b.value, -b.cost, -b.tile) >= (value, -cost, -site.tile) { continue }
                 best = (value, cost, site.tile)
             }
@@ -81,10 +82,10 @@ extension AITurn {
                 let f = field(id)
                 for site in sites {
                     let cost = Int(f[site.tile])
-                    guard cost > ai.settleMaxMoveCost,
+                    guard cost > rules.points(ai.settleMaxMoveCost),
                           !chosen.contains(where: { v.aiDistance($0, site.tile) <= ai.settleSiteSpacing }) else { continue }
                     if let b = best, (b.cost, b.tile) <= (cost, site.tile) { continue }
-                    best = (site.score - ai.settleCostPenalty * cost, cost, site.tile)
+                    best = (site.score * rules.movePoints - ai.settleCostPenalty * cost, cost, site.tile)
                 }
             }
             guard let best else {
@@ -162,12 +163,14 @@ extension AITurn {
         guard !ids.isEmpty else { return }
         let work = improvableWorkedTiles(view)
         var reserved: [Int] = []
+        var roads: [Int]?
         for id in ids {
             guard live, let unit = view.unit(id) else { continue }
             let v = view
             acted.insert(id)
             guard !work.isEmpty else {
-                parkInNearestCity(unit)
+                if roads == nil { roads = roadWork(v) }
+                if !layRoad(unit, roads!, &reserved) { parkInNearestCity(unit) }
                 continue
             }
             // ai-3: tiles a Builder may stand on safely come first (M1 §13 Safety), so Builders
@@ -185,10 +188,11 @@ extension AITurn {
                 }
                 return best
             }
-            var choice = pick(field(id, within: ai.builderMaxMoveCost))
+            var choice = pick(field(id, within: rules.points(ai.builderMaxMoveCost)))
             if choice == nil { choice = pick(field(id)) }
             guard let best = choice else {
-                parkInNearestCity(unit)
+                if roads == nil { roads = roadWork(v) }
+                if !layRoad(unit, roads!, &reserved) { parkInNearestCity(unit) }
                 continue
             }
             reserved.append(best.tile)
@@ -204,6 +208,30 @@ extension AITurn {
             }
             travel(id, to: v.coord(at: best.tile))
         }
+    }
+
+    /// M2 §3.3: a Builder with nothing to improve lays the nearest road tile within
+    /// builderMaxMoveCost (safe tiles first), as for improvements. Returns whether it had one.
+    mutating func layRoad(_ unit: Unit, _ roads: [Int], _ reserved: inout [Int]) -> Bool {
+        guard !roads.isEmpty else { return false }
+        let v = view
+        let danger = civilianDanger(v)
+        let f = field(unit.id, within: rules.points(ai.builderMaxMoveCost))
+        var best: (unsafe: Int, cost: Int32, tile: Int)?
+        for t in roads where !reserved.contains(t) && f[t] >= 0 {
+            let key = (safe(t, v, danger: danger) ? 0 : 1, f[t], t)
+            if let b = best, (b.unsafe, b.cost, b.tile) <= key { continue }
+            best = key
+        }
+        guard let best else { return false }
+        reserved.append(best.tile)
+        if v.index(of: unit.position) == best.tile {
+            guard unit.movesLeft > 0 else { return true }
+            if safe(best.tile, v, danger: danger) { issue(.buildRoad(unit: unit.id)) } else { seekSafety(unit, danger) }
+            return true
+        }
+        travel(unit.id, to: v.coord(at: best.tile))
+        return true
     }
 
     // MARK: Civilian safety
@@ -222,7 +250,7 @@ extension AITurn {
         if !danger[t] { return true }
         let hex = v.coord(at: t)
         if v.cities.contains(where: { $0.position == hex }) { return true }
-        return v.units(at: hex).contains { $0.owner == player && !$0.type.isCivilian }
+        return v.units(at: hex).contains { $0.owner == player && isGuard($0.type) }
     }
 
     /// Per tile: where civilians keep clear of foreign military units (M1 §13 Safety). Within
@@ -405,7 +433,7 @@ extension AITurn {
             } else {
                 // The cheapest frontier tile: when one lies within a few turns' moves, a field
                 // cut off there finds the same tile as a whole one, for much less.
-                let horizon = 3 * rules.unit(unit.type).moves
+                let horizon = 3 * rules.unit(unit.type).moves * rules.movePoints
                 let near = field(id, within: horizon)
                 target = goals(near).filter { near[$0] <= horizon }.min { (near[$0], $0) < (near[$1], $1) }
                 if target == nil {
@@ -438,7 +466,7 @@ extension AITurn {
         let v = view
         let known = v.knownTribalVillages
         guard !known.isEmpty, let here = v.index(of: unit.position) else { return false }
-        let moves = rules.unit(unit.type).moves
+        let moves = rules.unit(unit.type).moves * rules.movePoints
         let limit: Int? = anyDistance ? nil : seek * moves
         // A step costs at least a move point: one more than `limit` tiles away is beyond it,
         // and with none nearer no field is needed.

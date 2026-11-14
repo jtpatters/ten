@@ -25,9 +25,17 @@ public enum Command: Codable, Hashable, Sendable {
     case setQueue(city: CityID, items: [ProductionItem])
     /// Buy an item for 3 × its production cost in Gold (M1 §5).
     case purchase(city: CityID, item: ProductionItem)
+    /// Buy an unowned tile next to a city's territory (M2 §7.4).
+    case purchaseTile(city: CityID, tile: HexCoord)
     case setFocus(city: CityID, focus: CityFocus)
     /// Research a tech, through its missing prerequisites (M1 §6).
     case setResearch(tech: TechID)
+    /// Study `civic`, through its missing prerequisites (M2 §7.1).
+    case setCivic(civic: CivicID)
+    /// M2 §7.2.
+    case setGovernment(government: String)
+    /// M2 §7.3: the full set of slotted policies.
+    case setPolicies(policies: [String])
     /// Declare war on a player met and at peace with (M1 §9).
     case declareWar(on: PlayerID)
     /// Propose peace to a player at war with (M1 §9); it answers in its own phase.
@@ -40,6 +48,18 @@ public enum Command: Codable, Hashable, Sendable {
     case upgrade(unit: UnitID)
     /// Take one of the promotions offered to a unit with one due (M2 §8.3).
     case promote(unit: UnitID, promotion: String)
+    /// A Builder lays a road where it stands (M2 §3.3).
+    case buildRoad(unit: UnitID)
+    /// A military unit pillages the enemy tile it stands on (M2 §3.3).
+    case pillage(unit: UnitID)
+    /// Spend an envoy token at a minor faction met (M2 §12.2).
+    case sendEnvoy(to: PlayerID)
+    /// The Patron takes a minor's military units for Gold (M2 §12.2).
+    case levy(minor: PlayerID)
+    /// A Trader starts a route to `toCity` (M2 §13).
+    case startTradeRoute(unit: UnitID, toCity: CityID)
+    /// A military unit plunders an enemy trade route where it stands (M2 §13).
+    case plunder(unit: UnitID)
 }
 
 public enum CommandError: Error, Hashable, Sendable, CustomStringConvertible {
@@ -97,8 +117,33 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case cityShrank(city: CityID, population: Int, at: HexCoord)
     case cityCaptured(city: CityID, name: String, from: PlayerID, to: PlayerID, at: HexCoord)
     case cityRazed(city: CityID, name: String, owner: PlayerID, at: HexCoord)
+    /// A city's Loyalty reached 0 and it became a Free City (M2 §5.5).
+    case cityRevolted(city: CityID, name: String, from: PlayerID, to: PlayerID, at: HexCoord)
+    /// A Free City joined the civ whose pressure led for `flipTurns` turns (M2 §5.5).
+    case cityJoined(city: CityID, name: String, from: PlayerID, to: PlayerID, at: HexCoord)
     case productionCompleted(city: CityID, item: ProductionItem, at: HexCoord)
     case techResearched(player: PlayerID, tech: TechID)
+    case civicCompleted(player: PlayerID, civic: CivicID)
+    /// M2 §4.3: Influence reached the envoy threshold; `tokens` is the new total.
+    case envoyEarned(player: PlayerID, tokens: Int)
+    /// M2 §11: a raider camp appeared.
+    case raiderCampAppeared(at: HexCoord)
+    /// M2 §11: `player` cleared the camp at `at` and got `gold`.
+    case raiderCampCleared(player: PlayerID, at: HexCoord, gold: Int)
+    /// M2 §11: a raider took a city at 0 HP: it lost a citizen (if above 1) and `gold`.
+    case citySacked(city: CityID, by: PlayerID, gold: Int, at: HexCoord)
+    /// M2 §5.2: a city in Revolt raised rebel `unit`.
+    case rebelsRose(city: CityID, unit: UnitID, at: HexCoord)
+    /// M2 §12.2: `player` now has `envoys` envoys at `minor`.
+    case envoySent(player: PlayerID, minor: PlayerID, envoys: Int)
+    case patronChanged(minor: PlayerID, patron: PlayerID?)
+    /// M2 §12.3: `player` completed `minor`'s quest (+1 envoy).
+    case questCompleted(minor: PlayerID, player: PlayerID)
+    case levied(minor: PlayerID, player: PlayerID, units: Int)
+    case levyEnded(minor: PlayerID, player: PlayerID)
+    case tradeRouteStarted(route: Int, owner: PlayerID, from: CityID, to: CityID)
+    /// M2 §13: nil `plunderedBy`: it ran out or broke and the Trader came home.
+    case tradeRouteEnded(route: Int, owner: PlayerID, plunderedBy: PlayerID?)
     case borderGrew(city: CityID, tile: HexCoord)
     case improvementBuilt(improvement: Improvement, at: HexCoord, owner: PlayerID)
     case playersMet(PlayerID, PlayerID)
@@ -116,12 +161,18 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case gameOver(GameOutcome)
     /// A tech's Insight fired for `player` (M2 §6.2): `credit` science toward it.
     case insightGained(player: PlayerID, tech: TechID, credit: Int)
+    case civicInsightGained(player: PlayerID, civic: CivicID, credit: Int)
     /// The world entered era `era` (an index into the rules' eras, M2 §2).
     case worldEraAdvanced(era: Int)
     /// A unit upgraded in place (M2 §8.2).
     case unitUpgraded(unit: UnitID, from: UnitType, to: UnitType, owner: PlayerID, at: HexCoord)
     /// A unit took a promotion (M2 §8.3).
     case unitPromoted(unit: UnitID, promotion: String, owner: PlayerID, at: HexCoord)
+    /// A road was built (M2 §3.3).
+    case roadBuilt(at: HexCoord, owner: PlayerID)
+    /// `unit` of `by` pillaged the tile of `owner` at `at` (M2 §3.3): `improvement` (nil: the
+    /// road), with `gold` or `healed` HP to the pillager.
+    case tilePillaged(at: HexCoord, unit: UnitID, by: PlayerID, owner: PlayerID?, improvement: Improvement?, gold: Int, healed: Int)
     case phaseStarted(turn: Int, player: PlayerID)
 }
 
@@ -245,12 +296,21 @@ public enum GameEngine {
         case let .purchase(cityID, item):
             let index = try ownedCity(cityID, by: player, in: state)
             let city = state.cities[index]
+            if case .quarter = item { throw .rejected(reason: "quarters cannot be bought") }
             if let problem = state.itemProblem(item, in: city) ?? state.completionProblem(item, in: city) {
                 throw .rejected(reason: problem)
             }
-            let price = state.purchasePrice(of: item)
+            let price = state.purchasePrice(of: item, for: player)
             guard state.players[player.rawValue].gold >= price else { throw .rejected(reason: "needs \(price) gold") }
             state.purchase(item, inCity: index, price: price, &fx)
+
+        case let .purchaseTile(cityID, tile):
+            let index = try ownedCity(cityID, by: player, in: state)
+            let city = state.cities[index]
+            if let problem = state.tilePurchaseProblem(tile, for: city) { throw .rejected(reason: problem) }
+            let price = state.tilePrice(for: city)!
+            guard state.players[player.rawValue].gold >= price else { throw .rejected(reason: "needs \(price) gold") }
+            state.purchaseTile(tile, inCity: index, &fx)
 
         case let .setFocus(cityID, focus):
             let index = try ownedCity(cityID, by: player, in: state)
@@ -261,6 +321,31 @@ public enum GameEngine {
             guard state.rules.tech(tech) != nil else { throw .rejected(reason: "no such tech") }
             guard !state.players[player.rawValue].knows(tech) else { throw .rejected(reason: "already known") }
             state.setResearch(tech, for: player)
+
+        case let .setCivic(civic):
+            guard state.rules.civic(civic) != nil else { throw .rejected(reason: "no such civic") }
+            guard !state.players[player.rawValue].knowsCivic(civic) else { throw .rejected(reason: "already known") }
+            state.setCivic(civic, for: player)
+
+        case let .setGovernment(government):
+            guard state.rules.government(government) != nil else { throw .rejected(reason: "no such government") }
+            guard state.availableGovernments(for: player).contains(where: { $0.id == government }) else {
+                throw .rejected(reason: "government not available")
+            }
+            guard state.government(of: player)?.id != government else { throw .rejected(reason: "already the government") }
+            guard state.players[player.rawValue].gold >= state.governmentChangeCost(to: government, for: player) else {
+                throw .rejected(reason: "not enough gold")
+            }
+            state.setGovernment(government, for: player)
+            fx.touchPlayer(player)
+
+        case let .setPolicies(policies):
+            if let problem = state.policiesProblem(policies, for: player) { throw .rejected(reason: problem) }
+            guard state.players[player.rawValue].gold >= state.policyChangeCost(to: policies, for: player) else {
+                throw .rejected(reason: "not enough gold")
+            }
+            state.setPolicies(policies, for: player)
+            fx.touchPlayer(player)
 
         case let .attack(id, target):
             let unit = try ownedUnit(id, by: player, in: state)
@@ -318,6 +403,34 @@ public enum GameEngine {
             let unit = try ownedUnit(id, by: player, in: state)
             if let problem = state.promoteProblem(unit, promotion) { throw .rejected(reason: problem) }
             state.promote(id, promotion, &fx)
+
+        case let .buildRoad(id):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.roadProblem(unit) { throw .rejected(reason: problem) }
+            state.buildRoad(by: id, &fx)
+
+        case let .pillage(id):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.pillageProblem(unit) { throw .rejected(reason: problem) }
+            state.pillage(by: id, &fx)
+
+        case let .sendEnvoy(minor):
+            if let problem = state.envoyProblem(player, to: minor) { throw .rejected(reason: problem) }
+            state.sendEnvoy(player, to: minor, &fx)
+
+        case let .levy(minor):
+            if let problem = state.levyProblem(player, on: minor) { throw .rejected(reason: problem) }
+            state.levy(player, on: minor, &fx)
+
+        case let .startTradeRoute(id, destination):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.tradeRouteProblem(unit, to: destination) { throw .rejected(reason: problem) }
+            state.startTradeRoute(id, to: destination, &fx)
+
+        case let .plunder(id):
+            let unit = try ownedUnit(id, by: player, in: state)
+            if let problem = state.plunderProblem(unit) { throw .rejected(reason: problem) }
+            state.plunder(by: id, &fx)
         }
 
         state.checkInsights(&fx)
@@ -375,6 +488,19 @@ public enum GameEngine {
                 return "\(state.itemName(item)): \(problem)"
             }
             if case .building = item, items[..<i].contains(item) { return "\(state.itemName(item)) is queued twice" }
+            if case let .quarter(kind, at) = item {
+                for case let .quarter(k, a) in items[..<i] {
+                    if k == kind { return "\(state.itemName(item)) is queued twice" }
+                    if a == at { return "two quarters queued on one tile" }
+                }
+            }
+        }
+        let quarters = items.compactMap { item -> QuarterKind? in
+            if case let .quarter(kind, _) = item, state.countsTowardCap(kind) { return kind }
+            return nil
+        }
+        if !quarters.isEmpty, state.cappedQuarterCount(city) + quarters.count > state.quarterCap(of: city) {
+            return "at most \(state.quarterCap(of: city)) quarters at population \(city.population)"
         }
         return nil
     }
@@ -386,6 +512,7 @@ extension GameState {
         switch item {
         case let .unit(type): type.displayName
         case let .building(id): rules.building(id)?.name ?? id.rawValue
+        case let .quarter(kind, _): rules.quarter(kind)?.name ?? kind.rawValue
         }
     }
 }

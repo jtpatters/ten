@@ -8,9 +8,21 @@ public enum YieldSource: Hashable, Sendable {
     case workedTiles
     /// Citizens with no tile to work.
     case unemployed
+    /// Citizens in quarters' specialist slots (M2 §5.3).
+    case specialists
     /// +1 Science per `populationPerScience` citizens.
     case population
     case building(BuildingID)
+    /// The city's Stability state (M2 §5.2): a percentage of every yield but Food.
+    case stability
+    /// The government and policies (M2 §7.2–7.3).
+    case government
+    /// A quarter's adjacency bonus (M2 §5.3).
+    case quarter(QuarterKind)
+    /// Envoys at minor factions (M2 §12.2).
+    case envoys
+    /// Trade routes (M2 §13).
+    case trade
 }
 
 /// A city's yields this phase with their sources (M1 §12.6).
@@ -21,11 +33,15 @@ public struct CityYields: Hashable, Sendable {
     public var breakdown: [(source: YieldSource, yields: Yields)]
     /// Food the citizens eat.
     public var foodEaten: Int
-    /// Food into (or out of) the store.
-    public var foodSurplus: Int { total.food - foodEaten }
+    /// Percent of a positive surplus that goes into the store (Housing and Stability, M2 §5.1).
+    public var growthPct = 100
+    /// Food left after the citizens eat.
+    public var rawFoodSurplus: Int { total.food - foodEaten }
+    /// Food into (or out of) the store: a positive surplus scaled by `growthPct`.
+    public var foodSurplus: Int { rawFoodSurplus > 0 ? rawFoodSurplus * growthPct / 100 : rawFoodSurplus }
 
     public static func == (a: CityYields, b: CityYields) -> Bool {
-        a.total == b.total && a.foodEaten == b.foodEaten && a.breakdown.count == b.breakdown.count
+        a.total == b.total && a.foodEaten == b.foodEaten && a.growthPct == b.growthPct && a.breakdown.count == b.breakdown.count
             && zip(a.breakdown, b.breakdown).allSatisfy { $0.source == $1.source && $0.yields == $1.yields }
     }
 
@@ -58,7 +74,7 @@ extension Ruleset {
             y.gold += f.gold
         }
         if tile.riverEdges != 0 { y.gold += river.gold }
-        if !isCityCentre, let improvement = tile.improvement {
+        if !isCityCentre, !tile.isPillaged, let improvement = tile.improvement {
             let def = self.improvement(improvement)
             y.food += def.food
             y.production += def.production
@@ -121,17 +137,37 @@ extension GameState {
         var tiles = Yields.zero
         for hex in city.workedTiles { tiles += tileYields(map.index(of: hex)!, for: city.owner) }
         if !tiles.isZero { breakdown.append((.workedTiles, tiles)) }
+        let specialists = activeSpecialists(city)
+        let specialistYield = specialists.reduce(Yields.zero) { $0 + specialistYields($1) }
+        if !specialistYield.isZero { breakdown.append((.specialists, specialistYield)) }
         let c = rules.constants.city
-        let unemployed = max(0, city.population - city.workedTiles.count)
+        let unemployed = max(0, city.population - city.workedTiles.count - specialists.count)
         if unemployed > 0 { breakdown.append((.unemployed, Yields(production: unemployed * c.unemployedProduction))) }
         let science = city.population / c.populationPerScience
         if science > 0 { breakdown.append((.population, Yields(science: science))) }
         for id in city.buildings {
             if let def = rules.building(id), !def.yields.isZero { breakdown.append((.building(id), def.yields)) }
         }
-        let total = breakdown.reduce(Yields.zero) { $0 + $1.1 }
+        for (kind, yields) in quarterYields(city) { breakdown.append((.quarter(kind), yields)) }
+        let government = governmentYields(city)
+        if !government.isZero { breakdown.append((.government, government)) }
+        let envoys = envoyYields(city)
+        if !envoys.isZero { breakdown.append((.envoys, envoys)) }
+        let trade = tradeYields(city)
+        if !trade.isZero { breakdown.append((.trade, trade)) }
+        var total = breakdown.reduce(Yields.zero) { $0 + $1.1 }
+        let pct = rules.stabilityYieldPct(rules.stabilityState(city.stability ?? 0))
+        if pct != 0 {
+            func scaled(_ v: Int) -> Int { max(0, v) * (100 + pct) / 100 - max(0, v) }
+            let delta = Yields(production: scaled(total.production), gold: scaled(total.gold),
+                               science: scaled(total.science), culture: scaled(total.culture))
+            if !delta.isZero {
+                breakdown.append((.stability, delta))
+                total += delta
+            }
+        }
         return CityYields(total: total, breakdown: breakdown.map { (source: $0.0, yields: $0.1) },
-                          foodEaten: city.population * rules.constants.growth.foodPerCitizen)
+                          foodEaten: city.population * rules.constants.growth.foodPerCitizen, growthPct: growthPct(of: city))
     }
 
     /// Food from the city's buildings.
@@ -145,8 +181,8 @@ extension GameState {
     /// at or above the focus floor; when none does, the tile with the most Food (ties: weighted
     /// value, then distance, then tile index). Other ties: closer to the centre, then lower
     /// tile index. Free tiles: owned by this city within the work radius, workable, not the
-    /// centre, no enemy unit on them, not worked by another city. Citizens without a tile are
-    /// unemployed.
+    /// centre, no enemy unit on them, not worked by another city. Specialist slots (M2 §5.3)
+    /// are candidates too. Citizens without a tile or slot are unemployed.
     mutating func assignCitizens(_ cityIndex: Int) {
         let city = cities[cityIndex]
         let focus = rules.focus(city.focus)
@@ -159,10 +195,18 @@ extension GameState {
         var candidates: [Candidate] = []
         map.forEachIndex(within: rules.constants.city.workRadius, of: city.position) { t in
             // A city works only tiles it owns, so no other city works these.
-            guard t != centreIndex, tileCity[t] == code, rules.isWorkable(map.tiles[t]), !enemies.contains(t),
+            guard t != centreIndex, tileCity[t] == code, rules.isWorkable(map.tiles[t]), !isQuarterTile(t), !enemies.contains(t),
                   !candidates.contains(where: { $0.tile == t }) else { return }
             let y = tileYields(t, for: city.owner)
             candidates.append(Candidate(tile: t, yields: y, value: focus.value(y), distance: map.distance(index: t, centreIndex)))
+        }
+        // Specialist slots (M2 §5.3) compete like tiles, after every tile on ties.
+        let slots = specialistSlots(city)
+        for (n, kind) in slots.enumerated() {
+            let y = specialistYields(kind)
+            guard !y.isZero else { continue }
+            candidates.append(Candidate(tile: map.tileCount + n, yields: y, value: focus.value(y),
+                                        distance: rules.constants.city.workRadius + 1))
         }
         // Best first: value, then closer, then lower index.
         candidates.sort { a, b in
@@ -192,7 +236,9 @@ extension GameState {
             chosen.append(candidates[i].tile)
             food += candidates[i].yields.food
         }
-        cities[cityIndex].workedTiles = chosen.sorted().map { map.coord(at: $0) }
+        cities[cityIndex].workedTiles = chosen.filter { $0 < map.tileCount }.sorted().map { map.coord(at: $0) }
+        let specialists = chosen.filter { $0 >= map.tileCount }.sorted().map { slots[$0 - map.tileCount] }
+        cities[cityIndex].specialists = specialists.isEmpty ? nil : specialists
     }
 
     /// Tiles with a unit of a player `player` is at war with.

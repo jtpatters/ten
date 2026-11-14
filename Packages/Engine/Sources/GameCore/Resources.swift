@@ -23,7 +23,7 @@ extension GameState {
     func isImprovedSource(_ t: Int) -> Bool {
         let tile = map.tiles[t]
         guard let owner = tileOwner(t), let r = knownResource(at: t, for: owner), let def = rules.resource(r),
-              let improvement = tile.improvement else { return false }
+              let improvement = tile.improvement, !tile.isPillaged else { return false }
         return caseName(improvement) == def.improvement
     }
 
@@ -31,15 +31,20 @@ extension GameState {
     public func improvedSources(of player: PlayerID) -> [Int] {
         var counts = [Int](repeating: 0, count: Resource.allCases.count)
         guard !rules.resources.isEmpty else { return counts }
-        for t in map.tiles.indices where map.tiles[t].resource != nil && tileOwner(t) == player && isImprovedSource(t) {
-            counts[Int(map.tiles[t].resource!.rawValue) - 1] += 1
+        // A Patron shares its minors' resources, which count as improved (M2 §12.2).
+        let patrons = minors == nil ? [] : patronTable()
+        for t in map.tiles.indices where map.tiles[t].resource != nil {
+            guard let o = tileOwner(t) else { continue }
+            let counts1 = o == player ? isImprovedSource(t)
+                : !patrons.isEmpty && patrons[o.rawValue] == player.rawValue && knownResource(at: t, for: player) != nil
+            if counts1 { counts[Int(map.tiles[t].resource!.rawValue) - 1] += 1 }
         }
         return counts
     }
 
     /// Why `player` cannot field a unit of `type` now for want of its resource.
     func resourceProblem(_ type: UnitType, owner player: PlayerID) -> String? {
-        guard let r = resourceNeeded(by: type), let s = rules.stockpile else { return nil }
+        guard let r = resourceNeeded(by: type), let s = rules.stockpile, !isMinor(player) else { return nil }
         let have = players[player.rawValue].stock(r)
         return have >= s.unitCost ? nil : "needs \(s.unitCost) \(rules.resource(r)!.displayName) (have \(have))"
     }
@@ -58,9 +63,9 @@ extension GameState {
         players[player.rawValue].stockpile![Int(r.rawValue) - 1] = value
     }
 
-    /// Whether `player` is at war with anyone alive.
+    /// Whether `player` is at war with any living civ (the Free Cities' standing war is not one).
     func isAtWarWithAnyone(_ player: PlayerID) -> Bool {
-        players.contains { $0.isAlive && isAtWar(player, $0.id) }
+        players.contains { $0.isAlive && $0.isMajor && isAtWar(player, $0.id) }
     }
 
     /// Phase start (M2 §3.1): +`perSource` per improved source up to the cap, then at war each
@@ -82,7 +87,7 @@ extension GameState {
 
     /// The resource a unit is short of: it needs one, its owner is at war and the stock is empty.
     public func shortage(of unit: Unit) -> Resource? {
-        guard let r = resourceNeeded(by: unit.type), rules.stockpile != nil,
+        guard let r = resourceNeeded(by: unit.type), rules.stockpile != nil, !isRaider(unit.owner), !isMinor(unit.owner),
               players[unit.owner.rawValue].stock(r) == 0, isAtWarWithAnyone(unit.owner) else { return nil }
         return r
     }

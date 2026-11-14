@@ -48,6 +48,7 @@ struct CityPanel: View {
                         overview(view).id(Anchor.top)
                         production(view).id(Anchor.production)
                         citizens(view)
+                        trade(view)
                         yieldsTable(view).id(Anchor.yields)
                         buildings(view)
                         defence(view).id(Anchor.defence)
@@ -115,7 +116,7 @@ struct CityPanel: View {
                 // In a duel the original capital decides the game (M1 §10): said while at peace
                 // too, in the danger colour at war.
                 if view.capitalAtStake == city.id {
-                    let atWar = view.players.contains { $0.id != session.viewer && view.isAtWar(with: $0.id) }
+                    let atWar = view.players.contains { $0.id != session.viewer && $0.isMajor && view.isAtWar(with: $0.id) }
                     Label("If \(city.name) falls, you lose the game", systemImage: "exclamationmark.shield.fill")
                         .font(HUD.body(.caption).weight(.semibold))
                         .foregroundStyle(atWar ? HUD.danger : HUD.inkSoft)
@@ -157,6 +158,11 @@ struct CityPanel: View {
             }
             if let yields { YieldStrip(population: city.population, yields: yields) }
             if let growth { GrowthRow(growth: growth) }
+            if let wellbeing = view.wellbeing(of: city.id) { WellbeingRow(wellbeing: wellbeing, population: city.population) }
+            if let loyalty = city.loyalty, let breakdown = view.loyaltyBreakdown(of: city.id) {
+                LoyaltyRow(loyalty: loyalty, breakdown: breakdown, turnsToRevolt: view.turnsUntilRevolt(of: city.id),
+                           foreignName: breakdown.topForeign.map { session.civName(of: $0) })
+            }
             if city.hp < maxHP {
                 HStack(spacing: HUD.Space.s) {
                     Image(systemName: "heart.fill").font(.system(size: 12, weight: .semibold))
@@ -230,6 +236,10 @@ struct CityPanel: View {
                     OptionRow(option: option, city: city.id, session: session, readOnly: readOnly, builderNote: builderNote)
                 }
             }
+            let quarters = view.quarterOptions(for: city.id)
+            if !quarters.isEmpty {
+                QuarterOptionList(options: quarters, city: city.id, session: session, readOnly: readOnly)
+            }
             if !later.isEmpty {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showsLater.toggle() }
@@ -266,13 +276,44 @@ struct CityPanel: View {
 
     @ViewBuilder
     private func citizens(_ view: PlayerView) -> some View {
-        let unemployed = max(0, city.population - city.workedTiles.count)
+        let specialists = view.specialists(of: city.id)
+        let unemployed = max(0, city.population - city.workedTiles.count - (specialists?.filled.count ?? 0))
         VStack(alignment: .leading, spacing: HUD.Space.s) {
             SectionHeader(title: "Citizens")
             FocusPicker(focus: city.focus, readOnly: readOnly) { session.setFocus($0, of: city.id) }
             Text(workedText(unemployed: unemployed))
                 .font(HUD.body(.caption))
                 .foregroundStyle(HUD.inkSoft)
+            if let specialists { SpecialistRow(specialists: specialists, rules: view.rules) }
+            if let purchase = view.tilePurchase(of: city.id) {
+                BuyTileButton(purchase: purchase, readOnly: readOnly) { session.beginBuyTile(in: city.id) }
+            }
+        }
+    }
+
+    /// Trade (M2 §13): the empire's routes against its capacity, and this city's routes.
+    @ViewBuilder
+    private func trade(_ view: PlayerView) -> some View {
+        if view.rules.trade != nil, city.owner == session.viewer {
+            let routes = view.myTradeRoutes
+            let here = routes.filter { $0.origin == city.id }
+            VStack(alignment: .leading, spacing: HUD.Space.xs) {
+                SectionHeader(title: "Trade")
+                Text("Trade routes \(routes.count) of \(view.tradeCapacity) in your empire; \(here.count) from \(city.name).")
+                    .font(HUD.body(.caption))
+                    .foregroundStyle(HUD.inkSoft)
+                ForEach(here, id: \.id) { route in
+                    let name = view.knownCities.first { $0.id == route.destination }?.name ?? view.city(route.destination)?.name ?? "a city"
+                    let kind = switch route.kind {
+                    case .domestic: "domestic"
+                    case .international: "international"
+                    case .minor: "to a minor faction"
+                    }
+                    let when = route.arrives > view.turn ? "arrives in \(route.arrives - view.turn) turns" : "\(max(0, route.ends - view.turn)) turns left"
+                    Label("To \(name) · \(kind) · \(when)", systemImage: "shippingbox.fill")
+                        .font(HUD.body(.caption).weight(.semibold))
+                }
+            }
         }
     }
 
@@ -303,6 +344,9 @@ struct CityPanel: View {
     @ViewBuilder
     private func buildings(_ view: PlayerView) -> some View {
         let defs = city.buildings.compactMap { view.rules.building($0) }
+        if let quarters = city.quarters, !quarters.isEmpty {
+            BuiltQuarterList(quarters: quarters, city: city, view: view)
+        }
         VStack(alignment: .leading, spacing: HUD.Space.s) {
             SectionHeader(title: "Buildings")
             if defs.isEmpty {
@@ -338,6 +382,9 @@ struct CityPanel: View {
                               (y.culture, "Culture")] where value != 0 {
             parts.append("\(YieldChip.signed(value)) \(name)")
         }
+        if let housing = def.housing, housing != 0 { parts.append("\(YieldChip.signed(housing)) Housing") }
+        if let stability = def.stability, stability != 0 { parts.append("\(YieldChip.signed(stability)) Stability") }
+        if let upkeep = def.upkeep, upkeep > 0 { parts.append("−\(upkeep) Gold") }
         if def.wallHP > 0 {
             parts.append("Wall \(city.wallHP)/\(def.wallHP)")
             if def.cityStrength > 0 { parts.append("+\(def.cityStrength) City Strength") }
@@ -447,6 +494,9 @@ struct ItemIcon: View {
             case .pikeman: "arrow.up"
             case .knight: "crown.fill"
             case .trebuchet: "triangle"
+            case .galley, .cog: "sailboat"
+            case .quadrireme, .dromon: "sailboat.fill"
+            case .trader: "shippingbox"
             }
         case let .building(id):
             switch id.rawValue {
@@ -456,8 +506,19 @@ struct ItemIcon: View {
             case "library": "books.vertical"
             case "walls": "shield"
             case "market": "storefront"
+            case "waterMill": "water.waves"
+            case "castle": "shield.lefthalf.filled.badge.checkmark"
+            case "university": "graduationcap"
+            case "bank": "banknote"
+            case "workshop": "gearshape.2"
+            case "lighthouse": "light.beacon.max"
+            case "barracks": "flag.2.crossed"
+            case "stable": "hare"
+            case "amphitheater": "theatermasks"
+            case "arena": "sportscourt"
             default: "building.2"
             }
+        case let .quarter(kind, _): QuarterArt.symbol(kind)
         }
     }
 }
@@ -526,6 +587,125 @@ private struct GrowthRow: View {
     }
 }
 
+/// Housing ("Pop 7 / 8", and the growth it allows) and Stability with its state (M2 §18); a tap
+/// opens both breakdowns.
+struct WellbeingRow: View {
+    var wellbeing: CityWellbeing
+    var population: Int
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HUD.Space.s) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+            } label: {
+                HStack(spacing: HUD.Space.m) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "house.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(HUD.ink)
+                        Text(housingText).font(HUD.body(.subheadline).weight(.semibold))
+                            .foregroundStyle(population > wellbeing.housing.total ? HUD.danger : HUD.ink)
+                        if wellbeing.growthPct < 100 {
+                            Text("growth \(wellbeing.growthPct)%").font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
+                        }
+                    }
+                    Spacer(minLength: HUD.Space.s)
+                    HStack(spacing: 5) {
+                        Image(systemName: Self.symbol(wellbeing.state)).font(.system(size: 12, weight: .semibold))
+                        Text("\(YieldChip.signed(wellbeing.stability)) \(Self.name(wellbeing.state))")
+                            .font(HUD.body(.subheadline).weight(.semibold))
+                    }
+                    .foregroundStyle(Self.tint(wellbeing.state))
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(HUD.inkSoft)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(housingText), growth \(wellbeing.growthPct) percent. Stability \(wellbeing.stability), \(Self.name(wellbeing.state)).")
+            .accessibilityHint(expanded ? "Hides the breakdown." : "Shows the breakdown.")
+            if expanded { breakdown }
+        }
+    }
+
+    private var housingText: String { "Pop \(population) / \(wellbeing.housing.total)" }
+
+    private var breakdown: some View {
+        let h = wellbeing.housing, b = wellbeing.breakdown
+        return Grid(alignment: .leading, horizontalSpacing: HUD.Space.m, verticalSpacing: 4) {
+            heading("Housing")
+            row("Water", h.base)
+            row("Buildings", h.buildings)
+            row("Improved tiles", h.improvements)
+            total("Housing", h.total)
+            heading("Stability")
+            row("Buildings", b.buildings)
+            row("Luxuries", b.luxuries)
+            row("Need (citizens)", -b.need)
+            row("Empire size", b.empireSize)
+            row("Overcrowding", b.overcrowding)
+            row("Occupied", b.occupied)
+            total(b.total == wellbeing.stability ? "Stability" : "Next turn", b.total)
+        }
+        .padding(HUD.Space.m)
+        .parchmentWell()
+    }
+
+    private func heading(_ title: String) -> some View {
+        GridRow {
+            Text(title.uppercased()).font(HUD.label()).tracking(0.8).foregroundStyle(HUD.inkSoft)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("")
+        }
+    }
+
+    private func row(_ name: String, _ value: Int) -> some View {
+        GridRow {
+            Text(name).font(HUD.body(.caption))
+            Text(value == 0 ? "·" : value > 0 ? "+\(value)" : "−\(-value)")
+                .font(HUD.body(.caption).monospacedDigit())
+                .foregroundStyle(value < 0 ? HUD.danger : value == 0 ? HUD.inkFaint : HUD.ink)
+                .gridColumnAlignment(.trailing)
+        }
+    }
+
+    private func total(_ name: String, _ value: Int) -> some View {
+        GridRow {
+            Text(name).font(HUD.title(.caption))
+            Text(name == "Housing" ? "\(value)" : YieldChip.signed(value)).font(HUD.numeric(.caption))
+                .foregroundStyle(value < 0 ? HUD.danger : HUD.ink)
+        }
+    }
+
+    static func name(_ state: StabilityState) -> String {
+        switch state {
+        case .thriving: "Thriving"
+        case .content: "Content"
+        case .restless: "Restless"
+        case .unrest: "Unrest"
+        case .revolt: "Revolt"
+        }
+    }
+
+    static func symbol(_ state: StabilityState) -> String {
+        switch state {
+        case .thriving: "face.smiling.inverse"
+        case .content: "face.smiling"
+        case .restless: "exclamationmark.bubble"
+        case .unrest: "exclamationmark.triangle"
+        case .revolt: "flame"
+        }
+    }
+
+    static func tint(_ state: StabilityState) -> Color {
+        switch state {
+        case .thriving: HUD.good
+        case .content: HUD.ink
+        case .restless: HUD.amber
+        case .unrest, .revolt: HUD.danger
+        }
+    }
+}
+
 /// Balanced, Food, Production or Gold (M1 §4): what the citizens favour.
 private struct FocusPicker: View {
     var focus: CityFocus
@@ -572,6 +752,8 @@ private struct FocusPicker: View {
         case .food: YieldChip.Kind.food.systemImage
         case .production: YieldChip.Kind.production.systemImage
         case .gold: YieldChip.Kind.gold.systemImage
+        case .science: YieldChip.Kind.science.systemImage
+        case .culture: YieldChip.Kind.culture.systemImage
         }
     }
 
@@ -581,6 +763,8 @@ private struct FocusPicker: View {
         case .food: HUD.Yield.food
         case .production: HUD.Yield.production
         case .gold: HUD.Yield.gold
+        case .science: HUD.Yield.science
+        case .culture: HUD.Yield.culture
         }
     }
 }
@@ -648,9 +832,15 @@ private struct YieldBreakdown: View {
         switch source {
         case .centre: "City centre"
         case .workedTiles: "Worked tiles (\(city.workedTiles.count))"
-        case .unemployed: "Without a tile (\(max(0, city.population - city.workedTiles.count)))"
+        case .unemployed: "Without a tile (\(max(0, city.population - city.workedTiles.count - (city.specialists?.count ?? 0))))"
+        case .specialists: "Specialists (\(city.specialists?.count ?? 0))"
         case .population: "Population"
         case let .building(id): rules.building(id)?.name ?? id.rawValue.capitalized
+        case let .quarter(kind): rules.quarter(kind)?.name ?? kind.rawValue.capitalized
+        case .stability: "Stability"
+        case .government: "Government and policies"
+        case .envoys: "Envoys at minor factions"
+        case .trade: "Trade routes"
         }
     }
 }
@@ -1048,5 +1238,286 @@ private struct BuyButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(ChipButtonStyle())
+    }
+}
+
+// MARK: Quarters
+
+/// Quarter kinds' symbols (M2 §5.3): the city panel and the map's quarter marks.
+enum QuarterArt {
+    static func symbol(_ kind: QuarterKind) -> String {
+        switch kind.rawValue {
+        case "campus": "graduationcap.fill"
+        case "market": "storefront.fill"
+        case "workshop": "gearshape.2.fill"
+        case "harbor": "ferry.fill"
+        case "barracks": "flag.2.crossed.fill"
+        case "theater": "theatermasks.fill"
+        case "arena": "sportscourt.fill"
+        case "aqueduct": "drop.fill"
+        default: "square.grid.3x3.fill"
+        }
+    }
+
+    /// "Science", "Gold"… for an adjacency yield name.
+    static func yieldName(_ yield: String?) -> String? {
+        yield.map { $0.prefix(1).uppercased() + $0.dropFirst() }
+    }
+}
+
+/// The quarters a city could build (M2 §18.2): tap one to pick its tile on the map, where its
+/// legal sites are marked with their adjacency.
+private struct QuarterOptionList: View {
+    var options: [QuarterOption]
+    var city: CityID
+    var session: GameSession
+    var readOnly: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HUD.Space.xs) {
+            HeaderRow(title: "Quarters") {
+                if let cap = session.view.quarterCap(of: city) {
+                    let built = (session.view.city(city)?.quarters ?? []).filter { session.state.rules.quarter($0.kind)?.capExempt != true }.count
+                    Text("\(built) of \(cap) built").font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
+                }
+            }
+            .padding(.top, HUD.Space.xs)
+            ForEach(options, id: \.kind) { option in
+                row(option)
+            }
+        }
+    }
+
+    private func row(_ option: QuarterOption) -> some View {
+        let placeable = option.problem == nil
+        return Button {
+            if let problem = option.problem {
+                session.show("Can't place a \(option.name): \(problem)")
+            } else {
+                session.beginQuarter(option.kind, in: city)
+            }
+        } label: {
+            HStack(spacing: HUD.Space.s) {
+                ItemIcon(item: .quarter(option.kind, at: HexCoord(q: 0, r: 0)), size: 30,
+                         tint: placeable ? HUD.Yield.production : HUD.inkFaint)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(option.name).font(HUD.title(.subheadline)).foregroundStyle(placeable ? HUD.ink : HUD.inkSoft)
+                    Text(detail(option)).font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: HUD.Space.xs)
+                if placeable {
+                    Image(systemName: "mappin.circle.fill").font(.system(size: 18)).foregroundStyle(HUD.bronzeBottom)
+                }
+            }
+            .padding(.horizontal, HUD.Space.s)
+            .frame(minHeight: 48)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ChipButtonStyle())
+        .disabled(readOnly)
+        .background(RoundedRectangle(cornerRadius: HUD.Radius.small, style: .continuous).fill(HUD.parchmentWell.opacity(placeable ? 1 : 0.5)))
+        .accessibilityLabel("\(option.name), \(detail(option))")
+        .accessibilityHint(option.problem.map { "Unavailable: \($0)." } ?? "Choose its tile on the map.")
+    }
+
+    /// "55 production · 7 turns · best +2 Science, 3 tiles", or why not.
+    private func detail(_ option: QuarterOption) -> String {
+        var parts = ["\(option.cost) production"]
+        if let turns = option.turns { parts.append(turns == 1 ? "1 turn" : "\(turns) turns") }
+        if let problem = option.problem {
+            parts.append(problem.prefix(1).uppercased() + problem.dropFirst())
+        } else {
+            let tiles = option.sites.count == 1 ? "1 tile" : "\(option.sites.count) tiles"
+            if let best = option.sites.first, let yield = QuarterArt.yieldName(option.yield) {
+                parts.append("best +\(best.adjacency) \(yield), \(tiles)")
+            } else {
+                parts.append(tiles)
+            }
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// A city's built quarters: each with its adjacency bonus (or Housing, Stability), pillaged
+/// ones marked.
+private struct BuiltQuarterList: View {
+    var quarters: [CityQuarter]
+    var city: City
+    var view: PlayerView
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HUD.Space.s) {
+            SectionHeader(title: "Quarters")
+            VStack(spacing: 0) {
+                ForEach(Array(quarters.enumerated()), id: \.element.kind) { i, quarter in
+                    HStack(spacing: HUD.Space.s) {
+                        ItemIcon(item: .quarter(quarter.kind, at: quarter.tile), size: 28)
+                        Text(view.rules.quarter(quarter.kind)?.name ?? quarter.kind.rawValue.capitalized).font(HUD.title(.subheadline))
+                        Spacer(minLength: HUD.Space.s)
+                        Text(effect(quarter))
+                            .font(HUD.body(.caption))
+                            .foregroundStyle(quarter.isPillaged ? HUD.danger : HUD.inkSoft)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .padding(.horizontal, HUD.Space.m)
+                    .frame(minHeight: 40)
+                    .accessibilityElement(children: .combine)
+                    if i < quarters.count - 1 { Rectangle().fill(HUD.ink.opacity(0.1)).frame(height: 1).padding(.leading, 48) }
+                }
+            }
+            .parchmentWell()
+        }
+    }
+
+    /// "+2 Science (adjacency)", "+4 Housing", "Pillaged".
+    private func effect(_ quarter: CityQuarter) -> String {
+        if quarter.isPillaged { return "Pillaged" }
+        guard let def = view.rules.quarter(quarter.kind) else { return "—" }
+        var parts: [String] = []
+        if let yield = QuarterArt.yieldName(def.yield) {
+            parts.append("\(YieldChip.signed(view.quarterAdjacency(quarter, of: city.id))) \(yield)")
+        }
+        if let housing = def.housing { parts.append("\(YieldChip.signed(housing)) Housing") }
+        if let stability = def.stability { parts.append("\(YieldChip.signed(stability)) Stability") }
+        if let upkeep = view.rules.quarters?.upkeep, upkeep > 0 { parts.append("−\(upkeep) Gold") }
+        return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+    }
+}
+
+/// Loyalty ("Loyalty 72 ▼4/turn", red when falling) and the turns to a revolt (M2 §5.5); a tap
+/// opens the breakdown.
+struct LoyaltyRow: View {
+    var loyalty: Int
+    var breakdown: LoyaltyBreakdown
+    var turnsToRevolt: Int?
+    var foreignName: String?
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HUD.Space.s) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+            } label: {
+                HStack(spacing: HUD.Space.m) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "flag.fill").font(.system(size: 12, weight: .semibold))
+                        Text("Loyalty \(loyalty)").font(HUD.body(.subheadline).weight(.semibold))
+                        Text(trend).font(HUD.body(.caption).weight(.semibold))
+                    }
+                    .foregroundStyle(breakdown.total < 0 ? HUD.danger : HUD.ink)
+                    Spacer(minLength: HUD.Space.s)
+                    if let turnsToRevolt {
+                        Text(turnsToRevolt == 1 ? "revolts next turn" : "revolts in \(turnsToRevolt) turns")
+                            .font(HUD.body(.caption).weight(.semibold))
+                            .foregroundStyle(HUD.danger)
+                    }
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(HUD.inkSoft)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Loyalty \(loyalty), \(YieldChip.signed(breakdown.total)) per turn"
+                                + (turnsToRevolt.map { ", revolts in \($0) turns" } ?? "") + ".")
+            .accessibilityHint(expanded ? "Hides the breakdown." : "Shows the breakdown.")
+            if expanded { details }
+        }
+    }
+
+    /// "▼4/turn", "▲2/turn", "steady".
+    private var trend: String {
+        breakdown.total < 0 ? "▼\(-breakdown.total)/turn" : breakdown.total > 0 ? "▲\(breakdown.total)/turn" : "steady"
+    }
+
+    private var details: some View {
+        let b = breakdown
+        return Grid(alignment: .leading, horizontalSpacing: HUD.Space.m, verticalSpacing: 4) {
+            GridRow {
+                Text("PRESSURE").font(HUD.label()).tracking(0.8).foregroundStyle(HUD.inkSoft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("")
+            }
+            info("From your cities", b.ownPressure)
+            info("From \(foreignName ?? "foreign cities")", b.foreignPressure)
+            row("Pressure", b.pressure)
+            row("Capital", b.capital)
+            row("Garrison", b.garrison)
+            row("Stability", b.stability)
+            row("Recently captured", b.captured)
+            row("Enemy units", b.enemies)
+            GridRow {
+                Text("Per turn").font(HUD.title(.caption))
+                Text(YieldChip.signed(b.total)).font(HUD.numeric(.caption)).foregroundStyle(b.total < 0 ? HUD.danger : HUD.ink)
+            }
+        }
+        .padding(HUD.Space.m)
+        .parchmentWell()
+    }
+
+    private func info(_ name: String, _ value: Int) -> some View {
+        GridRow {
+            Text(name).font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
+            Text("\(value)").font(HUD.body(.caption).monospacedDigit()).foregroundStyle(HUD.inkSoft).gridColumnAlignment(.trailing)
+        }
+    }
+
+    private func row(_ name: String, _ value: Int) -> some View {
+        GridRow {
+            Text(name).font(HUD.body(.caption))
+            Text(value == 0 ? "·" : value > 0 ? "+\(value)" : "−\(-value)")
+                .font(HUD.body(.caption).monospacedDigit())
+                .foregroundStyle(value < 0 ? HUD.danger : value == 0 ? HUD.inkFaint : HUD.ink)
+                .gridColumnAlignment(.trailing)
+        }
+    }
+}
+
+/// The city's specialists (M2 §5.3): "Specialists 1/2 · +2 Science", and which quarters hold the slots.
+private struct SpecialistRow: View {
+    let specialists: CitySpecialists
+    let rules: Ruleset
+
+    var body: some View {
+        let y = specialists.yields
+        let gains = [(y.food, "Food"), (y.production, "Production"), (y.gold, "Gold"), (y.science, "Science"), (y.culture, "Culture")]
+            .filter { $0.0 != 0 }.map { "\(YieldChip.signed($0.0)) \($0.1)" }
+        let kinds = Array(Set(specialists.slots)).sorted { $0.rawValue < $1.rawValue }
+        HStack(spacing: HUD.Space.s) {
+            Image(systemName: "person.crop.circle.badge.checkmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(HUD.Yield.science)
+            VStack(alignment: .leading, spacing: 1) {
+                Text((["Specialists \(specialists.filled.count)/\(specialists.slots.count)"] + gains).joined(separator: " · "))
+                    .font(HUD.body(.subheadline).weight(.semibold))
+                Text("Slots in " + kinds.map { rules.quarter($0)?.name ?? $0.rawValue.capitalized }.joined(separator: ", ")
+                     + "; citizens fill them by the city's focus.")
+                    .font(HUD.body(.caption))
+                    .foregroundStyle(HUD.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Buy tile (M2 §7.4): starts the tile choice on the map; disabled, with the reason, when the
+/// city cannot buy one.
+private struct BuyTileButton: View {
+    let purchase: TilePurchase
+    let readOnly: Bool
+    let action: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Button(action: action) {
+                Label("Buy tile (\(purchase.price) Gold)", systemImage: "square.dashed").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(BronzeButtonStyle())
+            .disabled(readOnly || purchase.problem != nil)
+            .opacity(readOnly || purchase.problem != nil ? 0.6 : 1)
+            .accessibilityHint("Choose an unowned tile next to the city's land on the map.")
+            if let problem = purchase.problem {
+                Text("Can't buy: \(problem)").font(HUD.body(.caption)).foregroundStyle(HUD.danger)
+            }
+        }
     }
 }

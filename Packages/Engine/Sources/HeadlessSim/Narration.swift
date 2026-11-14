@@ -134,7 +134,7 @@ struct Observer {
         target[p] = report.target
         advancing[p] = report.advancing
         for note in report.notes { say(turn, player, note) }
-        let atWarNow = state.players.contains { $0.id != player && $0.isAlive && state.isAtWar(player, $0.id) }
+        let atWarNow = state.players.contains { $0.id != player && $0.isAlive && $0.isMajor && state.isAtWar(player, $0.id) }
         for id in report.escortRequests where settlerBorn[id] != nil {
             settlerWaited[id, default: 0] += 1
             lint[p].settlerWaits += 1
@@ -143,7 +143,7 @@ struct Observer {
                 let view = state.view(for: player)
                 let inCity = state.cities.contains { $0.position == unit.position }
                 let closed = view.index(of: unit.position).map { view.aiClosedToMilitary()[$0] } ?? false
-                let atWar = view.players.contains { $0.id != player && $0.isAlive && view.isAtWar(with: $0.id) }
+                let atWar = view.players.contains { $0.id != player && $0.isAlive && $0.isMajor && view.isAtWar(with: $0.id) }
                 let foreign = view.visibleForeignUnits.filter { !$0.type.isCivilian }
                     .min { (view.distance($0.position, unit.position), $0.id) < (view.distance($1.position, unit.position), $1.id) }
                 // Free fighters: non-recon military units that are no city's garrison (the
@@ -190,6 +190,10 @@ struct Observer {
                     }
                 } ?? (command == .endTurn ? " (phase start)" : "")
                 say(turn, owner, "loses \(type.displayName) \(unit) at \(at)\(by)")
+            case let .citySacked(city, by, gold, at):
+                if let owner = state.city(city)?.owner { say(turn, owner, "\(cityName(city, state)) at \(at) sacked by \(by) (−\(gold) Gold)") }
+            case let .raiderCampCleared(player, at, gold):
+                say(turn, player, "clears the raider camp at \(at) (+\(gold) Gold)")
             case let .unitCaptured(old, _, type, from, to, at):
                 // `type` is what the captor gets: a captured Settler arrives as a Builder (p3f: it was
                 // counted as a Builder lost, and no Settler was ever lost).
@@ -258,7 +262,7 @@ struct Observer {
             if t.count > 2 { t.removeFirst() }
             trail[unit.id] = t
             if !unit.type.isCivilian, unit.activity == .none, unit.destination == nil, !unit.zocStopped,
-               unit.movesLeft == state.rules.unit(unit.type).moves {
+               unit.movesLeft == state.rules.unit(unit.type).moves * state.rules.movePoints {
                 lint[p].idle += 1
                 if lintDetail {
                     say(turn, player, "idle \(unit.type.rawValue) \(unit.id) at \(unit.position) \(unit.hp) HP")
@@ -307,7 +311,7 @@ struct Observer {
                   !state.units.contains(where: { $0.owner == player && !$0.type.isCivilian && $0.position == unit.position }) else { continue }
             for enemy in enemies where state.map.distance(enemy.position, unit.position) <= state.rules.unit(enemy.type).moves {
                 var fresh = enemy
-                fresh.movesLeft = state.rules.unit(enemy.type).moves
+                fresh.movesLeft = state.rules.unit(enemy.type).moves * state.rules.movePoints
                 fresh.zocStopped = false
                 guard Pathfinder.reachableTiles(for: fresh, in: state).contains(unit.position) else { continue }
                 if unit.type == .settler { lint[player.rawValue].capturableSettlers += 1 } else { lint[player.rawValue].capturableBuilders += 1 }
@@ -333,7 +337,7 @@ struct Observer {
     /// p3d: what a new Settler's owner knows about the war around it (`--lint-detail`).
     func settlerContext(_ owner: PlayerID, _ at: HexCoord, _ state: GameState) -> String {
         let view = state.view(for: owner)
-        let atWar = view.players.contains { $0.id != owner && $0.isAlive && view.isAtWar(with: $0.id) }
+        let atWar = view.players.contains { $0.id != owner && $0.isAlive && $0.isMajor && view.isAtWar(with: $0.id) }
         let city = view.cities.first { $0.position == at }
         let visible = view.visibleForeignUnits.filter { !$0.type.isCivilian && view.isAtWar(with: $0.owner) }
             .map { view.distance($0.position, at) }.min()

@@ -27,7 +27,7 @@ extension AITurn {
     /// nearer the goal (none without a goal).
     func escortSpots(for unit: Unit, toward goal: HexCoord?, _ v: PlayerView) -> [Int] {
         guard let here = v.index(of: unit.position) else { return [] }
-        guard v.units(at: unit.position).contains(where: { $0.owner == player && !$0.type.isCivilian }) else { return [here] }
+        guard v.units(at: unit.position).contains(where: { $0.owner == player && isGuard($0.type) }) else { return [here] }
         guard let goal else { return [] }
         let toGoal = v.distanceField(from: goal)
         guard toGoal[here] > 0 else { return [] }
@@ -67,7 +67,7 @@ extension AITurn {
         let v = view
         var best: (cost: Int32, city: CityID)?
         for g in forces(v).garrisons {
-            guard let unit = v.unit(g.unit), let found = nearestEscort(among: [unit], to: spots, within: ai.escortMaxMoveCost) else { continue }
+            guard let unit = v.unit(g.unit), let found = nearestEscort(among: [unit], to: spots, within: rules.points(ai.escortMaxMoveCost)) else { continue }
             if let b = best, (b.cost, b.city) <= (found.cost, g.city) { continue }
             best = (found.cost, g.city)
         }
@@ -77,7 +77,7 @@ extension AITurn {
     /// Whether an escort could come to a Settler waiting at `spots`: a free fighter within
     /// escortMaxMoveCost, or an escort city to send or build one.
     mutating func escortCanCome(to spots: [Int]) -> Bool {
-        nearestEscort(among: freeFighters(view), to: spots, within: ai.escortMaxMoveCost) != nil || escortCity(for: spots) != nil
+        nearestEscort(among: freeFighters(view), to: spots, within: rules.points(ai.escortMaxMoveCost)) != nil || escortCity(for: spots) != nil
     }
 
     /// Civilians waiting for an escort get the nearest free fighter within escortMaxMoveCost of
@@ -90,7 +90,7 @@ extension AITurn {
             let v = view
             guard live, let civilian = v.unit(id), let t = v.index(of: civilian.position) else { continue }
             let spots = escortSpots[id] ?? [t]
-            var best = nearestEscort(among: freeFighters(v), to: spots, within: ai.escortMaxMoveCost)
+            var best = nearestEscort(among: freeFighters(v), to: spots, within: rules.points(ai.escortMaxMoveCost))
             if best == nil, rules.unit(civilian.type).foundsCity, let city = escortCity(for: spots),
                let c = v.city(city), let ct = v.index(of: c.position) {
                 let radius = rules.constants.production.spawnRadius
@@ -131,7 +131,7 @@ extension AITurn {
         let v = view
         guard let unit = v.unit(id), unit.type.isCivilian, let t = v.index(of: unit.position), civilianDanger(v)[t],
               !v.cities.contains(where: { $0.position == unit.position }),
-              let guardian = v.units(at: unit.position).first(where: { $0.owner == player && !$0.type.isCivilian }) else { return }
+              let guardian = v.units(at: unit.position).first(where: { $0.owner == player && isGuard($0.type) }) else { return }
         acted.insert(guardian.id)
         fortify(guardian)
     }

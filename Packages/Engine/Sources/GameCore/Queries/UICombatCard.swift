@@ -285,9 +285,10 @@ extension PlayerView {
     /// one in sight (the target of a preview always is) live for units, from its sighting for a
     /// city (current while it is in sight).
     private func side(_ combatant: Combatant) -> CombatCardSide {
-        let maxWall = rules.buildings.map(\.wallHP).max() ?? 0
+        // The smallest wall tier (Walls, Castle) that holds the wall HP.
+        func maxWall(_ wallHP: Int) -> Int { rules.buildings.map(\.wallHP).filter { $0 > 0 && $0 >= wallHP }.min() ?? wallHP }
         func make(hp: Int, maxHP: Int, wallHP: Int, hasWalls: Bool) -> CombatCardSide {
-            CombatCardSide(hp: max(0, hp), maxHP: maxHP, wallHP: max(0, wallHP), maxWallHP: maxWall, hasWalls: hasWalls, damage: nil,
+            CombatCardSide(hp: max(0, hp), maxHP: maxHP, wallHP: max(0, wallHP), maxWallHP: maxWall(wallHP), hasWalls: hasWalls, damage: nil,
                            expected: 0, expectedWalls: 0, expectedHP: 0, hpAfter: max(0, hp), keepsOneIfItWins: false)
         }
         switch combatant {

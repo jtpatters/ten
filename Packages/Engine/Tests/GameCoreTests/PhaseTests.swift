@@ -10,22 +10,30 @@ import Testing
         let state = GameState.newGame(seed: 4, map: map, startPositions: [hex(3, 9), hex(22, 4)], mapSizeName: "test")
         #expect(state.mapSizeName == "test" && state.seed == 4)
         #expect(state.turn == 1 && state.currentPlayer == PlayerID(0) && state.phaseCount == 1)
-        #expect(state.players.map(\.civ) == ["rome", "mongols"])
-        #expect(state.players.map(\.name) == ["Rome", "Mongols"])
-        #expect(state.players.map(\.isHuman) == [true, false])
-        #expect(state.players.allSatisfy { $0.gold == 10 && $0.isAlive && $0.knownTechs.isEmpty })
+        let civs = state.players.filter(\.isMajor)
+        #expect(civs.map(\.civ) == ["rome", "mongols"])
+        #expect(civs.map(\.name) == ["Rome", "Mongols"])
+        #expect(civs.map(\.isHuman) == [true, false])
+        #expect(civs.allSatisfy { $0.gold == 10 && $0.isAlive && $0.knownTechs.isEmpty })
         #expect(state.players[0].lastPhaseStart == 1)
-        for (player, start) in zip(state.players, [hex(3, 9), hex(22, 4)]) {
+        for (player, start) in zip(civs, [hex(3, 9), hex(22, 4)]) {
             let units = state.units(of: player.id)
             #expect(units.map(\.type) == [.settler, .warrior, .scout])
             #expect(units[0].position == start && units[1].position == start)
             #expect(state.map.distance(units[2].position, start) == 1)
-            #expect(units.allSatisfy { $0.movesLeft == state.rules.unit($0.type).moves && $0.hp == 100 })
+            #expect(units.allSatisfy { $0.movesLeft == state.maxMoves(of: $0) && $0.hp == 100 })
             #expect(units.first { $0.type == .builder } == nil)
             #expect(player.explored.setCount > 0)
         }
-        #expect(state.relations.count == 1)
+        // The raiders (M2 §11) and the Free Cities (M2 §12.5) come last, permanently at war with both.
+        #expect(state.players.map(\.kind) == [nil, nil, .raiders, .free])
+        #expect(state.raiderPlayer == PlayerID(2) && state.freeCities == PlayerID(3))
+        #expect(state.units(of: PlayerID(2)).isEmpty && state.units(of: PlayerID(3)).isEmpty)
+        #expect(state.livingPlayers == [PlayerID(0), PlayerID(1)] && state.raiderCamps.isEmpty)
+        #expect(state.relations.count == 6)
         #expect(!state.relations[0].met && state.relations[0].stance == .peace)
+        #expect(state.isAtWar(PlayerID(0), PlayerID(2)) && state.isAtWar(PlayerID(1), PlayerID(2)))
+        #expect(state.isAtWar(PlayerID(0), PlayerID(3)) && state.isAtWar(PlayerID(1), PlayerID(3)))
         expectSound(state)
     }
 
@@ -34,7 +42,7 @@ import Testing
         let map = makeTestMap(width: 30, height: 12)
         let state = GameState.newGame(seed: 4, map: map, startPositions: [hex(3, 9), hex(22, 4)],
                                       civs: GameState.civOrder(human: "china", players: 2))
-        #expect(state.players.map(\.civ) == ["china", "rome"])
+        #expect(state.players.filter(\.isMajor).map(\.civ) == ["china", "rome"])
         #expect(state.players[0].name == "China")
         #expect(state.mapSizeName == "30x12")
     }
@@ -64,10 +72,10 @@ import Testing
         try apply(.moveUnit(unit: mine, to: hex(2, 0)), &state)
         state.updateUnit(theirs) { $0.movesLeft = 0 }
         try apply(.endTurn, &state)
-        #expect(state.unit(theirs)!.movesLeft == 2)
+        #expect(state.unit(theirs)!.movesLeft == state.rules.points(2))
         #expect(state.unit(mine)!.movesLeft == 0)
         try apply(.endTurn, &state)
-        #expect(state.unit(mine)!.movesLeft == 2)
+        #expect(state.unit(mine)!.movesLeft == state.rules.points(2))
     }
 
     /// A player with no cities and no Settlers is eliminated after the command (M1 §10);

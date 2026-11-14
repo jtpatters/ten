@@ -28,8 +28,27 @@ public enum MapSize: String, CaseIterable, Codable, Sendable, Identifiable {
     public var displayName: String { rawValue.capitalized }
 }
 
+/// Map scripts (SPEC §3.1, M2 §3.5). Raw values go into game settings; append only.
+public enum MapScript: String, CaseIterable, Codable, Sendable, Identifiable {
+    /// M1's generator: one fractal land pattern, every start on the largest landmass.
+    case pangaea
+    /// Two large landmasses split by ocean seams; on Small and larger, starts on both.
+    case continents
+    /// Many smaller islands (finer noise, less land); on Small and larger, starts spread over them.
+    case archipelago
+
+    public var id: String { rawValue }
+    public var displayName: String { rawValue.capitalized }
+
+    /// Noise periods across the map's width (finer = more, smaller landmasses).
+    var basePeriod: Int { self == .archipelago ? 12 : 4 }
+    /// Share of `landFraction` kept (Archipelago is wetter).
+    var landScale: Double { self == .archipelago ? 0.75 : 1 }
+}
+
 public struct MapGenSettings: Sendable {
     public var size: MapSize
+    public var script: MapScript
     public var seed: UInt64
     public var playerCount: Int
     public var landFraction: Double
@@ -37,15 +56,19 @@ public struct MapGenSettings: Sendable {
     /// Resource definitions for placement (M2 §3.1); rules without resources place none.
     public var rules: Ruleset
 
-    public init(size: MapSize, seed: UInt64, playerCount: Int? = nil, landFraction: Double = 0.38, wrapsX: Bool = true,
-                rules: Ruleset = .standard) {
+    public init(size: MapSize, seed: UInt64, script: MapScript = .pangaea, playerCount: Int? = nil, landFraction: Double = 0.38,
+                wrapsX: Bool = true, rules: Ruleset = .standard) {
         self.rules = rules
         self.size = size
+        self.script = script
         self.seed = seed
         self.playerCount = playerCount ?? size.defaultPlayers
         self.landFraction = landFraction
         self.wrapsX = wrapsX
     }
+
+    /// Duel keeps every start on one landmass (M2 §3.5).
+    var separatesStarts: Bool { script != .pangaea && size != .duel }
 }
 
 public struct GeneratedMap: Sendable {
@@ -53,7 +76,7 @@ public struct GeneratedMap: Sendable {
     public let startPositions: [HexCoord]
 }
 
-/// "Continents" script: fractal elevation → land/water by quantile, relief → hills/mountains,
+/// Fractal elevation → land/water by quantile, relief → hills/mountains,
 /// latitude + noise → temperature, noise → moisture, then terrain/features and start positions.
 public enum MapGenerator {
     /// Minimum distance between starts (M1 §2), and the floor it may be lowered to.
@@ -63,7 +86,7 @@ public enum MapGenerator {
     static let retryAttempts = 20
 
     /// Generates a map and its start positions (M1 §2). Every start is on the largest passable
-    /// landmass, at least `startDistance` apart. When the chosen seed cannot place them, the
+    /// landmass (Continents and Archipelago off Duel: on the landmasses `startLandmasses` picks), at least `startDistance` apart. When the chosen seed cannot place them, the
     /// terrain is regenerated with derived seeds `SplitMix64(seed: seed, salts: attempt, 0x57A7)`
     /// for up to 20 attempts; then the minimum distance is lowered step by step to 3 on the best
     /// attempt (most starts placed; ties: the earliest). Starts are never on separate
@@ -81,19 +104,21 @@ public enum MapGenerator {
         for attempt in 0...retryAttempts {
             let seed = attempt == 0 ? settings.seed : terrainSeed(settings.seed, attempt: attempt)
             let map = generateTerrain(settings, seed: seed)
-            let starts = pickStartPositions(map: map, playerCount: settings.playerCount, minDistance: startDistance)
+            let starts = pickStartPositions(map: map, playerCount: settings.playerCount, minDistance: startDistance,
+                                            separate: settings.separatesStarts)
             if starts.count >= settings.playerCount { return GeneratedMap(map: map, startPositions: starts) }
             if best == nil || starts.count > best!.placed { best = (map, starts.count) }
         }
         let map = best!.map
         var starts: [HexCoord] = []
         for distance in stride(from: startDistance - 1, through: lowestStartDistance, by: -1) {
-            starts = pickStartPositions(map: map, playerCount: settings.playerCount, minDistance: distance)
+            starts = pickStartPositions(map: map, playerCount: settings.playerCount, minDistance: distance,
+                                        separate: settings.separatesStarts)
             if starts.count >= settings.playerCount { break }
         }
         if starts.count < settings.playerCount {
             // A landmass too small for everyone: still one landmass, as far apart as it allows.
-            starts = pickStartPositions(map: map, playerCount: settings.playerCount, minDistance: 1)
+            starts = pickStartPositions(map: map, playerCount: settings.playerCount, minDistance: 1, separate: settings.separatesStarts)
         }
         return GeneratedMap(map: map, startPositions: starts)
     }
@@ -108,8 +133,9 @@ public enum MapGenerator {
     static func generateTerrain(_ settings: MapGenSettings, seed: UInt64) -> HexMap {
         let (w, h) = settings.size.dimensions
         let count = w * h
-        let period: Int? = settings.wrapsX ? 4 : nil
-        let basePeriod = 4.0
+        let script = settings.script
+        let period: Int? = settings.wrapsX ? script.basePeriod : nil
+        let basePeriod = Double(script.basePeriod)
 
         var streams = SplitMix64(seed: seed, salts: 0x3A9)
         let elevationNoise = ValueNoise(seed: streams.next())
@@ -117,6 +143,9 @@ public enum MapGenerator {
         let moistureNoise = ValueNoise(seed: streams.next())
         let temperatureNoise = ValueNoise(seed: streams.next())
         var featureRNG = SplitMix64(seed: streams.next())
+        // Continents: where the two ocean seams run (a fraction of the width), from the seed.
+        var seamStream = SplitMix64(seed: seed, salts: 0xC047)
+        let seamPhase = script == .continents ? Double(seamStream.next() % 1000) / 1000 : 0
 
         // Sample positions in noise space, keeping hex aspect ratio (row step = 0.866 tile widths).
         func samplePoint(_ i: Int) -> (x: Double, y: Double, row: Int, col: Int) {
@@ -137,13 +166,20 @@ public enum MapGenerator {
             let p = samplePoint(i)
             var e = elevationNoise.fbm(x: p.x, y: p.y, octaves: 5, period: period)
             e -= max(0, latitude(p.row) - 0.72) * 1.4
+            if script == .continents {
+                // Two seams half a map apart: land swells between them and drowns along them.
+                let u = (Double(p.col) + 0.5 * Double(p.row & 1)) / Double(w) - seamPhase
+                let toSeam = abs(u * 2 - (u * 2).rounded()) / 2 // 0 at a seam … 0.25 midway
+                e += (toSeam - 0.125) * 1.2
+                if toSeam < seamHalfWidth(w) { e -= 2 }
+            }
             if !settings.wrapsX {
                 let edge = min(Double(p.col), Double(w - 1 - p.col)) / Double(w)
                 e -= max(0, 0.08 - edge) * 4
             }
             elevation[i] = e
         }
-        let seaLevel = quantile(elevation, 1 - settings.landFraction)
+        let seaLevel = quantile(elevation, 1 - settings.landFraction * script.landScale)
         let isLand = elevation.map { $0 >= seaLevel }
 
         // 2. Relief (hills/mountains) from land elevation rank + high-frequency ruggedness.
@@ -321,6 +357,35 @@ public enum MapGenerator {
         map[hex].riverEdges != 0 || map.neighbors(of: hex).contains { map[$0].terrain == .lake }
     }
 
+    /// Continents' ocean seams: at least 2 tiles of water on each side of the seam line.
+    static func seamHalfWidth(_ width: Int) -> Double { max(0.02, 2.5 / Double(width)) }
+
+    /// The passable landmasses that get starts and how many each (separate starts: those with
+    /// at least `minStartLand` tiles per start, by largest remainder of land per start — each
+    /// start goes to the landmass with the most land per start it would hold; ties: larger,
+    /// then lower first index). Otherwise, or when none qualifies: all on the largest.
+    static func startLandmasses(_ map: HexMap, playerCount: Int, separate: Bool) -> [(tiles: [Int], starts: Int)] {
+        let all = components(in: map, where: { $0.landMovementCost != nil })
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0[0] < $1[0] }
+        guard let largest = all.first else { return [] }
+        guard separate, playerCount > 1 else { return [(largest, playerCount)] }
+        let candidates = all.filter { $0.count >= minStartLand }
+        guard candidates.count > 1 else { return [(largest, playerCount)] }
+        var starts = [Int](repeating: 0, count: candidates.count)
+        for _ in 0..<playerCount {
+            var best = -1
+            for k in candidates.indices where candidates[k].count / (starts[k] + 1) >= minStartLand {
+                if best < 0 || candidates[k].count * (starts[best] + 1) > candidates[best].count * (starts[k] + 1) { best = k }
+            }
+            if best < 0 { best = 0 }
+            starts[best] += 1
+        }
+        return candidates.indices.filter { starts[$0] > 0 }.map { (candidates[$0], starts[$0]) }
+    }
+
+    /// The least land a start needs on its own landmass when starts are separated.
+    static let minStartLand = 45
+
     /// The largest passable landmass (tile indices, increasing; ties: the one with the lowest
     /// index).
     static func largestLandmass(_ map: HexMap) -> [Int] {
@@ -332,8 +397,15 @@ public enum MapGenerator {
     /// √(landmass / players) and shrinks to `minDistance`; Grassland and Plains (not marsh)
     /// with the best `startScore` come first, other land that allows a city only when they
     /// run out.
-    static func pickStartPositions(map: HexMap, playerCount: Int, minDistance: Int) -> [HexCoord] {
-        let landmass = largestLandmass(map)
+    static func pickStartPositions(map: HexMap, playerCount: Int, minDistance: Int, separate: Bool = false) -> [HexCoord] {
+        var chosen: [HexCoord] = []
+        for (landmass, count) in startLandmasses(map, playerCount: playerCount, separate: separate) {
+            chosen += pickStartPositions(map: map, landmass: landmass, playerCount: count, minDistance: minDistance, chosen: chosen)
+        }
+        return chosen
+    }
+
+    static func pickStartPositions(map: HexMap, landmass: [Int], playerCount: Int, minDistance: Int, chosen earlier: [HexCoord]) -> [HexCoord] {
         func scored(_ indices: [Int]) -> [HexCoord] {
             // Highest score first; ties: lower tile index (explicit, not left to sort stability).
             indices.map { (index: $0, score: startScore(map.coord(at: $0), in: map)) }
@@ -352,7 +424,9 @@ public enum MapGenerator {
 
         var chosen: [HexCoord] = []
         func place(from candidates: [HexCoord], spacing: Int) -> Bool {
-            guard let next = candidates.first(where: { c in chosen.allSatisfy { map.distance($0, c) >= spacing } }) else { return false }
+            guard let next = candidates.first(where: { c in
+                chosen.allSatisfy { map.distance($0, c) >= spacing } && earlier.allSatisfy { map.distance($0, c) >= minDistance }
+            }) else { return false }
             chosen.append(next)
             return true
         }

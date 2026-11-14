@@ -49,6 +49,41 @@ final class MapOverlay: UIView {
     /// Time spent placing layers per frame (ms, smoothed): the developer readout.
     private(set) var layoutMilliseconds: Double = 0
 
+    /// Marks pinned to tiles under the banners: own built quarters (a glyph each) and, while
+    /// a quarter is placed, its legal sites' adjacency (M2 §18.2).
+    struct QuarterMark: Equatable {
+        var hex: HexCoord
+        var symbol: String
+        var pillaged: Bool
+    }
+
+    struct SiteLabel: Equatable {
+        var hex: HexCoord
+        var text: String
+    }
+
+    var quarterMarks: [QuarterMark] = [] {
+        didSet { if quarterMarks != oldValue { rebuildMarks() } }
+    }
+
+    var siteLabels: [SiteLabel] = [] {
+        didSet { if siteLabels != oldValue { rebuildMarks() } }
+    }
+
+    /// Raider camps the viewer remembers (M2 §11): a tent glyph on a crimson-rimmed disc.
+    var campMarks: [HexCoord] = [] {
+        didSet { if campMarks != oldValue { rebuildMarks() } }
+    }
+
+    /// The trade routes the viewer can see (M2 §13), as tile paths: faint dashed lines.
+    var tradeRoutes: [[HexCoord]] = [] {
+        didSet { if tradeRoutes.isEmpty { routeLayer.path = nil } }
+    }
+
+    private let routeLayer = CAShapeLayer()
+
+    private let markLayer = CALayer()
+    private var marks: [(layer: CALayer, hex: HexCoord)] = []
     private let bannerLayer = CALayer()
     private let floaterLayer = CALayer()
     private var slots: [CityID: Slot] = [:]
@@ -87,6 +122,14 @@ final class MapOverlay: UIView {
         isUserInteractionEnabled = false
         isOpaque = false
         backgroundColor = .clear
+        routeLayer.fillColor = nil
+        routeLayer.strokeColor = HUD.UI.gilt.withAlphaComponent(0.55).cgColor
+        routeLayer.lineWidth = 2
+        routeLayer.lineDashPattern = [6, 4]
+        routeLayer.lineCap = .round
+        routeLayer.lineJoin = .round
+        layer.addSublayer(routeLayer)
+        layer.addSublayer(markLayer)
         layer.addSublayer(bannerLayer)
         layer.addSublayer(floaterLayer)
         accessibilityLabel = "City banners"
@@ -99,6 +142,7 @@ final class MapOverlay: UIView {
         super.layoutSubviews()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        markLayer.frame = bounds
         bannerLayer.frame = bounds
         floaterLayer.frame = bounds
         CATransaction.commit()
@@ -203,6 +247,8 @@ final class MapOverlay: UIView {
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        placeMarks(renderer, screen: screen, snap: snap)
+        placeRoutes(renderer)
         var placed: [CGRect] = []
         var renders = 0
         let focus = focusRects(renderer)
@@ -258,7 +304,7 @@ final class MapOverlay: UIView {
         placeFloaters(renderer, snap: snap)
         CATransaction.commit()
 
-        renderer.presentsWithTransaction = !hits.isEmpty || !floaters.isEmpty
+        renderer.presentsWithTransaction = !hits.isEmpty || !floaters.isEmpty || !tradeRoutes.isEmpty
         layoutMilliseconds = layoutMilliseconds * 0.9 + (CACurrentMediaTime() - start) * 100
     }
 
@@ -506,6 +552,65 @@ final class MapOverlay: UIView {
         floaters.removeAll()
     }
 
+    // MARK: Quarter marks
+
+    private func rebuildMarks() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for mark in marks { mark.layer.removeFromSuperlayer() }
+        marks.removeAll()
+        let labelled = Set(siteLabels.map(\.hex))
+        var arts: [(DamageArt.Rendered, HexCoord)] = quarterMarks.filter { !labelled.contains($0.hex) }.compactMap { mark in
+            QuarterMarkArt.image(mark.symbol, pillaged: mark.pillaged, scale: scale).map { ($0, mark.hex) }
+        }
+        arts += campMarks.filter { !labelled.contains($0) }.compactMap { hex in
+            QuarterMarkArt.image("tent.2.fill", pillaged: true, scale: scale).map { ($0, hex) }
+        }
+        arts += siteLabels.compactMap { label in DamageArt.image(label.text, fill: .gift, big: false, scale: scale).map { ($0, label.hex) } }
+        for (art, hex) in arts {
+            let layer = CALayer()
+            layer.contents = art.image
+            layer.contentsScale = scale
+            layer.bounds = CGRect(origin: .zero, size: art.size)
+            layer.isHidden = true
+            markLayer.addSublayer(layer)
+            marks.append((layer, hex))
+        }
+        CATransaction.commit()
+    }
+
+    /// The route lines for this frame: each path through its tiles' screen points, broken where
+    /// a tile is off the view or the map wraps between two steps.
+    private func placeRoutes(_ renderer: MapRenderer) {
+        guard !tradeRoutes.isEmpty else { return }
+        let path = CGMutablePath(), jump = max(bounds.width, bounds.height) / 3
+        for route in tradeRoutes {
+            var last: CGPoint?
+            for point in renderer.screenPoints(of: route, lift: 0) {
+                guard let p = point else {
+                    last = nil
+                    continue
+                }
+                if let l = last, hypot(p.x - l.x, p.y - l.y) < jump { path.addLine(to: p) } else { path.move(to: p) }
+                last = p
+            }
+        }
+        routeLayer.path = path
+    }
+
+    private func placeMarks(_ renderer: MapRenderer, screen: CGRect, snap: (CGFloat) -> CGFloat) {
+        guard !marks.isEmpty else { return }
+        let points = renderer.screenPoints(of: marks.map(\.hex), lift: 0)
+        for (mark, point) in zip(marks, points) {
+            guard let p = point, screen.contains(p) else {
+                mark.layer.isHidden = true
+                continue
+            }
+            mark.layer.isHidden = false
+            mark.layer.position = CGPoint(x: snap(p.x), y: snap(p.y))
+        }
+    }
+
     // MARK: Accessibility
 
     /// VoiceOver reads the banners shown, top-most first, and activating one selects its city.
@@ -598,6 +703,50 @@ enum DamageArt {
         guard let cgImage = image.cgImage else { return nil }
         let rendered = Rendered(image: cgImage, size: size)
         if cache.count > 400 { cache.removeAll() }
+        cache[key] = rendered
+        return rendered
+    }
+}
+
+/// A built quarter's mark on the map: its kind's symbol in ink on a cream disc with an ink
+/// rim (crimson when pillaged).
+@MainActor
+enum QuarterMarkArt {
+    private struct Key: Hashable {
+        var symbol: String
+        var pillaged: Bool
+    }
+
+    private static var cache: [Key: DamageArt.Rendered] = [:]
+
+    static func image(_ symbol: String, pillaged: Bool, scale: CGFloat) -> DamageArt.Rendered? {
+        let key = Key(symbol: symbol, pillaged: pillaged)
+        if let cached = cache[key] { return cached }
+        let side: CGFloat = 26
+        let size = CGSize(width: side, height: side)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        let config = UIImage.SymbolConfiguration(pointSize: 12, weight: .bold)
+        let rim = pillaged ? HUD.UI.wound : HUD.UI.ink
+        guard let glyph = UIImage(systemName: symbol, withConfiguration: config)?.withTintColor(rim, renderingMode: .alwaysOriginal) else {
+            return nil
+        }
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let cg = context.cgContext
+            let disc = CGRect(origin: .zero, size: size).insetBy(dx: 2, dy: 2)
+            cg.setShadow(offset: CGSize(width: 0.5, height: 1), blur: 1.5, color: UIColor.black.withAlphaComponent(0.4).cgColor)
+            cg.setFillColor(HUD.UI.cream.withAlphaComponent(0.92).cgColor)
+            cg.fillEllipse(in: disc)
+            cg.setShadow(offset: .zero, blur: 0)
+            cg.setStrokeColor(rim.cgColor)
+            cg.setLineWidth(1.5)
+            cg.strokeEllipse(in: disc)
+            let g = glyph.size
+            glyph.draw(in: CGRect(x: (side - g.width) / 2, y: (side - g.height) / 2, width: g.width, height: g.height))
+        }
+        guard let cgImage = image.cgImage else { return nil }
+        let rendered = DamageArt.Rendered(image: cgImage, size: size)
         cache[key] = rendered
         return rendered
     }

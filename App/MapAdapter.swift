@@ -2,7 +2,7 @@ import GameCore
 import MapRendering
 
 /// Builds the renderer's world inputs from what the viewer knows (M1 §11, §15): cities,
-/// territory, improvements, resources and tribal villages from the viewer's `PlayerView` (own cities live,
+/// territory, improvements, resources, roads, pillaged tiles and tribal villages from the viewer's `PlayerView` (own cities live,
 /// foreign ones and tribal villages out of sight as last seen), or from the live state in
 /// diagnostic mode (fog off). Called after a state change, never per frame; the renderer ignores
 /// inputs that did not change.
@@ -15,11 +15,17 @@ enum MapAdapter {
             renderer.setTerritory((0..<state.map.tileCount).map { t in state.tileOwner(t).map { UInt8($0.rawValue + 1) } ?? 0 })
             renderer.setImprovements(state.map.tiles.map { $0.improvement?.rawValue ?? 0 })
             renderer.setResources(state.map.tiles.map { $0.resource?.rawValue ?? 0 })
+            renderer.setRoads(state.map.tiles.map(\.hasRoad))
+            renderer.setPillaged(state.map.tiles.indices.filter { state.map.tiles[$0].isPillaged }.map { state.map.coord(at: $0) })
         } else {
             renderer.setCities(view.knownCities.map { marker(for: $0, rules: state.rules) })
             renderer.setTerritory(view.knownTerritory)
             renderer.setImprovements(view.knownImprovements)
             renderer.setResources(knownResources(view))
+            let tiles = (0..<view.tileCount).map { view.tile(at: view.coord(at: $0)) }
+            renderer.setRoads(tiles.map { $0?.hasRoad ?? false })
+            // `tile(at:)` keeps a pillaged mark only where the tile is in sight (M2 §3.3).
+            renderer.setPillaged(tiles.indices.filter { tiles[$0]?.isPillaged == true }.map { view.coord(at: $0) })
         }
         renderer.setTribalVillages(tribalVillageMarkers(state: state, view: view, diagnostic: diagnostic))
         renderer.setReadyUnits(readyUnits(view))
@@ -93,5 +99,36 @@ enum MapAdapter {
     /// (it bins a byte into tier 1 + byte · 7 / 256: dimmed 1–3, plain 4–5, gilt 6–7).
     static func overlayByte(shade: Int) -> UInt8 {
         UInt8(clamping: (min(max(shade, 1), 7) - 1) * 256 / 7 + 18)
+    }
+
+    /// The overlay's wash for a quarter's legal sites (M2 §18.2): the best adjacency gilt, none
+    /// plain; empty with no sites.
+    static func quarterSiteScores(_ view: PlayerView, sites: [QuarterSite]) -> [UInt8] {
+        guard !sites.isEmpty else { return [] }
+        var scores = [UInt8](repeating: 0, count: view.tileCount)
+        let best = max(1, sites.map(\.adjacency).max() ?? 1)
+        for site in sites {
+            guard let t = view.index(of: site.tile) else { continue }
+            scores[t] = overlayByte(shade: 4 + (site.adjacency * 3 + best - 1) / best)
+        }
+        return scores
+    }
+
+    /// The tiles a city could buy (M2 §7.4), all in one shade.
+    static func purchaseScores(_ view: PlayerView, tiles: [HexCoord]) -> [UInt8] {
+        guard !tiles.isEmpty else { return [] }
+        var scores = [UInt8](repeating: 0, count: view.tileCount)
+        for tile in tiles {
+            if let t = view.index(of: tile) { scores[t] = overlayByte(shade: 6) }
+        }
+        return scores
+    }
+
+    /// The built quarters to mark on the map: the viewer's own (every city's in diagnostic mode).
+    static func quarterMarks(state: GameState, viewer: PlayerID, diagnostic: Bool) -> [MapOverlay.QuarterMark] {
+        let cities = diagnostic ? state.cities : state.view(for: viewer).cities
+        return cities.flatMap { city in
+            (city.quarters ?? []).map { MapOverlay.QuarterMark(hex: $0.tile, symbol: QuarterArt.symbol($0.kind), pillaged: $0.isPillaged) }
+        }
     }
 }

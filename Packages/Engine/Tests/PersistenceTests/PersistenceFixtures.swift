@@ -36,6 +36,11 @@ enum PersistenceFixture {
         map[at(11, 0)] = Tile(terrain: .plains, feature: .forest, improvement: .lumberMill)
         map[at(3, 3)] = Tile(terrain: .plains, resource: .iron)
         map[at(6, 4)] = Tile(terrain: .grassland, improvement: .pasture, resource: .horses)
+        // Roads and a pillaged improvement (M2 §3.3), in player 0's sight so it remembers them.
+        map[at(1, 1)].road = true
+        map[at(1, 2)].road = true
+        map[at(2, 1)] = Tile(terrain: .grassland, improvement: .farm)
+        map[at(2, 1)].pillaged = true
         return map
     }
 
@@ -49,14 +54,19 @@ enum PersistenceFixture {
     static func populated(outcome: GameOutcome? = .victory(player: PlayerID(0), kind: .domination)) -> GameState {
         let map = map()
         let civs: [CivID] = ["rome", "mongols", "mali"]
+        // After the civs a minor faction, the raiders and the Free Cities (M2 §12, §11, §12.5,
+        // `Player.kind` additive).
         let players = (0..<3).map { i in
             Player(id: PlayerID(i), name: "Player \(i)", isHuman: i == 0, tileCount: map.tileCount, civ: civs[i], gold: 40 + 7 * i)
-        }
+        } + [Player(id: PlayerID(3), name: "Hunza", isHuman: false, tileCount: map.tileCount, kind: .minor),
+             Player(id: PlayerID(4), name: "Raiders", isHuman: false, tileCount: map.tileCount, kind: .raiders),
+             Player(id: PlayerID(5), name: "Free Cities", isHuman: false, tileCount: map.tileCount, kind: .free)]
         var state = GameState(seed: 0x5EED_0F_5A7E, map: map, players: players, rules: .standard, mapSizeName: "duel")
         let rome = found(&state, PlayerID(0), at(2, 2))
         let karakorum = found(&state, PlayerID(1), at(7, 2))
         let niani = found(&state, PlayerID(2), at(4, 5))
         let avarga = found(&state, PlayerID(1), at(10, 4))
+        let hunza = found(&state, PlayerID(3), at(7, 5))
 
         let settler = state.addUnit(.settler, owner: PlayerID(0), at: at(1, 3))
         let builder = state.addUnit(.builder, owner: PlayerID(0), at: at(2, 3))
@@ -64,6 +74,10 @@ enum PersistenceFixture {
         let warrior = state.addUnit(.warrior, owner: PlayerID(0), at: at(2, 2))
         let archer = state.addUnit(.archer, owner: PlayerID(0), at: at(3, 1))
         let spearman = state.addUnit(.spearman, owner: PlayerID(0), at: at(4, 5))
+        // A ship and an embarked land unit (M2 §3.2, §8.4) on the coast.
+        state.map[at(1, 6)] = Tile(terrain: .coast)
+        state.addUnit(.galley, owner: PlayerID(0), at: at(0, 6))
+        state.addUnit(.warrior, owner: PlayerID(0), at: at(1, 6))
         state.addUnit(.warrior, owner: PlayerID(1), at: at(6, 2))
         state.addUnit(.archer, owner: PlayerID(1), at: at(7, 2))
         state.addUnit(.scout, owner: PlayerID(2), at: at(4, 6))
@@ -99,7 +113,11 @@ enum PersistenceFixture {
         city(&state, rome) { c in
             c.population = 4
             c.foodStore = 9
-            c.queue = [QueueEntry(.unit(.archer), progress: 12), QueueEntry(.building("library"), progress: 0)]
+            // A quarter queued on its fixed tile at its fixed cost (M2 §5.3, additive).
+            c.queue = [QueueEntry(.unit(.archer), progress: 12), QueueEntry(.building("library"), progress: 0),
+                       QueueEntry(.quarter("market", at: at(1, 1)), progress: 7, cost: 85)]
+            // A built quarter (M2 §5.3, additive).
+            c.quarters = [CityQuarter(kind: "campus", tile: at(1, 2))]
             c.storedProgress = 3
             c.buildings = ["granary", "monument", "palace", "walls"]
             c.cultureStore = 5
@@ -109,6 +127,10 @@ enum PersistenceFixture {
             c.wallHP = 40
             c.lastAttackedPhase = 9
             c.bombarded = true
+            // Loyalty (M2 §5.5, additive).
+            c.loyalty = 72
+            // Tiles bought (M2 §7.4, additive).
+            c.tilesBought = 2
         }
         city(&state, karakorum) { c in
             c.focus = .food
@@ -119,12 +141,41 @@ enum PersistenceFixture {
             c.owner = PlayerID(0)
             c.focus = .gold
             c.capturedTurn = 3
+            // Restless under occupation (M2 §5.2, an additive field).
+            c.stability = -2
             c.buildings = ["monument"]
             c.hp = 60
         }
-        city(&state, avarga) { $0.focus = .balanced }
+        // A Free City that revolted from player 1, pulled towards player 0 for 2 turns (M2 §5.5, additive).
+        city(&state, avarga) { c in
+            c.focus = .balanced
+            c.owner = PlayerID(5)
+            c.loyalty = 50
+            c.capturedTurn = 4
+            c.freeCityLeader = PlayerID(0)
+            c.freeCityTurns = 2
+        }
         state.players[2].capital = nil
-        state.players[0].knownTechs = ["animalHusbandry", "bronzeWorking", "mining", "pottery"]
+        // A minor faction with player 0 as Patron, a quest, and its army levied by player 0: a
+        // unit whose owner changed (M2 §12, additive).
+        let levied = state.addUnit(.warrior, owner: PlayerID(0), at: at(8, 5))
+        state.minors = [MinorFaction(player: PlayerID(3), type: .industrial, envoys: [3, 1, 0, 0, 0, 0], patron: PlayerID(0),
+                                     firstMet: PlayerID(0),
+                                     quest: MinorQuest(kind: .building, tile: nil, building: "library", count: nil, issued: 3),
+                                     levy: Levy(player: PlayerID(0), until: 9, units: [levied]), questsCompleted: 1)]
+        state.updateRelation(PlayerID(0), PlayerID(3)) { $0.met = true }
+        state.updateRelation(PlayerID(1), PlayerID(3)) { $0.met = true }
+        // A raider camp in player 0's sight with its raider, a rebel by Niani, one camp cleared (M2 §11, §5.2, additive).
+        let raider = state.addUnit(.warrior, owner: PlayerID(4), at: at(5, 3))
+        let rebel = state.addUnit(.warrior, owner: PlayerID(4), at: at(3, 5))
+        state.raiders = RaiderState(camps: [RaiderCamp(tile: Int32(state.map.index(of: at(5, 3))!), spawnedTurn: 2, units: [raider])],
+                                    rebels: [Rebel(unit: rebel, city: niani)], cleared: 1)
+        // A trade route from Rome to the minor, under way (M2 §13, additive).
+        let path = [at(3, 3), at(4, 4), at(5, 4), at(6, 5)].map { Int32(state.map.index(of: $0)!) }
+        state.tradeRoutes = [TradeRoute(id: 0, owner: PlayerID(0), origin: rome, destination: hunza, kind: .minor, path: path,
+                                        arrives: 5, ends: 34)]
+        state.nextRouteID = 1
+        state.players[0].knownTechs = ["animalHusbandry", "bronzeWorking", "mining", "pottery", "sailing"]
         state.players[0].researching = TechID("writing")
         state.players[0].researchTarget = TechID("currency")
         state.players[0].researchProgress = 11
@@ -132,6 +183,19 @@ enum PersistenceFixture {
         state.players[0].techCredit = Array(repeating: 0, count: state.rules.techs.count)
         state.players[0].techCredit![state.rules.techIndex("writing")!] = 18
         state.players[0].insights = ["writing"]
+        // Civics, government, policies and Influence (M2 §7.1–7.3, §4.3, additive fields).
+        state.players[0].studying = CivicID("foreignTrade")
+        state.players[0].civicTarget = CivicID("earlyEmpire")
+        state.players[0].civicProgress = 6
+        state.players[0].knownCivics = ["codeOfLaws", "craftsmanship"]
+        state.players[0].civicInsights = ["stateWorkforce"]
+        state.players[0].government = "chiefdom"
+        state.players[0].governmentsAdopted = ["chiefdom", "despotism"]
+        state.players[0].policies = ["discipline"]
+        state.players[0].freeChangeTurn = 4
+        state.players[0].influence = 12
+        state.players[0].envoyTokens = 1
+        state.players[0].envoysEarned = 2
         // Strategic stockpiles (M2 §3.1, an additive field).
         state.setStock(.iron, of: PlayerID(0), to: 12)
         state.setStock(.horses, of: PlayerID(0), to: 4)
@@ -157,12 +221,17 @@ enum PersistenceFixture {
         state.phaseCount = 11
         state.currentPlayer = PlayerID(1)
         for index in state.cities.indices { state.assignCitizens(index) }
+        // A Campus specialist (M2 §5.3, additive) whose slot is gone (the Library is only queued): kept, yielding nothing.
+        city(&state, rome) { c in
+            if c.workedTiles.count >= c.population { c.workedTiles.removeLast() }
+            c.specialists = ["campus"]
+        }
         // Tribal villages (M1 §7.7): (4,1) in players 0's and 1's sight, (9,1) in no one's.
         for site in [at(4, 1), at(9, 1)] {
             let placed = DebugTools.placeTribalVillage(at: site, in: &state)
             precondition(placed, "PersistenceFixture: no tribal village at \(site.offset)")
         }
-        state.tribalVillages?.gifts = [1, 3, 0]
+        state.tribalVillages?.gifts = [1, 3, 0, 0, 0, 0]
         refreshEverything(&state)
         state.outcome = outcome
         return state

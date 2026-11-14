@@ -26,6 +26,11 @@ enum SaveFixture {
         map[hex(8, 5)] = Tile(terrain: .plains, feature: .forest, improvement: .lumberMill)
         map[hex(9, 5)] = Tile(terrain: .coast, improvement: .fishingBoats, resource: .fish)
         map[hex(0, 4)] = Tile(terrain: .plains, resource: .iron)
+        // Roads and a pillaged improvement (M2 §3.3) beside player 0's city, so it remembers them.
+        map[hex(3, 1)].road = true
+        map[hex(4, 1)].road = true
+        map[hex(4, 2)] = Tile(terrain: .grassland, improvement: .farm)
+        map[hex(4, 2)].pillaged = true
         return map
     }
 
@@ -45,6 +50,8 @@ enum SaveFixture {
         let c1 = addCity(&state, PlayerID(1), at: hex(7, 2))
         let c2 = addCity(&state, PlayerID(2), at: hex(5, 4))
         let c3 = addCity(&state, PlayerID(1), at: hex(9, 4))
+        let c4 = addCity(&state, PlayerID(1), at: hex(1, 1))
+        let c5 = addCity(&state, PlayerID(1), at: hex(7, 4))
 
         // Units: every type and activity.
         let settler = state.addUnit(.settler, owner: PlayerID(0), at: hex(2, 2))
@@ -53,6 +60,8 @@ enum SaveFixture {
         let warrior = state.addUnit(.warrior, owner: PlayerID(0), at: hex(3, 2))
         let archer = state.addUnit(.archer, owner: PlayerID(0), at: hex(2, 1))
         let spearman = state.addUnit(.spearman, owner: PlayerID(0), at: hex(5, 4))
+        // An embarked land unit (M2 §3.2) on the coast beside the Fishing Boats.
+        state.addUnit(.warrior, owner: PlayerID(0), at: hex(9, 5))
         state.addUnit(.warrior, owner: PlayerID(1), at: hex(8, 2))
         state.addUnit(.settler, owner: PlayerID(2), at: hex(1, 3))
         for (i, type) in UnitType.allCases.dropFirst(6).enumerated() { state.addUnit(type, owner: PlayerID(0), at: hex(i + 1, 0)) }
@@ -107,6 +116,9 @@ enum SaveFixture {
             c.buildings = ["monument"]
         }
         updateCity(&state, c3) { $0.focus = .balanced }
+        // The M2 focuses (M2 §5.6).
+        updateCity(&state, c4) { $0.focus = .science }
+        updateCity(&state, c5) { $0.focus = .culture }
         state.players[2].capital = nil
         for index in state.cities.indices { state.assignCitizens(index) }
 
@@ -119,6 +131,19 @@ enum SaveFixture {
         state.players[0].techCredit = Array(repeating: 0, count: state.rules.techs.count)
         state.players[0].techCredit![state.rules.techIndex("writing")!] = 18
         state.players[0].insights = ["writing"]
+        // Civics, government, policies and Influence (M2 §7.1–7.3, §4.3, additive fields).
+        state.players[0].studying = CivicID("foreignTrade")
+        state.players[0].civicTarget = CivicID("earlyEmpire")
+        state.players[0].civicProgress = 6
+        state.players[0].knownCivics = ["codeOfLaws", "craftsmanship"]
+        state.players[0].civicInsights = ["stateWorkforce"]
+        state.players[0].government = "chiefdom"
+        state.players[0].governmentsAdopted = ["chiefdom", "despotism"]
+        state.players[0].policies = ["discipline"]
+        state.players[0].freeChangeTurn = 4
+        state.players[0].influence = 12
+        state.players[0].envoyTokens = 1
+        state.players[0].envoysEarned = 2
         state.setStock(.iron, of: PlayerID(0), to: 12)
         state.players[0].lastPhaseStart = 7
         state.players[1].lastPhaseStart = 8
@@ -185,6 +210,7 @@ enum SaveFixture {
         #expect(p0.researching != nil && p0.researchTarget != nil && p0.originalCapital != nil && p0.capital != nil)
         #expect(p0.techCredit != nil && p0.insights?.isEmpty == false && state.worldEra != nil)
         #expect(tiles.contains { $0.resource != nil } && p0.stockpile != nil)
+        #expect(tiles.contains(where: \.hasRoad) && tiles.contains(where: \.isPillaged) && p0.memory.tileRoad != nil)
         #expect(!p0.memory.cities.isEmpty && !p0.memory.units.isEmpty && p0.memory.tileImprovement.contains { $0 != 0 })
         // Tribal villages: the live state with gifts, and one remembered.
         #expect(state.tribalVillages.map { $0.sites.count == 2 && $0.gifts.contains { $0 > 0 } } == true)
