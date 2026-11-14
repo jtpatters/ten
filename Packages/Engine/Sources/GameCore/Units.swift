@@ -12,6 +12,8 @@ public enum UnitType: String, Codable, Sendable, CaseIterable {
     case settler, builder, scout, warrior, archer, spearman
     // M2 §8.1 (appended; naval units, the Trader and unique units come later).
     case horseman, heavyChariot, swordsman, catapult, manAtArms, crossbowman, pikeman, knight, trebuchet
+    // M2 §8.4 (appended).
+    case galley, quadrireme, cog, dromon
 
     /// Hard-coded; rules validation checks it matches the data's unit class.
     public var isCivilian: Bool {
@@ -19,6 +21,15 @@ public enum UnitType: String, Codable, Sendable, CaseIterable {
         case .settler, .builder: true
         case .scout, .warrior, .archer, .spearman: false
         case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: false
+        case .galley, .quadrireme, .cog, .dromon: false
+        }
+    }
+
+    /// Hard-coded; rules validation checks it matches the data's unit class.
+    public var isNaval: Bool {
+        switch self {
+        case .galley, .quadrireme, .cog, .dromon: true
+        default: false
         }
     }
 

@@ -51,7 +51,8 @@ struct LegacySave {
 
     /// The standard rules data as it was when the fixture was saved: without its tribal
     /// village section, without M2's eras, progression, Insights and later techs (M2 2.1a), and
-    /// without M2's units, promotions and wall damage (2.1b), and without M2's resources,
+    /// without M2's units, promotions and wall damage (2.1b), without embarking and the naval AI's
+    /// ship share (§3.2, §8.4), and without M2's resources,
     /// stockpiles, resource improvements and roads (2.1c). It no longer validates (every unit
     /// type needs a definition); its hash is the recorded content hash.
     static func m1Data() throws -> RulesetData { try decode(m1Object().m1) }
@@ -71,6 +72,8 @@ struct LegacySave {
         json.removeValue(forKey: "stockpile")
         // M2 2.1c roads (M2 §3.3).
         json.removeValue(forKey: "roads")
+        // M2 naval units' embarking rules (M2 §3.2).
+        json.removeValue(forKey: "embark")
         let improvements = json["improvements"] as? [[String: Any]] ?? []
         json["improvements"] = improvements.prefix(3).map { imp in imp.filter { !["resources", "techBonuses"].contains($0.key) } }
         for key in ["tribalVillages", "eras", "progression", "promotions", "promotionXP"] { json.removeValue(forKey: key) }
@@ -97,6 +100,10 @@ struct LegacySave {
         }
         var m1 = json
         m1["units"] = Array(m1Units)
+        // The naval AI's ship share (M2 §8.4).
+        var m1AI = ai
+        m1AI.removeValue(forKey: "shipsPerCoastalCityPct")
+        m1["ai"] = m1AI
         var playable = json
         playable["units"] = Array(m1Units) + units.dropFirst(6).map { unit in unit.filter { $0.key != "tech" } }
         playable["resources"] = m2Resources

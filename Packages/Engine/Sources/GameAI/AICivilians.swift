@@ -250,7 +250,7 @@ extension AITurn {
         if !danger[t] { return true }
         let hex = v.coord(at: t)
         if v.cities.contains(where: { $0.position == hex }) { return true }
-        return v.units(at: hex).contains { $0.owner == player && !$0.type.isCivilian }
+        return v.units(at: hex).contains { $0.owner == player && isGuard($0.type) }
     }
 
     /// Per tile: where civilians keep clear of foreign military units (M1 §13 Safety). Within

@@ -207,7 +207,7 @@ extension GameState {
         }
         let elevation = map.tiles[centre].elevation
         s.add(.hills, rules.elevation(elevation).cityStrength)
-        if sees(centre), units.contains(where: { $0.position == city.position && $0.owner == city.owner && !$0.type.isCivilian }) {
+        if sees(centre), units.contains(where: { $0.position == city.position && $0.owner == city.owner && !$0.type.isCivilian && !$0.type.isNaval }) {
             s.add(.garrison, c.garrisonStrength)
         }
         return s
@@ -294,6 +294,11 @@ extension GameState {
         case let .city(city):
             let siege = if case let .unit(u) = attacker { rules.unit(u.type).unitClass == .siege } else { false }
             defence = cityStrength(city, sees: sees, walls: !siege)
+        case let .unit(unit) where isEmbarked(unit) && rules.embark != nil:
+            // Embarked (M2 §8.4): a fixed strength, no terrain, fortification or support.
+            var s = Strength(base: rules.embark!.strength)
+            s.add(.wounded, woundPenalty(unit))
+            defence = s
         case let .unit(unit):
             var s = Strength(base: rules.unit(unit.type).strength)
             let tile = map.tiles[target]
@@ -362,6 +367,7 @@ extension GameState {
         let def = rules.unit(unit.type)
         guard def.isMilitary else { return "civilians cannot attack" }
         guard unit.movesLeft > 0 else { return "no moves left" }
+        if isEmbarked(unit) { return "embarked units cannot attack" }
         // Siege units fire only before moving in the phase (M2 §8.1).
         if unit.attacked == true { return "already attacked this phase" }
         if !firesAfterMoving(unit), unit.movesLeft < maxMoves(of: unit) { return "\(unit.type.displayName)s cannot fire after moving" }
@@ -379,6 +385,11 @@ extension GameState {
             if distance < 1 || distance > range(of: unit) { return "target out of range" }
         } else if distance != 1 {
             return "target not adjacent"
+        } else if case .unit = target {
+            // M2 §8.4: naval melee fights only on water, land melee never attacks water.
+            let water = map.tiles[t].terrain.isWater
+            if def.unitClass.isNaval, !water { return "ships cannot attack units on land" }
+            if !def.unitClass.isNaval, water { return "cannot attack units at sea" }
         }
         return nil
     }

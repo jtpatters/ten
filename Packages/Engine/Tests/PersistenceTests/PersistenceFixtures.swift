@@ -69,6 +69,10 @@ enum PersistenceFixture {
         let warrior = state.addUnit(.warrior, owner: PlayerID(0), at: at(2, 2))
         let archer = state.addUnit(.archer, owner: PlayerID(0), at: at(3, 1))
         let spearman = state.addUnit(.spearman, owner: PlayerID(0), at: at(4, 5))
+        // A ship and an embarked land unit (M2 §3.2, §8.4) on the coast.
+        state.map[at(1, 6)] = Tile(terrain: .coast)
+        state.addUnit(.galley, owner: PlayerID(0), at: at(0, 6))
+        state.addUnit(.warrior, owner: PlayerID(0), at: at(1, 6))
         state.addUnit(.warrior, owner: PlayerID(1), at: at(6, 2))
         state.addUnit(.archer, owner: PlayerID(1), at: at(7, 2))
         state.addUnit(.scout, owner: PlayerID(2), at: at(4, 6))
@@ -129,7 +133,7 @@ enum PersistenceFixture {
         }
         city(&state, avarga) { $0.focus = .balanced }
         state.players[2].capital = nil
-        state.players[0].knownTechs = ["animalHusbandry", "bronzeWorking", "mining", "pottery"]
+        state.players[0].knownTechs = ["animalHusbandry", "bronzeWorking", "mining", "pottery", "sailing"]
         state.players[0].researching = TechID("writing")
         state.players[0].researchTarget = TechID("currency")
         state.players[0].researchProgress = 11

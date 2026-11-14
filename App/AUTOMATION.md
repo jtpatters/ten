@@ -100,6 +100,7 @@ New Game, `newgame` and `-autostart` always place them.
 | `veterans` | Turn 1, the capital founded, with a Warrior beside it selected: 15 XP (a promotion due), its upgrade tech learnt (`DebugTools.learnTech`) and 300 Gold, so its card shows a lit Upgrade with the price and Promote; an Archer beside it, 15 XP, its upgrade tech unknown (Upgrade dimmed). Next lists both as Promotion Due, and visiting one opens its promotions. |
 | `resources` | Turn 1, the capital founded, with resources placed by hand on its own land and their techs learnt (M2 §3.1, §4.1): Stone under a built Quarry, Wine under a built Plantation, Iron and Horses unimproved (the top bar's stock chip shows both), and Deer with a Builder on it, selected (its card offers a Camp). |
 | `roads` | As `resources`, plus roads laid by hand from the capital out through its land and beyond (M2 §3.3), the Quarry pillaged (its mark on the map), and The Wheel learnt (the Builder's card offers a Road). |
+| `naval` | Sailing and Shipbuilding learnt; a Galley and a Quadrireme on the coast nearest the capital and a Warrior embarked beside them (M2 §3.2, §8.4); the Galley selected. |
 
 The `scenario` command's result ends with the scenario's note when it has one: the units and
 tiles to use next (`rivals`, `walls`, `repreview`, `tribal-villages`).

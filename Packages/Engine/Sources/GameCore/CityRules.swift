@@ -82,6 +82,7 @@ extension GameState {
         switch item {
         case let .unit(type):
             if let tech = rules.unit(type).tech, !player.knows(tech) { return "needs \(techName(tech))" }
+            if type.isNaval, !isCoastal(city) { return "needs a coastal city" }
         case let .building(id):
             guard let def = rules.building(id), def.buildable else { return "cannot be built" }
             if city.has(id) { return "already built" }

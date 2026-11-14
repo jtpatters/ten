@@ -312,8 +312,10 @@ struct AITurn {
         let c = rules.unit(type).unitClass
         return c == .melee || c == .antiCavalry
     }
-    /// Military and not recon: counts for defence and armies (M1 §7, §13).
-    func isFighter(_ type: UnitType) -> Bool { !type.isCivilian && !isRecon(type) }
+    /// Military, not recon and not naval: counts for defence and armies (M1 §7, §13).
+    func isFighter(_ type: UnitType) -> Bool { !type.isCivilian && !type.isNaval && !isRecon(type) }
+    /// Military and not naval: garrisons cities and guards civilians.
+    func isGuard(_ type: UnitType) -> Bool { !type.isCivilian && !type.isNaval }
     /// Known tech and, for a unit that needs one, enough of its strategic resource (M2 §3.1).
     func fieldable(_ type: UnitType, _ v: PlayerView) -> Bool {
         (rules.unit(type).tech.map(v.me.knows) ?? true) && v.aiResourceProblem(type) == nil

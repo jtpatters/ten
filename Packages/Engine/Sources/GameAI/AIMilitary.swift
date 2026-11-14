@@ -250,7 +250,8 @@ extension AITurn {
     mutating func meleeAttacks() {
         let garrisons = forces(view).garrisonIDs
         let ids = view.units.filter { u in
-            isLine(u.type) && u.movesLeft > 0 && !acted.contains(u.id) && !garrisons.contains(u.id)
+            (isLine(u.type) || rules.unit(u.type).unitClass == .navalMelee) && u.movesLeft > 0 && !acted.contains(u.id)
+                && !garrisons.contains(u.id)
         }.map(\.id)
         for id in ids {
             let v = view
@@ -396,7 +397,7 @@ extension AITurn {
     /// A garrison attacks out of its city only with a good kill chance (M1 §13 tactic 5).
     mutating func sortie(from city: City) {
         let v = view
-        guard let garrison = v.units(at: city.position).first(where: { $0.owner == player && !$0.type.isCivilian }),
+        guard let garrison = v.units(at: city.position).first(where: { $0.owner == player && isGuard($0.type) }),
               garrison.movesLeft > 0, !acted.contains(garrison.id) else { return }
         var best: (pairs: Int, tile: Int, option: AttackOption)?
         for option in v.attackOptions(for: garrison.id) where option.from == city.position {
@@ -507,7 +508,7 @@ extension AITurn {
         for city in order {
             let v = view
             guard live, let c = v.index(of: city.position) else { continue }
-            if v.units(at: city.position).contains(where: { $0.owner == player && !$0.type.isCivilian }) { continue }
+            if v.units(at: city.position).contains(where: { $0.owner == player && isGuard($0.type) }) { continue }
             var best: (cost: Int32, unit: UnitID)?
             for u in freeFighters(v) {
                 let f = field(u.id, within: rules.points(ai.garrisonMaxMoveCost))
@@ -691,7 +692,7 @@ extension AITurn {
     /// Garrisons fortify.
     mutating func fortifyGarrisons() {
         for city in view.cities {
-            guard live, let garrison = view.units(at: city.position).first(where: { $0.owner == player && !$0.type.isCivilian }) else {
+            guard live, let garrison = view.units(at: city.position).first(where: { $0.owner == player && isGuard($0.type) }) else {
                 continue
             }
             fortify(garrison)

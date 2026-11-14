@@ -61,7 +61,7 @@ enum Scenarios {
     @MainActor static var lastNote: String?
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
-                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads"]
+                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads", "naval"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -142,6 +142,9 @@ enum Scenarios {
         case "roads":
             foundCapital(&state, player: viewer)
             made = try roads(&state)
+        case "naval":
+            foundCapital(&state, player: viewer)
+            made = try naval(&state)
         default:
             throw Failure(description: "no scenario “\(name)” (try \(names.joined(separator: ", ")))")
         }
@@ -694,6 +697,27 @@ extension Scenarios {
     /// M2 §3.3: `resources`, plus roads laid by hand from the capital out through its land and
     /// two tiles beyond, and the Quarry pillaged; The Wheel learnt, so the Builder's card
     /// offers a Road.
+    /// M2 §3.2, §8.4: Sailing and Shipbuilding learnt, a Galley and a Quadrireme on the water
+    /// nearest the capital and a Warrior embarked beside them; the Galley selected.
+    static func naval(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        for tech: TechID in ["sailing", "shipbuilding"] { DebugTools.learnTech(tech, player: viewer, in: &state) }
+        let centre = try home(state)
+        let water = state.map.tiles.indices
+            .filter { state.map.tiles[$0].terrain == .coast && state.units(at: state.map.coord(at: $0)).isEmpty }
+            .map { state.map.coord(at: $0) }
+            .sorted { state.map.distance($0, centre) < state.map.distance($1, centre) }
+        guard water.count >= 3 else { throw Failure(description: "no coast near the capital") }
+        let galley = state.addUnit(.galley, owner: viewer, at: water[0])
+        state.addUnit(.quadrireme, owner: viewer, at: water[1])
+        state.addUnit(.warrior, owner: viewer, at: water[2])
+        DebugTools.refreshAllKnowledge(in: &state)
+        let view = state.view(for: viewer)
+        let coastal = state.cities.first.map(view.isCoastal) ?? false
+        return Made(state: state, focus: .unit(galley),
+                    note: "Galley at \(water[0].q) \(water[0].r), Quadrireme at \(water[1].q) \(water[1].r), embarked Warrior at \(water[2].q) \(water[2].r); capital coastal: \(coastal)")
+    }
+
     static func roads(_ state: inout GameState) throws -> Made {
         let viewer = PlayerID(0)
         var made = try resources(&state)

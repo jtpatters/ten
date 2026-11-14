@@ -11,7 +11,7 @@ import Testing
 /// (snapshot p3fs), as PersistenceTests' version-1 save fixture records it.
 /// The standard rules without the tribal village section. Re-pinned for M2 2.1a's research arc
 /// (0x3CA4_9347_F3CE_D14C before).
-let preTribalVillagesContentHash: UInt64 = 0x64A7_845F_7191_2D3E // M2 2.1c roads (resources 0xCF31_AB6F_FA55_2850) (2.1b 0x759D_2BF3_A784_F5D9) (siege walls: 0xD2D1_D061_C19D_3D1F) (units: 0x8AD0_7E93_B606_6DB7) (2.1a: 0x727F_8E66_FA5E_7BBD)
+let preTribalVillagesContentHash: UInt64 = 0x5379_E7CF_1703_93CD // M2 2.1c naval (roads 0x64A7_845F_7191_2D3E) (resources 0xCF31_AB6F_FA55_2850) (2.1b 0x759D_2BF3_A784_F5D9) (siege walls: 0xD2D1_D061_C19D_3D1F) (units: 0x8AD0_7E93_B606_6DB7) (2.1a: 0x727F_8E66_FA5E_7BBD)
 
 /// C0: the standard rules without their tribal village section.
 func c0Rules() throws -> Ruleset {
@@ -209,7 +209,7 @@ func removeTribalVillage(at hex: HexCoord, in state: inout GameState) {
         DebugTools.spawnUnits(count: 300, seed: 42, in: &headless)
         for i in headless.players.indices { headless.players[i].gold = 1_000_000 }
         expectNone(headless, "large seed 42")
-        #expect(headless.stateHash() == 0xBC93_26CB_1A9F_9024, // M2 2.1c roads (resources 0x9F24_0878_A03E_DA36) (2.1b 0xE472_7556_EE7F_970B) (0xD1F8_0F1F_CE0D_4014) (2.1a: 0x1640_6D53_F16E_6AB9) (0xFD8F_CBC6_4C98_2AD4 before)
+        #expect(headless.stateHash() == 0x96B5_910C_4296_34F3, // M2 2.1c naval (roads 0xBC93_26CB_1A9F_9024) (resources 0x9F24_0878_A03E_DA36) (2.1b 0xE472_7556_EE7F_970B) (0xD1F8_0F1F_CE0D_4014) (2.1a: 0x1640_6D53_F16E_6AB9) (0xFD8F_CBC6_4C98_2AD4 before)
                 "turn-1 hash: 0x\(String(headless.stateHash(), radix: 16))")
     }
 }

@@ -92,7 +92,7 @@ extension AITurn {
         var f = Forces()
         let units = v.units
         for city in v.cities {
-            if let garrison = units.first(where: { $0.position == city.position && !$0.type.isCivilian }) {
+            if let garrison = units.first(where: { $0.position == city.position && isGuard($0.type) }) {
                 f.garrisons.append((city.id, garrison.id))
                 f.garrisonIDs.insert(garrison.id)
             }

@@ -468,6 +468,8 @@ extension MoveKnowledge {
         freeFeature = base.freeFeature
         roads = base.roads
         bridges = base.bridges
+        mobility = base.mobility
+        maxMoves = base.maxMoves
     }
 }
 

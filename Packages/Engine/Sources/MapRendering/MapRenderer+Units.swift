@@ -421,6 +421,17 @@ extension MapRenderer {
         // The job marks' glyphs, over the selection ring.
         appendJobBadges(into: &sprites, table: table)
         appendPillagedMarks(into: &sprites, table: table)
+        // Embarked land units (M2 §3.2): a boat on the water under the group, under its figures.
+        if near > 0, let boat = table.embark {
+            let size = Float(layout.size) * 0.95
+            for spot in spots {
+                guard let hex = spot.hex, let tile = state.map.normalize(hex).flatMap(state.map.index(of:)),
+                      state.map.tiles[tile].terrain.isWater, !shown[spot.lead].type.isNaval else { continue }
+                sprites.append(SpriteInstance(position: [spot.center.x, spot.center.y - size * 0.18, 0, -1],
+                                              sizeAnchor: [size, size, 0.5, 0.5], uv: boat, tint: [1, 1, 1, near],
+                                              flags: [0, UnitSpriteKind.sprite.rawValue, 0, 0]))
+            }
+        }
         claim(nil)
 
         frame.bands = frame.ground.upperBound..<sprites.count
@@ -941,7 +952,8 @@ extension MapRenderer {
             assert(abs(uv.z * Float(unitAtlas.width) - cell) < 1e-3, "data cells are body cells")
             return Float(y * (unitAtlas.width / UnitSprite.bodyCell) + x + 1)
         }
-        for type in UnitType.allCases {
+        for unitType in UnitType.allCases {
+            let type = UnitSprite.bodyType(unitType)
             for east in [false, true] {
                 if east, UnitSprite.sharesWestBody(type) {
                     // The west-facing cell read right to left (a negative width), its box mirrored.
@@ -970,6 +982,7 @@ extension MapRenderer {
         for kind in Improvement.allCases { table.jobs[kind.rawValue] = unitAtlas.uv(.job(kind)) }
         table.tribalVillage = unitAtlas.uv(.tribalVillage)
         table.pillaged = unitAtlas.uv(.pillaged)
+        table.embark = unitAtlas.uv(.embark)
         unitArt.atlasTable = table
         return table
     }
@@ -1107,6 +1120,8 @@ struct UnitAtlasTable {
     var tribalVillage: SIMD4<Float>?
     /// A pillaged improvement's mark (`UnitSprite.pillaged`).
     var pillaged: SIMD4<Float>?
+    /// The boat under an embarked land unit (`UnitSprite.embark`).
+    var embark: SIMD4<Float>?
 
     func body(_ type: UnitType, east: Bool, escorted isEscorted: Bool = false) -> SIMD4<Float> {
         // Only the settler sets its banner pole down when escorted: the builder's pole is its
