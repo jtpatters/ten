@@ -60,7 +60,7 @@ extension GameState {
         guard tileOwner(t) == unit.owner else { return "tile not in your territory" }
         guard city(atTile: t) == nil else { return "not on a city centre" }
         guard map.tiles[t].improvement == nil else { return "tile already improved" }
-        guard rules.allowsImprovement(improvement, on: map.tiles[t]) else { return "\(def.displayName) not allowed here" }
+        guard rules.allowsImprovement(improvement, on: map.tiles[t], resource: knownResource(at: t, for: unit.owner)) else { return "\(def.displayName) not allowed here" }
         if let tech = def.tech, !players[unit.owner.rawValue].knows(tech) { return "needs \(techName(tech))" }
         return nil
     }
@@ -150,13 +150,14 @@ extension GameState {
         guard tileOwner(t) == unit.owner else { return "only in your territory" }
         if let tech = rules.unit(target).tech, !players[unit.owner.rawValue].knows(tech) { return "needs \(techName(tech))" }
         guard players[unit.owner.rawValue].gold >= cost else { return "needs \(cost) Gold" }
-        return nil
+        return resourceProblem(target, owner: unit.owner)
     }
 
     /// Upgrades a unit (validated by the caller): same id, XP, HP and position; its moves end.
     mutating func upgrade(_ id: UnitID, _ fx: inout Effects) {
         guard let unit = unit(id), let target = rules.unit(unit.type).upgradesTo, let cost = upgradeCost(of: unit.type) else { return }
         players[unit.owner.rawValue].gold -= cost
+        spendResource(for: target, owner: unit.owner)
         updateUnit(id) { u in
             u.type = target
             u.movesLeft = 0

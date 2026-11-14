@@ -43,6 +43,9 @@ public struct Player: Codable, Hashable, Sendable {
     public internal(set) var techCredit: [Int]?
     /// Techs whose Insight fired, sorted. Nil until the first (left out of saves).
     public internal(set) var insights: [TechID]?
+    /// Strategic stockpiles in `Resource.allCases` order (M2 §3.1). Nil until the first
+    /// (left out of saves).
+    public internal(set) var stockpile: [Int]?
 
     /// A new, living player with nothing yet. An empty `civ` is filled in by `GameState.init`.
     public init(id: PlayerID, name: String, isHuman: Bool, tileCount: Int, civ: CivID = "", gold: Int = 0) {
@@ -65,9 +68,13 @@ public struct Player: Codable, Hashable, Sendable {
         self.citiesNamed = 0
         self.techCredit = nil
         self.insights = nil
+        self.stockpile = nil
     }
 
     public func knows(_ tech: TechID) -> Bool { knownTechs.contains(tech) }
+
+    /// Units of a strategic resource in stock (M2 §3.1).
+    public func stock(_ resource: Resource) -> Int { stockpile?[Int(resource.rawValue) - 1] ?? 0 }
 
     /// Credit toward the tech at tree index `index` (M2 §6.2).
     public func credit(techIndex index: Int) -> Int {

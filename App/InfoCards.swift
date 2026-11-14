@@ -202,6 +202,10 @@ struct TileSheet: View {
         .padding(.horizontal, HUD.Space.s)
         .padding(.vertical, HUD.Space.xs + 2)
         .parchmentWell()
+        // A resource the viewer knows here (M2 §3.1).
+        if let resource = view.resource(at: hex), let def = view.rules.resource(resource) {
+            resourceRow(def, view)
+        }
         // Land of a player at peace: closed to military units (M1 §9).
         let closed = facts.owner.map { $0 != session.viewer && view.landClosed(by: $0) } ?? false
         if closed {
@@ -263,6 +267,35 @@ struct TileSheet: View {
 
     /// A tribal village the viewer knows of here (M1 §7.7): what it gives, and whether it is
     /// in sight now or remembered.
+    private func resourceRow(_ def: ResourceDef, _ view: PlayerView) -> some View {
+        Label {
+            Text(Self.resourceLine(def, rules: view.rules)).font(HUD.body(.caption)).fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: Self.resourceSymbol(def.kind)).foregroundStyle(HUD.gilt)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// "Iron (strategic): +1 Production; improve with a Mine."
+    static func resourceLine(_ def: ResourceDef, rules: Ruleset) -> String {
+        var parts: [String] = []
+        if def.food > 0 { parts.append("+\(def.food) Food") }
+        if def.production > 0 { parts.append("+\(def.production) Production") }
+        if def.gold > 0 { parts.append("+\(def.gold) Gold") }
+        if def.culture > 0 { parts.append("+\(def.culture) Culture") }
+        let improvement = Improvement.allCases.first { "\($0)" == def.improvement }.map { rules.improvement($0).displayName }
+        let yields = parts.isEmpty ? "" : ": " + parts.joined(separator: ", ")
+        return "\(def.displayName) (\(def.kind.rawValue))\(yields)" + (improvement.map { "; improve with \(CivText.article($0)) \($0)" } ?? "")
+    }
+
+    static func resourceSymbol(_ kind: ResourceKind) -> String {
+        switch kind {
+        case .bonus: "leaf.circle.fill"
+        case .luxury: "sparkles"
+        case .strategic: "shield.lefthalf.filled"
+        }
+    }
+
     private func tribalVillageRow(_ village: TileTribalVillage) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Label(Self.tribalVillageLine, systemImage: "house.lodge.fill")

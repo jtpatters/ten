@@ -25,7 +25,8 @@ extension PlayerView {
             guard me.explored[t], me.memory.tileImprovement[t] == 0, state.city(atTile: t) == nil else { continue }
             let tile = state.map.tiles[t]
             var job = false
-            for k in kinds.indices where rules.allowsImprovement(kinds[k], on: tile) {
+            let resource = state.knownResource(at: t, for: player)
+            for k in kinds.indices where rules.allowsImprovement(kinds[k], on: tile, resource: resource) {
                 fits[k] = true
                 if known[k] { job = true }
             }

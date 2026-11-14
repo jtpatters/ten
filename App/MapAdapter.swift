@@ -2,7 +2,7 @@ import GameCore
 import MapRendering
 
 /// Builds the renderer's world inputs from what the viewer knows (M1 §11, §15): cities,
-/// territory, improvements and tribal villages from the viewer's `PlayerView` (own cities live,
+/// territory, improvements, resources and tribal villages from the viewer's `PlayerView` (own cities live,
 /// foreign ones and tribal villages out of sight as last seen), or from the live state in
 /// diagnostic mode (fog off). Called after a state change, never per frame; the renderer ignores
 /// inputs that did not change.
@@ -14,13 +14,21 @@ enum MapAdapter {
             renderer.setCities(state.cities.map { marker(for: $0, rules: state.rules) })
             renderer.setTerritory((0..<state.map.tileCount).map { t in state.tileOwner(t).map { UInt8($0.rawValue + 1) } ?? 0 })
             renderer.setImprovements(state.map.tiles.map { $0.improvement?.rawValue ?? 0 })
+            renderer.setResources(state.map.tiles.map { $0.resource?.rawValue ?? 0 })
         } else {
             renderer.setCities(view.knownCities.map { marker(for: $0, rules: state.rules) })
             renderer.setTerritory(view.knownTerritory)
             renderer.setImprovements(view.knownImprovements)
+            renderer.setResources(knownResources(view))
         }
         renderer.setTribalVillages(tribalVillageMarkers(state: state, view: view, diagnostic: diagnostic))
         renderer.setReadyUnits(readyUnits(view))
+    }
+
+    /// Per tile the `Resource` raw value the viewer knows there (M2 §3.1: explored and its
+    /// reveal tech known), 0 none.
+    static func knownResources(_ view: PlayerView) -> [UInt8] {
+        (0..<view.tileCount).map { t in view.resource(at: view.coord(at: t))?.rawValue ?? 0 }
     }
 
     /// The tribal villages the viewer knows (M1 §7.7), seen where their tile is in sight and

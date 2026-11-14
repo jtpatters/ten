@@ -34,6 +34,8 @@ public struct StrengthModifier: Hashable, Sendable {
         case river
         /// −1 per `hpPerWoundPenalty` HP missing (units).
         case wounded
+        /// A unit short of its strategic resource at war (M2 §3.1).
+        case shortage(Resource)
         /// The unit's class bonus against the other side's class (rules data).
         case classBonus(UnitClass)
         /// The unit's promotions that apply (M2 §8.3).
@@ -66,6 +68,7 @@ public struct StrengthModifier: Hashable, Sendable {
         case .flanking: "Flanking"
         case .river: "River crossing"
         case .wounded: "Wounded"
+        case let .shortage(r): "Out of \(caseName(r).capitalized)"
         case let .classBonus(c): "vs \(caseName(c).prefix(1).uppercased() + caseName(c).dropFirst())"
         case .promotion: "Promotions"
         case .population: "Population"
@@ -280,6 +283,7 @@ extension GameState {
                 if crossesRiver(from, target), !promotionDefs(unit).contains(where: { $0.noRiverPenalty == true }) { s.add(.river, rules.river.meleeAttackModifier) }
             }
             s.add(.wounded, woundPenalty(unit))
+            if let r = shortage(of: unit) { s.add(.shortage(r), shortagePenalty(unit)) }
             if let (cls, bonus) = classBonus(of: unit, against: defender) { s.add(.classBonus(cls), bonus) }
             s.add(.promotion, promotionBonus(of: unit, attacking: true, ranged: ranged, against: defender))
             attack = s
@@ -302,6 +306,7 @@ extension GameState {
                 s.add(.support, min(c.supportMax, c.supportPerUnit * supporters))
             }
             s.add(.wounded, woundPenalty(unit))
+            if let r = shortage(of: unit) { s.add(.shortage(r), shortagePenalty(unit)) }
             if let (cls, bonus) = classBonus(of: unit, against: attacker) { s.add(.classBonus(cls), bonus) }
             s.add(.promotion, promotionBonus(of: unit, attacking: false, ranged: ranged, against: attacker))
             defence = s

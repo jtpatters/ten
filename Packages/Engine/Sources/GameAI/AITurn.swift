@@ -313,6 +313,10 @@ struct AITurn {
     }
     /// Military and not recon: counts for defence and armies (M1 §7, §13).
     func isFighter(_ type: UnitType) -> Bool { !type.isCivilian && !isRecon(type) }
+    /// Known tech and, for a unit that needs one, enough of its strategic resource (M2 §3.1).
+    func fieldable(_ type: UnitType, _ v: PlayerView) -> Bool {
+        (rules.unit(type).tech.map(v.me.knows) ?? true) && v.aiResourceProblem(type) == nil
+    }
 
     /// The danger map (M1 §12.6), once per phase.
     mutating func danger() -> [Int32] {

@@ -1,4 +1,5 @@
 import CoreGraphics
+import CoreText
 import Foundation
 import GameCore
 import Synchronization
@@ -40,6 +41,15 @@ enum DecorSprite: SpriteSet {
     case mine(Int)
     case spoil(Int)
     case animal(AnimalKind, Int)
+    /// A resource's icon on a little post (M2 §3.1), shown only while the viewer knows the
+    /// tile's resource (`DecorFlags.resource`).
+    case resource(Resource)
+    /// An M2 improvement's prop (M2 §4.1, placeholder art): quarry, plantation, camp, fishing
+    /// boats or lumber mill, shown only on tiles that have it.
+    case improvement(Improvement)
+
+    /// Improvements drawn by `.improvement` cells (the M1 ones are mines, herds and ground marks).
+    static let propImprovements: [Improvement] = [.quarry, .plantation, .camp, .fishingBoats, .lumberMill]
 
     /// Mountains by climate: snow-capped grey rock (temperate), heavily snowed peaks (cold), ochre
     /// rock with little snow (dry; the bridge between temperate and desert ranges), red sandstone
@@ -82,6 +92,9 @@ enum DecorSprite: SpriteSet {
         cells += (0..<mineCount).map { .mine($0) }
         cells += (0..<spoilCount).map { .spoil($0) }
         for k in AnimalKind.allCases { cells += [0, 1].map { .animal(k, $0) } }
+        // After every older cell, so none of theirs moves.
+        cells += Resource.allCases.map { .resource($0) }
+        cells += propImprovements.map { .improvement($0) }
         return cells
     }
 
@@ -89,7 +102,7 @@ enum DecorSprite: SpriteSet {
         switch self {
         case .peak, .mesas, .hills: 256
         case .shoulder, .knolls, .tree, .mine: 128
-        case .plant, .rock, .snow, .spoil, .animal: 64
+        case .plant, .rock, .snow, .spoil, .animal, .resource, .improvement: 64
         }
     }
 
@@ -108,6 +121,8 @@ enum DecorSprite: SpriteSet {
         case let .mine(v): [.mine(v)]
         case let .spoil(v): [.spoil(v)]
         case let .animal(k, v): [.animal(k, v)]
+        case let .resource(r): [.resourceIcon(r)]
+        case let .improvement(kind): [.improvementProp(kind)]
         }
     }
 }
@@ -128,6 +143,8 @@ enum DecorArt: Hashable {
     case spoil(Int)
     /// An animal facing west (0) or east (1).
     case animal(DecorSprite.AnimalKind, Int)
+    case resourceIcon(Resource)
+    case improvementProp(Improvement)
 
     var cell: DecorSprite {
         switch self {
@@ -143,6 +160,8 @@ enum DecorArt: Hashable {
         case let .mine(v): .mine(v)
         case let .spoil(v): .spoil(v)
         case let .animal(k, v): .animal(k, v)
+        case let .resourceIcon(r): .resource(r)
+        case let .improvementProp(kind): .improvement(kind)
         }
     }
 
@@ -170,6 +189,8 @@ enum DecorArt: Hashable {
         case let .mine(v): 0x4A0 + v
         case let .spoil(v): 0x4B0 + v
         case let .animal(k, v): 0x4C0 + k.rawValue * 2 + v
+        case let .resourceIcon(r): 0x4D0 + Int(r.rawValue)
+        case let .improvementProp(kind): 0x4F0 + Int(kind.rawValue)
         }
     }
 
@@ -206,6 +227,8 @@ enum DecorArt: Hashable {
         case .mine: return (1.3, CGPoint(x: 0.65, y: 0.12))
         case .spoil: return (1.5, CGPoint(x: 0.75, y: 0.18))
         case .animal: return (1.4, CGPoint(x: 0.7, y: 0.14))
+        case .resourceIcon: return (1.0, CGPoint(x: 0.5, y: 0.04))
+        case .improvementProp: return (1.4, CGPoint(x: 0.7, y: 0.12))
         }
     }
 
@@ -412,6 +435,8 @@ extension DecorArt {
         case let .mine(v): DecorSprite.mineEntrance(c, variant: v)
         case let .spoil(v): DecorSprite.spoilHeap(c, variant: v)
         case let .animal(k, v): DecorSprite.animal(c, kind: k, east: v == 1)
+        case let .resourceIcon(r): DecorSprite.resourceIcon(c, r)
+        case let .improvementProp(kind): DecorSprite.improvementProp(c, kind)
         }
         ctx.restoreGState()
     }
@@ -3024,6 +3049,129 @@ extension DecorSprite {
             c.fill(head, headTone)
             c.clip(head) { c.sweep([(headTone.lit(0.8), 1), (headTone.shade(0.8), 1)], from: p(bodyR.0 + 0.08, bodyY - 0.16), to: p(bodyR.0 + 0.24, bodyY - 0.32)) }
             horns.stroke(c, [Tone(0.88, 0.84, 0.74)], width: 0.03)
+        }
+    }
+}
+
+// MARK: - Resources and M2 improvements (placeholder art)
+
+extension DecorSprite {
+    /// A resource's icon: its two-letter name on a cream disc ringed in its kind's colour
+    /// (bonus green, luxury violet, strategic rust), on a short post.
+    fileprivate static func resourceIcon(_ c: Canvas, _ r: Resource) {
+        let ring: Tone = switch r {
+        case .horses, .iron: Tone(0.70, 0.30, 0.18)
+        case .wine, .silk, .spices, .incense, .ivory, .furs, .salt, .pearls: Tone(0.50, 0.32, 0.64)
+        default: Tone(0.32, 0.56, 0.26)
+        }
+        let ink = Tone(0.16, 0.12, 0.10), mid = CGPoint(x: 0.5, y: 0.56)
+        c.contactShadow(c.foot, width: 0.4, height: 0.1, alpha: 0.35)
+        c.fill(CGPath(rect: CGRect(x: 0.47, y: c.foot.y, width: 0.06, height: 0.2), transform: nil), Tone(0.42, 0.30, 0.20))
+        func disc(_ radius: CGFloat) -> CGPath {
+            CGPath(ellipseIn: CGRect(x: mid.x - radius, y: mid.y - radius, width: 2 * radius, height: 2 * radius), transform: nil)
+        }
+        c.fill(disc(0.4), ink)
+        c.fill(disc(0.36), ring)
+        c.fill(disc(0.29), Tone(0.98, 0.94, 0.84))
+        let name = String(describing: r)
+        let letters = String(name.prefix(1)).uppercased() + String(name.dropFirst().prefix(1))
+        let font = CTFontCreateWithName("Helvetica-Bold" as CFString, 100, nil)
+        let text = NSAttributedString(string: letters, attributes: [
+            NSAttributedString.Key(kCTFontAttributeName as String): font,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): ink.cg(1),
+        ])
+        let line = CTLineCreateWithAttributedString(text)
+        let box = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+        let k = min(0.3 / max(box.height, 1), 0.44 / max(box.width, 1))
+        c.ctx.saveGState()
+        c.ctx.translateBy(x: mid.x, y: mid.y)
+        c.ctx.scaleBy(x: k, y: k)
+        c.ctx.textMatrix = .identity
+        c.ctx.textPosition = CGPoint(x: -box.midX, y: -box.midY)
+        CTLineDraw(line, c.ctx)
+        c.ctx.restoreGState()
+    }
+
+    /// An M2 improvement's prop, standing behind the tile centre.
+    fileprivate static func improvementProp(_ c: Canvas, _ kind: Improvement) {
+        let foot = c.foot, ink = Tone(0.2, 0.15, 0.12)
+        func box(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat = 0.02) -> CGPath {
+            CGPath(roundedRect: CGRect(x: x, y: y, width: w, height: h), cornerWidth: r, cornerHeight: r, transform: nil)
+        }
+        func oval(_ x: CGFloat, _ y: CGFloat, _ rx: CGFloat, _ ry: CGFloat) -> CGPath {
+            CGPath(ellipseIn: CGRect(x: x - rx, y: y - ry, width: 2 * rx, height: 2 * ry), transform: nil)
+        }
+        func solid(_ path: CGPath, _ tone: Tone) {
+            c.outline([path], width: 0.025, alpha: 0.5)
+            c.fill(path, tone)
+        }
+        switch kind {
+        case .quarry:
+            c.contactShadow(foot, width: 1.1, height: 0.2)
+            let stone = Tone(0.72, 0.70, 0.66)
+            for (x, y, w) in [(0.22, 0.12, 0.42), (0.68, 0.12, 0.46), (0.42, 0.42, 0.5)] as [(CGFloat, CGFloat, CGFloat)] {
+                solid(box(x, y, w, 0.3), stone)
+                c.fill(box(x, y + 0.22, w, 0.08), stone.lit(1))
+            }
+            c.fill(oval(1.18, 0.16, 0.1, 0.06), stone.shade(1))
+        case .plantation:
+            c.contactShadow(foot, width: 1.2, height: 0.2, alpha: 0.3)
+            let leaf = Tone(0.28, 0.52, 0.22)
+            for row in 0..<3 {
+                for k in 0..<4 {
+                    let x = 0.28 + CGFloat(k) * 0.28 + CGFloat(row) * 0.06, y = 0.62 - CGFloat(row) * 0.2
+                    solid(oval(x, y, 0.12, 0.11), row == 2 ? leaf.lit(0.6) : leaf)
+                    c.fill(oval(x - 0.03, y + 0.04, 0.05, 0.04), leaf.lit(1.4))
+                }
+            }
+        case .camp:
+            c.contactShadow(foot, width: 1.1, height: 0.2)
+            let canvas = Tone(0.82, 0.70, 0.50)
+            let tent = CGMutablePath()
+            tent.move(to: CGPoint(x: 0.2, y: 0.12))
+            tent.addLine(to: CGPoint(x: 0.62, y: 0.82))
+            tent.addLine(to: CGPoint(x: 1.04, y: 0.12))
+            tent.closeSubpath()
+            solid(tent, canvas)
+            let lit = CGMutablePath()
+            lit.move(to: CGPoint(x: 0.2, y: 0.12))
+            lit.addLine(to: CGPoint(x: 0.62, y: 0.82))
+            lit.addLine(to: CGPoint(x: 0.5, y: 0.12))
+            lit.closeSubpath()
+            c.fill(lit, canvas.lit(0.8))
+            let door = CGMutablePath()
+            door.move(to: CGPoint(x: 0.54, y: 0.12))
+            door.addLine(to: CGPoint(x: 0.62, y: 0.42))
+            door.addLine(to: CGPoint(x: 0.7, y: 0.12))
+            door.closeSubpath()
+            c.fill(door, ink)
+            c.fill(oval(1.2, 0.16, 0.08, 0.05), Tone(0.95, 0.55, 0.2))
+            c.fill(oval(1.2, 0.2, 0.04, 0.05), Tone(1, 0.85, 0.4))
+        case .fishingBoats:
+            c.fill(oval(0.7, 0.12, 0.6, 0.07), Tone(0.85, 0.92, 0.95), 0.5)
+            let hull = CGMutablePath()
+            hull.move(to: CGPoint(x: 0.2, y: 0.3))
+            hull.addLine(to: CGPoint(x: 1.2, y: 0.3))
+            hull.addQuadCurve(to: CGPoint(x: 0.2, y: 0.3), control: CGPoint(x: 0.7, y: -0.05))
+            hull.closeSubpath()
+            solid(hull, Tone(0.55, 0.36, 0.22))
+            c.fill(box(0.66, 0.28, 0.04, 0.66, 0.01), ink)
+            let sail = CGMutablePath()
+            sail.move(to: CGPoint(x: 0.72, y: 0.92))
+            sail.addLine(to: CGPoint(x: 1.12, y: 0.38))
+            sail.addLine(to: CGPoint(x: 0.72, y: 0.38))
+            sail.closeSubpath()
+            solid(sail, Tone(0.96, 0.94, 0.88))
+        case .lumberMill:
+            c.contactShadow(foot, width: 1.1, height: 0.2)
+            let bark = Tone(0.50, 0.34, 0.20), wood = Tone(0.86, 0.70, 0.48)
+            for (x, y) in [(0.36, 0.24), (0.66, 0.24), (0.96, 0.24), (0.51, 0.5), (0.81, 0.5), (0.66, 0.76)] as [(CGFloat, CGFloat)] {
+                solid(oval(x, y, 0.15, 0.13), bark)
+                c.fill(oval(x - 0.01, y + 0.01, 0.1, 0.085), wood)
+                c.fill(oval(x - 0.01, y + 0.01, 0.03, 0.025), bark.shade(0.6))
+            }
+        default:
+            break
         }
     }
 }

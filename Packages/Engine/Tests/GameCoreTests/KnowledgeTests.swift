@@ -218,8 +218,8 @@ import Testing
         #expect(options.map(\.tech) == state.rules.techs.map(\.id))
         #expect(options[0].available && !options[0].known && options[0].turns == 7 && options[0].unlocks == ["Granary"])
         #expect(!options[3].available && options[3].turns == 17) // Sailing: (25 + 40) / 4
-        #expect(options[3].unlocks == ["+1 Food on Coast", "+1 Food on Lake"])
-        #expect(options[5].unlocks == ["Farm +1 Food by fresh water"])
+        #expect(options[3].unlocks == ["Fishing Boats", "+1 Food on Coast", "+1 Food on Lake"])
+        #expect(options[5].unlocks == ["Plantation", "Farm +1 Food by fresh water"])
         #expect(options[9].turns == 35) // Currency: 25 + 45 + 70
     }
 

@@ -102,7 +102,8 @@ struct UnitCard: View {
                                   session.perform(.upgrade(unit: unit.id))
                               },
                               onLongPress: { upgradeDescribed.toggle() })
-            .accessibilityHint(Self.upgradeHelp(from: unit.type, to: target, cost: price.cost))
+            .accessibilityHint(Self.upgradeHelp(from: unit.type, to: target, cost: price.cost)
+                + (session.view.upgradeProblem(unit.id).map { " Not now: \($0)." } ?? ""))
     }
 
     static func upgradeHelp(from type: UnitType, to target: UnitType, cost: Int?) -> String {
@@ -114,9 +115,15 @@ struct UnitCard: View {
         HStack(alignment: .top, spacing: HUD.Space.s) {
             Image(systemName: "arrow.up.circle.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(HUD.inkSoft)
                 .frame(width: 16)
-            Text("\(Text("Upgrade").font(HUD.title(.caption)))  \(Self.upgradeHelp(from: unit.type, to: target, cost: upgradePrice.cost))")
-                .font(HUD.body(.caption))
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(Text("Upgrade").font(HUD.title(.caption)))  \(Self.upgradeHelp(from: unit.type, to: target, cost: upgradePrice.cost))")
+                    .font(HUD.body(.caption))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let problem = session.view.upgradeProblem(unit.id) {
+                    Text("Not now: \(problem).").font(HUD.body(.caption).weight(.semibold)).foregroundStyle(HUD.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, HUD.Space.s)
@@ -247,13 +254,15 @@ struct UnitCard: View {
     /// unit, cancelling a march, then fortify, sleep, skip; the unit's purpose stays on the bar
     /// dimmed when it cannot be done here; Disband last. Other unavailable actions are hidden.
     static func ordered(_ actions: [UnitAction], unit: GameCore.Unit) -> [UnitAction] {
-        let purpose: Set<UnitActionKind> = [.foundCity, .buildFarm, .buildMine, .buildPasture]
+        let purpose: Set<UnitActionKind> = [.foundCity, .buildFarm, .buildMine, .buildPasture, .buildQuarry, .buildPlantation,
+                                            .buildCamp, .buildFishingBoats, .buildLumberMill]
         func rank(_ action: UnitAction) -> Int? {
             let kind = action.kind
             if kind == .disband { return 100 }
             let base: Int = switch kind {
             case .foundCity: 0
-            case .buildFarm, .buildMine, .buildPasture: 1
+            case .buildFarm, .buildMine, .buildPasture, .buildQuarry, .buildPlantation, .buildCamp, .buildFishingBoats,
+                 .buildLumberMill: 1
             case .wake: 2
             case .cancelOrders: 3
             case .fortify: 4
@@ -284,6 +293,11 @@ struct UnitCard: View {
         case .buildFarm: ("Farm", "leaf.fill", "Build a Farm on this tile: \(yields(of: .farm, view: view)). Uses a charge.")
         case .buildMine: ("Mine", "mountain.2.fill", "Build a Mine on this tile: \(yields(of: .mine, view: view)). Uses a charge.")
         case .buildPasture: ("Pasture", "pawprint.fill", "Build a Pasture on this tile: \(yields(of: .pasture, view: view)). Uses a charge.")
+        case .buildQuarry: ("Quarry", "square.stack.3d.up.fill", build(.quarry, view))
+        case .buildPlantation: ("Plantation", "camera.macro", build(.plantation, view))
+        case .buildCamp: ("Camp", "tent.fill", build(.camp, view))
+        case .buildFishingBoats: ("Fishing Boats", "sailboat.fill", build(.fishingBoats, view))
+        case .buildLumberMill: ("Lumber Mill", "tree.fill", build(.lumberMill, view))
         case .fortify: ("Fortify", "shield.fill",
                         "+\(view.rules.constants.combat.fortified) defence from your next turn until it moves. Any unit that waits a turn heals.")
         case .sleep: ("Sleep", "moon.zzz.fill", "Wait here until woken or an enemy comes near.")
@@ -292,6 +306,14 @@ struct UnitCard: View {
         case .cancelOrders: ("Cancel", "xmark.circle", "Stop the march to its destination.")
         case .disband: ("Disband", "trash", "Remove the unit for good.")
         }
+    }
+
+    /// An M2 improvement's help (M2 §4.1): what it adds, and that it puts the tile's resource
+    /// to use.
+    static func build(_ improvement: Improvement, _ view: PlayerView) -> String {
+        let name = view.rules.improvement(improvement).displayName
+        let use = improvement == .lumberMill ? "" : " and puts its resource to use"
+        return "Build \(CivText.article(name)) \(name) on this tile: \(yields(of: improvement, view: view))\(use). Uses a charge."
     }
 
     /// What an improvement adds to its tile: "+1 Production, +1 Gold"; a Farm's fresh-water Food

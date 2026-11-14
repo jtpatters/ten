@@ -283,7 +283,7 @@ extension PlayerView {
         let own = cities.sorted { $0.id.rawValue < $1.id.rawValue }
         let radius = rules.constants.city.workRadius
         func allowed(_ t: Int) -> Bool {
-            me.explored[t] && me.memory.tileImprovement[t] == 0 && rules.allowsImprovement(improvement, on: state.map.tiles[t])
+            me.explored[t] && me.memory.tileImprovement[t] == 0 && rules.allowsImprovement(improvement, on: state.map.tiles[t], resource: state.knownResource(at: t, for: player))
         }
         // Own land (always in sight), wherever its city's borders reach, never a city centre.
         var slot = [Int](repeating: -1, count: (own.last?.id.rawValue ?? -1) + 1)
@@ -328,7 +328,8 @@ extension PlayerView {
             guard state.owningCity(ofTile: t)?.owner == player, me.explored[t], me.memory.tileImprovement[t] == 0,
                   state.city(atTile: t) == nil else { continue }
             let tile = state.map.tiles[t]
-            let kinds = known.filter { rules.allowsImprovement($0, on: tile) }
+            let resource = state.knownResource(at: t, for: player)
+            let kinds = known.filter { rules.allowsImprovement($0, on: tile, resource: resource) }
             guard !kinds.isEmpty else { continue }
             let cost = Int(field[t])
             jobs.append(BuilderJob(hex: coord(at: t), tile: t, improvements: kinds, cost: cost, thisPhase: cost < movesLeft))

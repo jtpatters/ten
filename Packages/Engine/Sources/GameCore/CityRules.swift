@@ -99,7 +99,7 @@ extension GameState {
         let def = rules.unit(type)
         if city.population < def.minPopulation { return "needs population \(def.minPopulation)" }
         if spawnTile(for: type, in: city) == nil { return "no room to place the unit" }
-        return nil
+        return resourceProblem(type, owner: city.owner)
     }
 
     /// Where a new unit of `type` appears (M1 §5): the city centre if its slot is free, else the
@@ -126,6 +126,7 @@ extension GameState {
         case let .unit(type):
             guard let t = spawnTile(for: type, in: city) else { return }
             let def = rules.unit(type)
+            spendResource(for: type, owner: city.owner)
             let id = insertUnit(type, owner: city.owner, at: map.coord(at: t))
             if def.populationCost > 0 {
                 cities[index].population = max(1, cities[index].population - def.populationCost)

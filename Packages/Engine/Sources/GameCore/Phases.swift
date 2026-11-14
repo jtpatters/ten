@@ -54,6 +54,7 @@ extension GameState {
 
         runGold(for: player, income: gold, &fx)
         runResearch(for: player, science: science, &fx)
+        runStockpiles(for: player)
 
         let ids = units.compactMap { $0.owner == player ? $0.id : nil }
         for id in ids {

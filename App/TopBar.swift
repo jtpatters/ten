@@ -25,6 +25,7 @@ struct TopBar<MenuContent: View>: View {
                 goldChip(view, income)
                 if !compact { researchChip(view, income) }
                 cultureChip(income)
+                StrategicChip(view: view, compact: compact)
                 Spacer(minLength: 0)
                 menu()
             }
@@ -125,6 +126,77 @@ struct TopBar<MenuContent: View>: View {
         } ?? "Science \(YieldChip.signed(income.science)) per turn, no research chosen")
         .accessibilityHint("Choose what to research.")
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// Strategic stockpiles (M2 §3.1): each revealed (or stocked) strategic resource's amount out of
+/// its cap; a tap shows the improved sources and what the units cost. Hidden until there is one.
+struct StrategicChip: View {
+    let view: PlayerView
+    var compact: Bool
+    @State private var showing = false
+
+    struct Entry: Hashable {
+        var name: String
+        var amount: Int
+        var sources: Int
+        var cap: Int
+    }
+
+    static func entries(_ view: PlayerView) -> [Entry] {
+        Resource.allCases.compactMap { r in
+            guard let def = view.rules.resource(r), def.kind == .strategic else { return nil }
+            let stock = view.stock(r)
+            let revealed = def.revealedBy.map(view.me.knows) ?? true
+            guard revealed || stock.amount > 0 || stock.sources > 0 else { return nil }
+            return Entry(name: def.displayName, amount: stock.amount, sources: stock.sources, cap: stock.cap)
+        }
+    }
+
+    var body: some View {
+        let entries = Self.entries(view)
+        if !entries.isEmpty {
+            Button {
+                showing = true
+            } label: {
+                HStack(spacing: HUD.Space.s) {
+                    ForEach(entries, id: \.name) { entry in
+                        HStack(spacing: HUD.Space.xxs) {
+                            Text(compact ? String(entry.name.prefix(1)) : entry.name).font(HUD.title(.caption)).lineLimit(1)
+                            Text("\(entry.amount)/\(entry.cap)").font(HUD.numeric(.caption)).monospacedDigit().lineLimit(1)
+                                .foregroundStyle(entry.amount == 0 ? HUD.danger : HUD.ink)
+                        }
+                        .fixedSize()
+                    }
+                }
+                .padding(.horizontal, HUD.Space.m)
+                .frame(minHeight: HUD.touch)
+                .parchmentCapsule()
+            }
+            .buttonStyle(ChipButtonStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(entries.map { "\($0.name) \($0.amount) of \($0.cap), \($0.sources) sources" }.joined(separator: "; "))
+            .accessibilityHint("Shows your strategic resources.")
+            .accessibilityAddTraits(.isButton)
+            .popover(isPresented: $showing) {
+                InfoPopover(title: "Strategic resources", systemImage: "shield.lefthalf.filled", tint: HUD.gilt,
+                            lines: Self.lines(entries, view: view))
+                    .presentationCompactAdaptation(.popover)
+            }
+        }
+    }
+
+    static func lines(_ entries: [Entry], view: PlayerView) -> [String] {
+        let s = view.rules.stockpile
+        var lines = entries.map { e in
+            let gain = (s?.perSource ?? 0) * e.sources
+            return "\(e.name): \(e.amount) of \(e.cap), from \(e.sources) improved source\(e.sources == 1 ? "" : "s")"
+                + (gain > 0 ? " (+\(gain) per turn)" : "")
+        }
+        if let s {
+            lines.append("Units that need one cost \(s.unitCost) when built, bought or upgraded; at war each uses \(s.warUsePerUnit) a turn, and fights at \(s.shortageStrength) when the stock is empty.")
+        }
+        return lines
     }
 }
 

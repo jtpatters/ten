@@ -115,6 +115,8 @@ enum UnitSprite: SpriteSet {
     var cellSize: Int {
         switch self {
         case .body, .teamMask, .escortedBody, .escortedMask: Self.bodyCell
+        // M2 improvements' job glyphs: half size, which keeps the atlas within its budget.
+        case let .job(kind) where kind.rawValue > Improvement.pasture.rawValue: 64
         default: 128
         }
     }
@@ -1258,6 +1260,56 @@ enum UnitSprite: SpriteSet {
             for (x, y, angle) in [(-0.7, 0.12, 0.42), (-0.26, 0.52, 0.12), (0.26, 0.52, -0.12), (0.7, 0.12, -0.42)] as [(CGFloat, CGFloat, CGFloat)] {
                 shapes.append(oval(x, y, 0.19, 0.26, angle: angle))
             }
+        case .quarry:
+            // Cut stone: two blocks side by side and one laid across them.
+            for (x, y, w) in [(-0.82, -0.72, 0.76), (0.06, -0.72, 0.76), (-0.44, 0.0, 0.88)] as [(CGFloat, CGFloat, CGFloat)] {
+                shapes.append(CGPath(roundedRect: CGRect(x: q(x, 0).x, y: q(0, y).y, width: w * h, height: 0.62 * h),
+                                     cornerWidth: 0.08 * h, cornerHeight: 0.08 * h, transform: nil))
+            }
+        case .plantation:
+            // Two broad leaves on a curved stem.
+            shapes.append(line([q(0, -0.9), q(0.05, -0.2), q(-0.05, 0.6)], width: 0.12))
+            shapes.append(oval(-0.36, 0.22, 0.24, 0.5, angle: 0.8))
+            shapes.append(oval(0.38, -0.08, 0.24, 0.5, angle: -0.8))
+        case .camp:
+            // A ridge tent with a dark doorway.
+            let tent = CGMutablePath()
+            tent.move(to: q(-0.9, -0.7))
+            tent.addLine(to: q(0, 0.8))
+            tent.addLine(to: q(0.9, -0.7))
+            tent.addLine(to: q(0.2, -0.7))
+            tent.addLine(to: q(0, -0.2))
+            tent.addLine(to: q(-0.2, -0.7))
+            tent.closeSubpath()
+            shapes.append(tent)
+            shapes.append(line([q(-0.18, 0.62), q(0, 0.92), q(0.18, 0.62)], width: 0.1))
+        case .fishingBoats:
+            // A hull under a mast and a triangular sail.
+            let hull = CGMutablePath()
+            hull.move(to: q(-0.9, -0.3))
+            hull.addLine(to: q(0.9, -0.3))
+            hull.addQuadCurve(to: q(-0.9, -0.3), control: q(0, -1.1))
+            hull.closeSubpath()
+            shapes.append(hull)
+            shapes.append(line([q(0, -0.35), q(0, 0.9)], width: 0.1))
+            let sail = CGMutablePath()
+            sail.move(to: q(0.1, 0.85))
+            sail.addLine(to: q(0.75, -0.18))
+            sail.addLine(to: q(0.1, -0.18))
+            sail.closeSubpath()
+            shapes.append(sail)
+        case .lumberMill:
+            // Two logs stacked, a saw blade's teeth over them.
+            for y in [-0.62, -0.06] as [CGFloat] {
+                shapes.append(CGPath(roundedRect: CGRect(x: q(-0.86, 0).x, y: q(0, y).y, width: 1.72 * h, height: 0.46 * h),
+                                     cornerWidth: 0.23 * h, cornerHeight: 0.23 * h, transform: nil))
+            }
+            let saw = CGMutablePath()
+            saw.move(to: q(-0.7, 0.52))
+            for k in 0..<7 { saw.addLine(to: q(-0.7 + CGFloat(k) * 0.2 + 0.1, k % 2 == 0 ? 0.86 : 0.52)) }
+            saw.addLine(to: q(0.7, 0.52))
+            saw.closeSubpath()
+            shapes.append(saw)
         }
         f.glyph(shapes: shapes, halo: h * 0.14)
     }

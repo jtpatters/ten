@@ -291,12 +291,17 @@ extension PlayerView {
     /// on its knowledge (own tiles are always visible, so this matches the engine there): the
     /// tile must be own territory, not a city centre, unimproved, allow the improvement, and
     /// its tech must be known. Nil when it could.
+    /// Why this player cannot field a unit of `type` for want of its strategic resource.
+    public func aiResourceProblem(_ type: UnitType) -> String? { state.resourceProblem(type, owner: player) }
+
     public func aiImprovementProblem(_ improvement: Improvement, at hex: HexCoord) -> String? {
         guard let t = index(of: hex), me.explored[t] else { return "unexplored" }
         guard Int(me.memory.tileOwner[t]) == player.rawValue + 1 else { return "tile not in your territory" }
         guard knownCity(at: hex) == nil else { return "not on a city centre" }
         guard me.memory.tileImprovement[t] == 0 else { return "tile already improved" }
-        guard rules.allowsImprovement(improvement, on: state.map.tiles[t]) else { return "not allowed here" }
+        guard rules.allowsImprovement(improvement, on: state.map.tiles[t], resource: state.knownResource(at: t, for: player)) else {
+            return "not allowed here"
+        }
         if let tech = rules.improvement(improvement).tech, !me.knows(tech) { return "needs \(tech)" }
         return nil
     }
