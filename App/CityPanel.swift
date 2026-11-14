@@ -653,6 +653,7 @@ private struct YieldBreakdown: View {
         case .unemployed: "Without a tile (\(max(0, city.population - city.workedTiles.count)))"
         case .population: "Population"
         case let .building(id): rules.building(id)?.name ?? id.rawValue.capitalized
+        case .stability: "Stability"
         }
     }
 }
