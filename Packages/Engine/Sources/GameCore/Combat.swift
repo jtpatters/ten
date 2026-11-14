@@ -38,6 +38,8 @@ public struct StrengthModifier: Hashable, Sendable {
         case shortage(Resource)
         /// The unit's class bonus against the other side's class (rules data).
         case classBonus(UnitClass)
+        /// Attacker: its class's modifier against cities (rules data).
+        case vsCity
         /// The unit's promotions that apply (M2 §8.3).
         case promotion
         /// City Strength: per citizen.
@@ -70,6 +72,7 @@ public struct StrengthModifier: Hashable, Sendable {
         case .wounded: "Wounded"
         case let .shortage(r): "Out of \(caseName(r).capitalized)"
         case let .classBonus(c): "vs \(caseName(c).prefix(1).uppercased() + caseName(c).dropFirst())"
+        case .vsCity: "vs City"
         case .promotion: "Promotions"
         case .population: "Population"
         case .walls: "Walls"
@@ -285,6 +288,7 @@ extension GameState {
             s.add(.wounded, woundPenalty(unit))
             if let r = shortage(of: unit) { s.add(.shortage(r), shortagePenalty(unit)) }
             if let (cls, bonus) = classBonus(of: unit, against: defender) { s.add(.classBonus(cls), bonus) }
+            if case .city = defender { s.add(.vsCity, def.vsCity ?? 0) }
             s.add(.promotion, promotionBonus(of: unit, attacking: true, ranged: ranged, against: defender))
             attack = s
         }

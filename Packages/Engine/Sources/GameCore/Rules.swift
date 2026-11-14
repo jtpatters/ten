@@ -577,6 +577,8 @@ public struct UnitDef: Codable, Hashable, Sendable {
     public let wallDamagePct: Int?
     /// The strategic `Resource` case name it needs (M2 §3.1), if any.
     public let resource: String?
+    /// Strength added when it attacks a city (M2 §8.1: cavalry and ranged −5); nil = 0.
+    public let vsCity: Int?
 
     public var isMilitary: Bool { unitClass != .civilian }
     public var isRanged: Bool { rangedStrength > 0 }
@@ -584,7 +586,7 @@ public struct UnitDef: Codable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case type, unitClass = "class", cost, strength, rangedStrength, range, moves, sight, tech, charges, foundsCity,
              minPopulation, populationCost, classBonuses, capturedAs, capturedCharges, upgradesTo, rangedAfterMove,
-             wallDamagePct, resource
+             wallDamagePct, resource, vsCity
     }
 }
 

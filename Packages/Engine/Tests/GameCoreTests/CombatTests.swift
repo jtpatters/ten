@@ -226,6 +226,25 @@ import Testing
         #expect(p.defenderStrength.total == 27)
         #expect(!p.defenderStrength.modifiers.contains { $0.kind == .walls })
     }
+
+    /// Cavalry and ranged classes attack cities at −5 (M2 §8.1); against units they do not.
+    @Test func cavalryAndRangedAttackCitiesAtMinusFive() throws {
+        var state = makeWarState(width: 16, height: 10)
+        let city = addCity(&state, PlayerID(1), at: hex(6, 3))
+        let archer = state.addUnit(.archer, owner: PlayerID(0), at: hex(4, 3))
+        let horseman = state.addUnit(.horseman, owner: PlayerID(0), at: hex(5, 3))
+        var p = try preview(state, archer, hex(6, 3))
+        #expect(p.defender == .city(city))
+        #expect(p.attackerStrength.modifiers == [StrengthModifier(kind: .vsCity, value: -5)])
+        #expect(p.attackerStrength.modifiers.map(\.name) == ["vs City"])
+        p = try preview(state, horseman, hex(6, 3))
+        #expect(p.attackerStrength.modifiers.contains(StrengthModifier(kind: .vsCity, value: -5)))
+        state.addUnit(.warrior, owner: PlayerID(1), at: hex(5, 4))
+        #expect(try preview(state, horseman, hex(5, 4)).attackerStrength.modifiers.allSatisfy { $0.kind != .vsCity })
+        let warrior = state.addUnit(.warrior, owner: PlayerID(0), at: hex(7, 3))
+        #expect(try preview(state, warrior, hex(6, 3)).attackerStrength.modifiers.allSatisfy { $0.kind != .vsCity })
+        #expect(Ruleset.standard.unit(.dromon).vsCity == -5 && Ruleset.standard.unit(.swordsman).vsCity == nil)
+    }
 }
 
 @Suite struct AttackTests {
