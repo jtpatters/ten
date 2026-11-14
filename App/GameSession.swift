@@ -82,6 +82,8 @@ final class GameSession {
     var describedAction: UnitActionKind?
     /// The unit whose card lists the promotions on offer (Promote, or Next's "Promotion Due").
     var promotingUnit: UnitID?
+    /// The Trader whose route destinations the unit card lists (M2 §13).
+    var tradePicking: UnitID?
 
     // MARK: Phases
 
@@ -577,6 +579,9 @@ final class GameSession {
     func syncWorld() {
         MapAdapter.syncWorld(renderer, state: state, viewer: viewer, diagnostic: diagnostic)
         overlay.quarterMarks = MapAdapter.quarterMarks(state: state, viewer: viewer, diagnostic: diagnostic)
+        let view = state.view(for: viewer)
+        overlay.campMarks = view.knownRaiderCamps.map { view.coord(at: Int($0)) }
+        overlay.tradeRoutes = view.visibleTradeRoutes.map { $0.path.map { view.coord(at: Int($0)) } }
     }
 
     /// A refusal or failure as a sentence for a toast or alert.
@@ -1149,7 +1154,7 @@ final class GameSession {
     /// The panels presented over the map on request (the tech panel, the diplomacy sheet, the
     /// notices log).
     enum Panel: Equatable {
-        case research, civics, government, diplomacy, notices
+        case research, civics, government, diplomacy, notices, minors
     }
 
     /// Esc: closes the combat preview, else leaves bombard target mode, else drops the

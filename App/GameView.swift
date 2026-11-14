@@ -78,7 +78,7 @@ struct GameView: View {
 
     /// The sheets, one at a time.
     enum GameSheet: String, Identifiable {
-        case city, research, civics, government, diplomacy, notices, load
+        case city, research, civics, government, diplomacy, notices, minors, load
         var id: String { rawValue }
     }
 
@@ -319,6 +319,7 @@ struct GameView: View {
         case .civics?: return .civics
         case .government?: return .government
         case .diplomacy?: return .diplomacy
+        case .minors?: return .minors
         case .notices?: return .notices
         case nil: break
         }
@@ -332,7 +333,7 @@ struct GameView: View {
             guard sheet == nil, let shown = wantedSheet else { return }
             switch shown {
             case .load: model.isShowingLoad = false
-            case .research, .civics, .government, .diplomacy, .notices: session.openPanel = nil
+            case .research, .civics, .government, .diplomacy, .minors, .notices: session.openPanel = nil
             case .city:
                 cover.sheetTop = nil
                 // Turning the phone on its side also closes the sheet (the side panel takes
@@ -386,6 +387,11 @@ struct GameView: View {
                 .presentationBackground(HUD.parchmentTop)
         case .diplomacy:
             DiplomacySheet(session: session) { session.openPanel = nil }
+                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationSizing(.form)
+                .presentationBackground(HUD.parchmentTop)
+        case .minors:
+            MinorFactionSheet(session: session) { session.openPanel = nil }
                 .presentationDetents(compact ? [.medium, .large] : [.large])
                 .presentationSizing(.form)
                 .presentationBackground(HUD.parchmentTop)

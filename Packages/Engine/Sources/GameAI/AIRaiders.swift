@@ -60,9 +60,9 @@ extension AITurn {
         for u in freeFighters(v) where isLine(u.type) && u.hp >= ai.retreatHP {
             let f = field(u.id, within: limit)
             guard let t = v.index(of: u.position) else { continue }
-            let cost = t == camp || v.aiDistance(t, camp) <= 1 ? 0
-                : v.neighbors(of: hex).compactMap { v.index(of: $0) }
-                    .map { f[$0] }.filter { $0 > 0 && Int($0) <= limit }.min() ?? -1
+            let step: Int32? = v.neighbors(of: hex).compactMap { v.index(of: $0) }
+                .map { f[$0] }.filter { $0 > 0 && Int($0) <= limit }.min()
+            let cost: Int32 = t == camp || v.aiDistance(t, camp) <= 1 ? 0 : step ?? -1
             if cost >= 0 { candidates.append((cost, u)) }
         }
         candidates.sort { ($0.cost, $0.unit.id) < ($1.cost, $1.unit.id) }

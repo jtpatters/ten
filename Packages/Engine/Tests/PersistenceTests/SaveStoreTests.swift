@@ -90,6 +90,14 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
         #expect(state.freeCities != nil && state.cities.contains { $0.freeCityLeader != nil && $0.freeCityTurns != nil })
         #expect(loaded.state.players.map(\.kind) == state.players.map(\.kind))
         #expect(loaded.state.freeCities == state.freeCities)
+        // Raiders, minor factions, trade routes and a levied unit (M2 §11–§13, additive).
+        #expect(state.raiders?.camps.isEmpty == false && state.raiders?.rebels?.isEmpty == false)
+        #expect(state.minors?.first?.levy != nil && state.minors?.first?.quest != nil && state.tradeRoutes?.isEmpty == false)
+        #expect(loaded.state.raiders == state.raiders && loaded.state.minors == state.minors)
+        #expect(loaded.state.tradeRoutes == state.tradeRoutes && loaded.state.nextRouteID == state.nextRouteID)
+        #expect(loaded.state.units.map(\.owner) == state.units.map(\.owner))
+        #expect(state.players[0].memory.raiderCamps?.isEmpty == false)
+        #expect(loaded.state.players.map(\.memory.raiderCamps) == state.players.map(\.memory.raiderCamps))
         #expect(loaded.state.cities.map(\.loyalty) == state.cities.map(\.loyalty))
         #expect(state.cities.contains { $0.tilesBought != nil } && state.cities.contains { $0.specialists?.isEmpty == false })
         #expect(loaded.state.cities.map(\.tilesBought) == state.cities.map(\.tilesBought))
@@ -172,7 +180,7 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
             hashes.append(state.stateHash())
             PersistenceFixture.playPhase(&state)
         }
-        #expect(written.map(\.url.lastPathComponent).prefix(4) == ["auto-1-0-1.ttys", "auto-1-1-2.ttys", "auto-2-0-3.ttys", "auto-2-1-4.ttys"])
+        #expect(written.map(\.url.lastPathComponent).prefix(4) == ["auto-1-0-1.ttys", "auto-1-1-2.ttys", "auto-1-2-3.ttys", "auto-2-0-4.ttys"])
         #expect(written.allSatisfy { $0.kind == .auto })
         let listed = try await store.list()
         #expect(listed.count == SaveStore.autosavesKept)
@@ -423,7 +431,7 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
         PersistenceFixture.playPhase(&state)
         let b = try await store.autosave(state)
         let c = try await store.saveBackground(state)
-        PersistenceFixture.playPhase(&state)
+        while state.turn < 2 { PersistenceFixture.playPhase(&state) } // the raiders' phase ends turn 1
         let d = try await store.save(state, name: "Rome – Turn 2", kind: .manual)
         try Data("not a save".utf8).write(to: saves.url.appending(path: "junk.ttys"))
         try Data("notes".utf8).write(to: saves.url.appending(path: "notes.txt"))

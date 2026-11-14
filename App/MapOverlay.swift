@@ -70,6 +70,18 @@ final class MapOverlay: UIView {
         didSet { if siteLabels != oldValue { rebuildMarks() } }
     }
 
+    /// Raider camps the viewer remembers (M2 §11): a tent glyph on a crimson-rimmed disc.
+    var campMarks: [HexCoord] = [] {
+        didSet { if campMarks != oldValue { rebuildMarks() } }
+    }
+
+    /// The trade routes the viewer can see (M2 §13), as tile paths: faint dashed lines.
+    var tradeRoutes: [[HexCoord]] = [] {
+        didSet { if tradeRoutes.isEmpty { routeLayer.path = nil } }
+    }
+
+    private let routeLayer = CAShapeLayer()
+
     private let markLayer = CALayer()
     private var marks: [(layer: CALayer, hex: HexCoord)] = []
     private let bannerLayer = CALayer()
@@ -110,6 +122,13 @@ final class MapOverlay: UIView {
         isUserInteractionEnabled = false
         isOpaque = false
         backgroundColor = .clear
+        routeLayer.fillColor = nil
+        routeLayer.strokeColor = HUD.UI.gilt.withAlphaComponent(0.55).cgColor
+        routeLayer.lineWidth = 2
+        routeLayer.lineDashPattern = [6, 4]
+        routeLayer.lineCap = .round
+        routeLayer.lineJoin = .round
+        layer.addSublayer(routeLayer)
         layer.addSublayer(markLayer)
         layer.addSublayer(bannerLayer)
         layer.addSublayer(floaterLayer)
@@ -229,6 +248,7 @@ final class MapOverlay: UIView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         placeMarks(renderer, screen: screen, snap: snap)
+        placeRoutes(renderer)
         var placed: [CGRect] = []
         var renders = 0
         let focus = focusRects(renderer)
@@ -284,7 +304,7 @@ final class MapOverlay: UIView {
         placeFloaters(renderer, snap: snap)
         CATransaction.commit()
 
-        renderer.presentsWithTransaction = !hits.isEmpty || !floaters.isEmpty
+        renderer.presentsWithTransaction = !hits.isEmpty || !floaters.isEmpty || !tradeRoutes.isEmpty
         layoutMilliseconds = layoutMilliseconds * 0.9 + (CACurrentMediaTime() - start) * 100
     }
 
@@ -543,6 +563,9 @@ final class MapOverlay: UIView {
         var arts: [(DamageArt.Rendered, HexCoord)] = quarterMarks.filter { !labelled.contains($0.hex) }.compactMap { mark in
             QuarterMarkArt.image(mark.symbol, pillaged: mark.pillaged, scale: scale).map { ($0, mark.hex) }
         }
+        arts += campMarks.filter { !labelled.contains($0) }.compactMap { hex in
+            QuarterMarkArt.image("tent.2.fill", pillaged: true, scale: scale).map { ($0, hex) }
+        }
         arts += siteLabels.compactMap { label in DamageArt.image(label.text, fill: .gift, big: false, scale: scale).map { ($0, label.hex) } }
         for (art, hex) in arts {
             let layer = CALayer()
@@ -554,6 +577,25 @@ final class MapOverlay: UIView {
             marks.append((layer, hex))
         }
         CATransaction.commit()
+    }
+
+    /// The route lines for this frame: each path through its tiles' screen points, broken where
+    /// a tile is off the view or the map wraps between two steps.
+    private func placeRoutes(_ renderer: MapRenderer) {
+        guard !tradeRoutes.isEmpty else { return }
+        let path = CGMutablePath(), jump = max(bounds.width, bounds.height) / 3
+        for route in tradeRoutes {
+            var last: CGPoint?
+            for point in renderer.screenPoints(of: route, lift: 0) {
+                guard let p = point else {
+                    last = nil
+                    continue
+                }
+                if let l = last, hypot(p.x - l.x, p.y - l.y) < jump { path.addLine(to: p) } else { path.move(to: p) }
+                last = p
+            }
+        }
+        routeLayer.path = path
     }
 
     private func placeMarks(_ renderer: MapRenderer, screen: CGRect, snap: (CGFloat) -> CGFloat) {

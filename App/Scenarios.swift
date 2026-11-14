@@ -62,7 +62,7 @@ enum Scenarios {
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
                         "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads", "naval",
-                        "stability", "quarters", "loyalty", "upkeep", "governance"]
+                        "stability", "quarters", "loyalty", "upkeep", "governance", "world"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -161,6 +161,9 @@ enum Scenarios {
         case "governance":
             foundCapital(&state, player: viewer)
             made = try governance(&state)
+        case "world":
+            foundCapital(&state, player: viewer)
+            made = try world(&state)
         default:
             throw Failure(description: "no scenario “\(name)” (try \(names.joined(separator: ", ")))")
         }
@@ -807,6 +810,55 @@ extension Scenarios {
                     note: "government \(view.government?.name ?? "none"), policies \(view.policies.map(\.name).joined(separator: ", ")); "
                         + "studying \(view.me.studying?.rawValue ?? "nothing"); free change \(view.isFreeChangeTurn); "
                         + "influence \(view.me.influence ?? 0)/\(view.envoyThreshold) (+\(view.influenceIncome)) (use panel government|civics)")
+    }
+
+    /// M2 §11–§13: the viewer has met the nearest minor faction (envoys sent, one token left),
+    /// has a Market (trade capacity 2), one Trader on a route to the minor and one at home, and
+    /// a raider camp in sight 2 tiles from the capital.
+    static func world(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else { throw Failure(description: "no capital") }
+        let map = state.map
+        guard let minor = (state.minors ?? []).min(by: { a, b in
+            let da = state.cities(of: a.player).first.map { map.distance(capital.position, $0.position) } ?? .max
+            let db = state.cities(of: b.player).first.map { map.distance(capital.position, $0.position) } ?? .max
+            return da < db
+        }), let minorCity = state.cities(of: minor.player).first else { throw Failure(description: "no minor faction") }
+        DebugTools.explore(radius: map.distance(capital.position, minorCity.position) + 3, of: capital.position, player: viewer, in: &state)
+        DebugTools.revealCity(minorCity.id, to: viewer, in: &state)
+        DebugTools.meet(viewer, minor.player, in: &state)
+        DebugTools.learnTech(TechID("currency"), player: viewer, in: &state)
+        DebugTools.setCity(capital.id, population: 4, adding: [BuildingID("market")], in: &state)
+        state.players[viewer.rawValue].gold = 150
+        DebugTools.setInfluence(0, tokens: 2, player: viewer, in: &state)
+        try GameEngine.apply(.sendEnvoy(to: minor.player), by: viewer, to: &state)
+        let first = state.addUnit(.trader, owner: viewer, at: capital.position)
+        let home = map.neighbors(of: capital.position).first { hex in
+            guard let t = map.index(of: hex) else { return false }
+            return state.rules.isPassable(map.tiles[t]) && !map.tiles[t].terrain.isWater && state.units(at: hex).isEmpty
+        } ?? capital.position
+        let second = state.addUnit(.trader, owner: viewer, at: home)
+        var routed = "no route"
+        if let unit = state.unit(first) {
+            if let problem = state.tradeRouteProblem(unit, to: minorCity.id) {
+                routed = "route refused: \(problem)"
+            } else {
+                try GameEngine.apply(.startTradeRoute(unit: first, toCity: minorCity.id), by: viewer, to: &state)
+                routed = "route to \(minorCity.name)"
+            }
+        }
+        let ring = map.coords(within: 2, of: capital.position).filter { hex in
+            guard map.distance(capital.position, hex) == 2, let t = map.index(of: hex) else { return false }
+            let tile = map.tiles[t]
+            return !tile.terrain.isWater && state.rules.isPassable(tile) && state.units(at: hex).isEmpty
+                && state.cities.allSatisfy { $0.position != hex }
+        }
+        if let camp = ring.first { DebugTools.addRaiderCamp(at: camp, in: &state) }
+        DebugTools.refreshAllKnowledge(in: &state)
+        let view = state.view(for: viewer)
+        return Made(state: state, focus: .unit(second),
+                    note: "minor \(minorCity.name) (player \(minor.player.rawValue), city \(minorCity.id.rawValue)); \(routed); "
+                        + "routes \(view.myTradeRoutes.count)/\(view.tradeCapacity); camps \(view.knownRaiderCamps.count) (use panel minors, trade)")
     }
 
     /// M2 §5.3, §5.4, §7.4: the capital with a Campus and its Library (a specialist slot) and a

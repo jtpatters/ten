@@ -431,6 +431,18 @@ enum FigurePaint {
                 shapes.append(line([q(-0.7, -0.95), q(0, 0.4), q(0.7, -0.95)], width: 0.14 * h))
                 shapes.append(line([q(-0.9, 0.9), q(0.6, 0.05)], width: 0.12 * h))
                 shapes.append(CGPath(rect: CGRect(x: q(0.4, 0).x, y: q(0, -0.45).y, width: 0.5 * h, height: 0.5 * h), transform: nil))
+            case .trader:
+                // A tied sack of goods with a coin beside it.
+                let sack = CGMutablePath()
+                sack.move(to: q(-0.28, 0.42))
+                sack.addCurve(to: q(-0.3, -0.9), control1: q(-1.0, 0.2), control2: q(-1.05, -0.9))
+                sack.addLine(to: q(0.3, -0.9))
+                sack.addCurve(to: q(0.28, 0.42), control1: q(1.05, -0.9), control2: q(1.0, 0.2))
+                sack.closeSubpath()
+                shapes.append(sack)
+                shapes.append(line([q(-0.3, 0.55), q(0.3, 0.55)], width: 0.16 * h))
+                shapes.append(line([q(-0.32, 0.9), q(0, 0.6), q(0.32, 0.9)], width: 0.14 * h))
+                shapes.append(CGPath(ellipseIn: circle(0.68, 0.58, 0.28), transform: nil))
             case .galley, .quadrireme, .cog, .dromon:
                 // A hull under a mast and sail: one sail (galley, cog) or two (quadrireme, dromon);
                 // the war galleys carry a ram.

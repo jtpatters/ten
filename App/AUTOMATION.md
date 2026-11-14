@@ -106,6 +106,7 @@ New Game, `newgame` and `-autostart` always place them.
 | `loyalty` | Turn 3: a forward viewer city at Loyalty 12 beside the rival capital at population 12, falling towards a revolt, and a second viewer city that revolted into a Free City (M2 §5.5, §12.5); the forward city selected. |
 | `upkeep` | The capital at population 6 with a Granary, a Campus and its Library (one specialist slot) on the Science focus, so a citizen is a specialist; 60 Gold, enough to buy a tile (M2 §5.3, §5.4, §7.4); the capital selected. Use `buytile` for the tile choice. |
 | `governance` | The civics up to Political Philosophy learnt (the last this turn, so changes are free), Oligarchy adopted with a Military and an Economic policy, the next civic being studied, 200 Gold and 14 Influence with an envoy token (M2 §7.1–7.3, §4.3); the capital selected. Use `panel civics` or `panel government`. |
+| `world` | The nearest minor faction met and remembered, with two envoys from the viewer (one token left); a Market in the capital (trade capacity 2), Currency known, one Trader on a route to the minor and one beside the capital (selected); a raider camp in sight 2 tiles from the capital (M2 §11–§13). Use `panel minors` or `trade`. |
 
 The `scenario` command's result ends with the scenario's note when it has one: the units and
 tiles to use next (`rivals`, `walls`, `repreview`, `tribal-villages`).
@@ -247,11 +248,15 @@ plus 0.25 s for the screen to draw.
 | `tapnotice` | A tap on the notice toast: the camera goes to its first line's place. |
 | `testnotices` | Posts three sample notices (production, growth, a declaration of war), for looking at the toast. |
 | `testgift [gold\|science\|builder] [phase] [city] [q r]` | A tribal village gift to the human, shown as a take would show it (a `tribalVillageTaken` and a `tribalVillageGift` record through the session's notice, label and attention path) without changing the game: taken by the selected own unit, or with `city` by the capital's land; on the taker's tile, or on `q r`; as the human's own command, or with `phase` as at its phase start (important, so the card waits and `attention` lists `news N`). The amounts are the rules'. Result: the log's newest line, `<kind> <importance>: <text>` (`tribalVillageGift info: Your Scout reached a tribal village: +50 Gold`). With `slowmo 4` first, a screenshot catches the float label. |
-| `panel research\|tech\|civics\|government\|governments\|diplomacy\|notices\|close` | Opens the tech panel, the civic panel, the government panel (government, policy slots and policies; `governments` scrolls it to the list of governments), the diplomacy sheet or the notices log (the menu's Notices…), or closes the open one (and the Load sheet); `close` also deselects a selected city, closing its panel, as `escape` would. Result: what is open (`panel research`, `city panel (overview)`, the selection). |
+| `panel research\|tech\|civics\|government\|governments\|diplomacy\|minors\|notices\|close` | Opens the tech panel, the civic panel, the government panel (government, policy slots and policies; `governments` scrolls it to the list of governments), the diplomacy sheet, the minor faction sheet or the notices log (the menu's Notices…), or closes the open one (and the Load sheet); `close` also deselects a selected city, closing its panel, as `escape` would. Result: what is open (`panel research`, `city panel (overview)`, the selection). |
 | `research <tech>` | A tap on that tech's row of the tech panel (id such as `animalHusbandry`, or name), opening the panel first: researches it through its missing prerequisites and closes the panel, or says why not (`Mining is already known`, another player's phase). Result: `researching <tech>, N turns[, on the way to <target>]; panel closed`. |
 | `civic <civic>` | A tap on that civic's row of the civic panel (id such as `codeOfLaws`, or name), opening the panel first: studies it through its missing prerequisites, or says why not. Result: `studying <civic>, N turns`. |
 | `government <id>` | The government panel's Adopt button for that government (id such as `oligarchy`). Result: `government <name>`, or why not. |
 | `policies [id …]` | Slots exactly these policies (the government panel's Apply), checked by `policiesProblem` first. Result: `policies <ids>`, or `not set: <problem>`. |
+| `envoy <player>` | Sends an envoy to that minor faction (Send Envoy in the minor faction sheet). Without a player, fails listing the known minors' player ids. Result: `envoys <n>` (the viewer's there now), or the refusal. |
+| `levy <player>` | Levies that minor faction's army (Levy in the minor faction sheet). Result: `levied`, or the refusal. |
+| `trade [<city>\|cancel]` | With a Trader selected: without a city, opens the unit card's destination list and lists `<city id> <name> +<value>` or why not, per known city; with a city id, starts the route (the list's button); `cancel` closes the list. Result: `routes <n>/<capacity>`, or the refusal. |
+| `plunder` | The selected unit plunders the enemy trade route where it stands (the Plunder tile). Result: `plundered`, or the refusal. |
 | `panel city <id>` | Selects that own city: its panel (iPad side panel, iPhone sheet). |
 | `panel production\|overview\|yields\|defence` | Scrolls the selected city's panel to that part (production opens the iPhone sheet at its large detent). |
 | `slowmo <factor>` | Event animations and damage numbers that many times slower (1: normal), for screenshots. |
@@ -322,7 +327,7 @@ facts about the session:
   `upkeep`, `news`, `combatPreview`, `bombardTargets`, `tileSheet`, `infoCard`, `unit`, or null;
   a city's panel is not a card), `pendingPathTurns` (the previewed route's turns, or null);
 - `attention` (the queue, as the `attention` command lists it), `nextItem`, `attentionCard`,
-  `openPanel` (`research`, `civics`, `government`, `diplomacy`, `notices` or null), `government` (id or null), `policies` (ids), `studying` (civic id or null), `influence`, `cityPanel` (the selected city's panel part, or
+  `openPanel` (`research`, `civics`, `government`, `diplomacy`, `minors`, `notices` or null), `government` (id or null), `policies` (ids), `studying` (civic id or null), `influence`, `minors` (the known minors' player ids), `tradeRoutes` and `tradeCapacity` (the viewer's), `raiderCamps` (camps remembered), `cityPanel` (the selected city's panel part, or
   null), `bombardTargeting` (the city picking a target), `tileBuying` (the city choosing a tile to buy), `endTurnPrompt` (the count asked
   about), `pendingPurchase`, `pendingRaze`, `pendingWar`, `peaceProposals` (players whose
   proposal awaits the human's answer), `mapInsets` (points the HUD covers on each side),

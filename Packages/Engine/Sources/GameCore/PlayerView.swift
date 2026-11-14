@@ -169,6 +169,11 @@ public struct PlayerView: Sendable {
         state.allTradeRoutes.filter { r in r.owner == player || r.path.contains { me.visible[Int($0)] } }
     }
     public var tradeCapacity: Int { state.tradeCapacity(of: player) }
+    /// The city a route by own Trader `unit` would start from: the city owning its tile.
+    public func tradeOrigin(of unit: UnitID) -> CityID? {
+        guard let u = state.unit(unit), u.owner == player else { return nil }
+        return state.tradeOrigin(at: u.position, for: player)?.id
+    }
     public func tradeRouteProblem(_ unit: UnitID, to city: CityID) -> String? {
         guard let u = state.unit(unit), u.owner == player else { return "not your unit" }
         return state.tradeRouteProblem(u, to: city)

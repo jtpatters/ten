@@ -48,6 +48,7 @@ struct CityPanel: View {
                         overview(view).id(Anchor.top)
                         production(view).id(Anchor.production)
                         citizens(view)
+                        trade(view)
                         yieldsTable(view).id(Anchor.yields)
                         buildings(view)
                         defence(view).id(Anchor.defence)
@@ -290,6 +291,32 @@ struct CityPanel: View {
         }
     }
 
+    /// Trade (M2 §13): the empire's routes against its capacity, and this city's routes.
+    @ViewBuilder
+    private func trade(_ view: PlayerView) -> some View {
+        if view.rules.trade != nil, city.owner == session.viewer {
+            let routes = view.myTradeRoutes
+            let here = routes.filter { $0.origin == city.id }
+            VStack(alignment: .leading, spacing: HUD.Space.xs) {
+                SectionHeader(title: "Trade")
+                Text("Trade routes \(routes.count) of \(view.tradeCapacity) in your empire; \(here.count) from \(city.name).")
+                    .font(HUD.body(.caption))
+                    .foregroundStyle(HUD.inkSoft)
+                ForEach(here, id: \.id) { route in
+                    let name = view.knownCities.first { $0.id == route.destination }?.name ?? view.city(route.destination)?.name ?? "a city"
+                    let kind = switch route.kind {
+                    case .domestic: "domestic"
+                    case .international: "international"
+                    case .minor: "to a minor faction"
+                    }
+                    let when = route.arrives > view.turn ? "arrives in \(route.arrives - view.turn) turns" : "\(max(0, route.ends - view.turn)) turns left"
+                    Label("To \(name) · \(kind) · \(when)", systemImage: "shippingbox.fill")
+                        .font(HUD.body(.caption).weight(.semibold))
+                }
+            }
+        }
+    }
+
     private func workedText(unemployed: Int) -> String {
         let worked = city.workedTiles.count
         var text = worked == 1 ? "1 citizen works the tile marked on the map" : "\(worked) citizens work the tiles marked on the map"
@@ -469,6 +496,7 @@ struct ItemIcon: View {
             case .trebuchet: "triangle"
             case .galley, .cog: "sailboat"
             case .quadrireme, .dromon: "sailboat.fill"
+            case .trader: "shippingbox"
             }
         case let .building(id):
             switch id.rawValue {
@@ -811,6 +839,8 @@ private struct YieldBreakdown: View {
         case let .quarter(kind): rules.quarter(kind)?.name ?? kind.rawValue.capitalized
         case .stability: "Stability"
         case .government: "Government and policies"
+        case .envoys: "Envoys at minor factions"
+        case .trade: "Trade routes"
         }
     }
 }

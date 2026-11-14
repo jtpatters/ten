@@ -86,6 +86,8 @@ struct LegacySave {
         // M2 2.3 civics, governments and policies (M2 §7.1–7.3).
         json.removeValue(forKey: "civics")
         json.removeValue(forKey: "governance")
+        // M2 2.4 (raiders, minor factions, trade).
+        for key in ["raiders", "minors", "trade"] { json.removeValue(forKey: key) }
         json["focuses"] = (json["focuses"] as? [[String: Any]] ?? []).filter { !["science", "culture"].contains($0["focus"] as? String ?? "") }
         let m1Buildings = ["palace", "monument", "granary", "walls", "library", "market"]
         json["buildings"] = (json["buildings"] as? [[String: Any]] ?? []).filter { m1Buildings.contains($0["id"] as? String ?? "") }

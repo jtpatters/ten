@@ -233,6 +233,41 @@ final class AutomationInbox {
             if let problem = session.view.policiesProblem(args) { return "not set: " + problem }
             let ok = session.perform(.setPolicies(policies: args))
             return ok ? "policies " + session.view.policies.map(\.id).joined(separator: " ") : (session.message ?? "not set")
+        case "envoy":
+            // envoy <minor player>: sends an envoy (Send Envoy in the minor faction sheet)
+            guard let id = args.first.flatMap(Int.init) else {
+                throw Failure(description: "envoy <player>: " + session.view.knownMinors.map { "\($0.player.rawValue)" }.joined(separator: ", "))
+            }
+            let ok = session.perform(.sendEnvoy(to: PlayerID(id)))
+            let envoys = session.view.knownMinors.first { $0.player.rawValue == id }?.envoys
+            return ok ? "envoys \(envoys.map { $0.indices.contains(session.viewer.rawValue) ? $0[session.viewer.rawValue] : 0 } ?? 0)"
+                : (session.message ?? "not sent")
+        case "levy":
+            // levy <minor player>: levies the minor's army (Levy in the minor faction sheet)
+            guard let id = args.first.flatMap(Int.init) else { throw Failure(description: "levy <player>") }
+            let ok = session.perform(.levy(minor: PlayerID(id)))
+            return ok ? "levied" : (session.message ?? "not levied")
+        case "trade":
+            // trade [<city id>|cancel]: the selected Trader's destination list, or starts its route to that city
+            guard let unit = session.selectedUnit, unit.type == .trader else { throw Failure(description: "trade: select a Trader") }
+            if args.first == "cancel" {
+                session.tradePicking = nil
+                return "closed"
+            }
+            guard let id = args.first.flatMap(Int.init) else {
+                session.tradePicking = unit.id
+                let options = session.view.knownCities.map { c in
+                    "\(c.id.rawValue) \(c.name) " + (session.view.tradeRouteProblem(unit.id, to: c.id) ?? "+\(session.view.tradeRouteValue(unit.id, to: c.id))")
+                }
+                return options.joined(separator: "; ")
+            }
+            let ok = session.perform(.startTradeRoute(unit: unit.id, toCity: CityID(id)))
+            return ok ? "routes \(session.view.myTradeRoutes.count)/\(session.view.tradeCapacity)" : (session.message ?? "not started")
+        case "plunder":
+            // plunder: the selected unit plunders the trade route where it stands
+            guard let unit = session.selectedUnit else { throw Failure(description: "plunder: select a unit") }
+            let ok = session.perform(.plunder(unit: unit.id))
+            return ok ? "plundered" : (session.message ?? session.view.plunderProblem(unit.id) ?? "not plundered")
         case "hourglass":
             // The hourglass beside Next (shown while items are pending): ends the turn early,
             // asking "N items need attention — End Turn?" once per game.
@@ -555,7 +590,7 @@ final class AutomationInbox {
             ])
             return ""
         case "panel":
-            // panel research|tech|civics|government|governments|diplomacy|notices|close, or panel city <id>|production|overview|yields|defence:
+            // panel research|tech|civics|government|governments|diplomacy|minors|notices|close, or panel city <id>|production|overview|yields|defence:
             // opens a panel (the city's at one of its parts), or closes the open one
             switch args.first {
             case "research", "tech": session.openPanel = .research
@@ -565,6 +600,7 @@ final class AutomationInbox {
                 session.panelAnchor = GovernmentPanel.governmentsAnchor
                 session.openPanel = .government
             case "diplomacy": session.openPanel = .diplomacy
+            case "minors", "minor": session.openPanel = .minors
             case "notices", "log": session.openPanel = .notices
             case "city":
                 guard args.count > 1, let id = Int(args[1]) else { throw Failure(description: "panel city <id>") }
@@ -837,6 +873,10 @@ final class AutomationInbox {
             "policies": session.view.policies.map(\.id),
             "studying": optional(session.view.me.studying?.rawValue),
             "influence": session.view.me.influence ?? 0,
+            "minors": session.view.knownMinors.map { "\($0.player.rawValue)" },
+            "tradeRoutes": session.view.myTradeRoutes.count,
+            "tradeCapacity": session.view.tradeCapacity,
+            "raiderCamps": session.view.knownRaiderCamps.count,
             // What the HUD covers (points): the camera centres in the rest.
             "mapInsets": ["top": Double(session.mapInsets.top), "left": Double(session.mapInsets.left),
                           "bottom": Double(session.mapInsets.bottom), "right": Double(session.mapInsets.right)],

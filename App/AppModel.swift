@@ -233,7 +233,8 @@ final class AppModel {
         let generated = MapGenerator.generate(MapGenSettings(size: setup.size, seed: setup.seed, script: setup.script))
         let civs = GameState.civOrder(human: civ, players: generated.startPositions.count, rules: rules)
         return GameState.newGame(seed: setup.seed, map: generated.map, startPositions: generated.startPositions, rules: rules,
-                                 civs: civs, mapSizeName: setup.size.rawValue, placeTribalVillages: setup.tribalVillages)
+                                 civs: civs, mapSizeName: setup.size.rawValue, placeTribalVillages: setup.tribalVillages,
+                                 placeMinors: true)
     }
 
     /// Puts a game on screen and starts play (`resumingSave`: the state came from a save, with

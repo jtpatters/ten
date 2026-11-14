@@ -59,12 +59,17 @@ struct UnitCard: View {
                         tile(action, fill: true)
                     }
                     if let target = def.upgradesTo { upgradeTile(to: target) }
+                    if unit.type == .trader, view.rules.trade != nil { tradeTile }
+                    if def.isMilitary, view.rules.trade != nil, view.plunderProblem(unit.id) == nil { plunderTile }
                     if !offered.isEmpty { promoteTile }
                     if session.canExplore(unit), !session.exploreLeads(unit) { ExploreTile(session: session, unit: unit, compact: compact) }
                 }
                 if let kind = session.describedAction, let action = actions.first(where: { $0.kind == kind }) {
                     description(action)
                         .transition(.opacity)
+                }
+                if session.tradePicking == unit.id, unit.type == .trader {
+                    tradeDestinations(view).transition(.opacity)
                 }
                 if session.promotingUnit == unit.id, !offered.isEmpty {
                     promotionList(offered).transition(.opacity)
@@ -81,6 +86,75 @@ struct UnitCard: View {
         .animation(.easeInOut(duration: 0.15), value: session.describedAction)
         .animation(.easeInOut(duration: 0.15), value: session.promotingUnit)
         .onChange(of: unit.id) { upgradeDescribed = false }
+    }
+
+    // MARK: Trade routes (M2 §13)
+
+    /// Trade Route: lists the cities the Trader can reach, best first.
+    private var tradeTile: some View {
+        ActionTileView(title: "Trade Route", symbol: "shippingbox.fill", lit: session.isInputEnabled && unit.movesLeft > 0,
+                       destructive: false, compact: compact, fill: true,
+                       onTap: { session.tradePicking = session.tradePicking == unit.id ? nil : unit.id },
+                       onLongPress: { session.tradePicking = session.tradePicking == unit.id ? nil : unit.id })
+            .accessibilityHint("Choose a city to trade with. The Trader leaves the map while the route runs.")
+    }
+
+    /// Plunder: breaks the enemy trade route on this tile, for Gold.
+    private var plunderTile: some View {
+        ActionTileView(title: "Plunder", symbol: "shippingbox.and.arrow.backward.fill", lit: session.isInputEnabled,
+                       destructive: true, compact: compact, fill: true,
+                       onTap: { _ = session.perform(.plunder(unit: unit.id)) }, onLongPress: {})
+            .accessibilityHint("Break the enemy trade route here for Gold. Uses all moves.")
+    }
+
+    private struct TradeOption: Identifiable {
+        var city: CitySighting
+        var problem: String?
+        var value: Int
+        var id: CityID { city.id }
+    }
+
+    /// Open destinations first, the most valuable first, then by name.
+    private static func better(_ a: TradeOption, _ b: TradeOption) -> Bool {
+        let ka = (a.problem == nil ? 0 : 1, -a.value), kb = (b.problem == nil ? 0 : 1, -b.value)
+        return ka != kb ? ka < kb : a.city.name < b.city.name
+    }
+
+    /// The known cities with what a route there is worth per turn, or why the Trader can't go.
+    private func tradeDestinations(_ view: PlayerView) -> some View {
+        // Not the Trader's own origin ("no such city").
+        let all: [TradeOption] = view.knownCities.filter { $0.id != view.tradeOrigin(of: unit.id) }.map { city in
+            TradeOption(city: city, problem: view.tradeRouteProblem(unit.id, to: city.id), value: view.tradeRouteValue(unit.id, to: city.id))
+        }
+        let options: [TradeOption] = Array(all.sorted(by: Self.better).prefix(8))
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Trade routes \(view.myTradeRoutes.count) of \(view.tradeCapacity) · choose a destination")
+                .font(HUD.title(.caption))
+            ForEach(options) { option in
+                Button {
+                    session.tradePicking = nil
+                    _ = session.perform(.startTradeRoute(unit: unit.id, toCity: option.city.id))
+                } label: {
+                    HStack(spacing: HUD.Space.s) {
+                        PlayerEmblem(player: option.city.owner, size: 16)
+                        Text(option.city.name).font(HUD.body(.caption).weight(.semibold))
+                        Spacer(minLength: HUD.Space.s)
+                        if let problem = option.problem {
+                            Text(problem).font(HUD.body(.caption2)).foregroundStyle(HUD.inkSoft).lineLimit(1)
+                        } else {
+                            Text("≈\(option.value) per turn").font(HUD.numeric(.caption)).foregroundStyle(HUD.Yield.gold)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(option.problem != nil || !session.isInputEnabled)
+            }
+            if options.isEmpty { Text("No known city to trade with.").font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft) }
+        }
+        .padding(.horizontal, HUD.Space.s)
+        .padding(.vertical, HUD.Space.xs + 2)
+        .parchmentWell()
     }
 
     // MARK: Upgrade and Promote (M2 §8.2, §8.3)

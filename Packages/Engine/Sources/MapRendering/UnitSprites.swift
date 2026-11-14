@@ -67,8 +67,9 @@ enum UnitSprite: SpriteSet {
 
     static var all: [UnitSprite] {
         var keys: [UnitSprite] = []
-        // The four ships share the Galley's body (placeholder art, ART.md §10's budget).
-        for type in UnitType.allCases where !type.isNaval || type == shipBody {
+        // The four ships share the Galley's body and the Trader the Settler's (placeholder art,
+        // ART.md §10's budget).
+        for type in UnitType.allCases where hasOwnBody(type) {
             if sharesWestBody(type) {
                 keys += [.body(type, east: false)] + (dataCell(type).key == type ? [.teamMask(type)] : [])
             } else {
@@ -100,14 +101,21 @@ enum UnitSprite: SpriteSet {
         case .settler, .builder, .scout, .warrior, .archer, .spearman: false
         case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: true
         case .galley, .quadrireme, .cog, .dromon: true
+        case .trader: false
         }
     }
 
     /// The type whose body every ship is drawn with (M2 §8.4, placeholder art).
     static let shipBody = UnitType.galley
 
-    /// The type whose body cells `type` is drawn with: its own, or the shared ship body.
-    static func bodyType(_ type: UnitType) -> UnitType { type.isNaval ? shipBody : type }
+    /// The type whose body cells `type` is drawn with: its own, the shared ship body, or the
+    /// Settler's wagon for the Trader (M2 §13, placeholder art).
+    static func bodyType(_ type: UnitType) -> UnitType {
+        type.isNaval ? shipBody : type == .trader ? .settler : type
+    }
+
+    /// Whether `type` has body cells of its own.
+    static func hasOwnBody(_ type: UnitType) -> Bool { bodyType(type) == type }
 
     /// The M2 types' data cells hold two types each: the first in red and green, the second
     /// in blue and alpha (the same budget, ART.md §10).
@@ -130,9 +138,9 @@ enum UnitSprite: SpriteSet {
         switch self {
         case .body, .teamMask, .escortedBody, .escortedMask: Self.bodyCell
         // Half-size cells keep the atlas within its budget (ART.md §10): job glyphs, ship
-        // badges, the tribal village token, the pillaged and embark marks.
+        // badges, the Trader's badge, the tribal village token, the pillaged and embark marks.
         case .job, .tribalVillage, .pillaged, .embark: 64
-        case let .badge(type) where type.isNaval: 64
+        case let .badge(type) where type.isNaval || type == .trader: 64
         default: 128
         }
     }
@@ -227,7 +235,7 @@ enum UnitSprite: SpriteSet {
     /// foot, `standardFoot` in its own cell, goes here.
     static func standardMount(_ type: UnitType, east: Bool) -> SIMD2<Float> {
         let x: Float = switch type {
-        case .settler: 0.5
+        case .settler, .trader: 0.5
         case .builder: 0.684 // the surveyor's rod
         case .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 0.596
         case .scout, .horseman, .knight, .heavyChariot: 0.612
@@ -243,7 +251,7 @@ enum UnitSprite: SpriteSet {
     /// tail barrel, the horse's tail) stay inside the cell's margin.
     static func bodyFit(_ type: UnitType) -> Float {
         switch type {
-        case .settler: 0.93
+        case .settler, .trader: 0.93
         case .builder, .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 1
         case .scout, .horseman, .knight, .heavyChariot: 0.97
         case .catapult, .trebuchet: 0.95
@@ -368,14 +376,14 @@ enum UnitSprite: SpriteSet {
 
     /// Every body recorded once (both facings), shared by the atlas build and instance building.
     private static let recordings: [FigureKey: RecordedFigure] = {
-        let keys = UnitType.allCases.filter { !$0.isNaval || $0 == shipBody }.flatMap { type in [false, true].map { FigureKey(type: type, east: $0) } }
+        let keys = UnitType.allCases.filter(hasOwnBody).flatMap { type in [false, true].map { FigureKey(type: type, east: $0) } }
             + [false, true].map { FigureKey(type: .settler, east: $0, pole: false) }
         let done = Mutex<[FigureKey: RecordedFigure]>([:])
         DispatchQueue.concurrentPerform(iterations: keys.count) { i in
             let key = keys[i]
             var figure = Figure(size: 256, mirrored: key.east, fit: CGFloat(bodyFit(key.type)))
             switch key.type {
-            case .settler: settler(&figure, pole: key.pole)
+            case .settler, .trader: settler(&figure, pole: key.pole)
             case .builder: builder(&figure)
             case .warrior: warrior(&figure)
             case .archer: archer(&figure)

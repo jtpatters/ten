@@ -33,6 +33,7 @@ import Testing
         // M2 2.1a: the world era and Insight credit (M2 §2, §6.2).
         // M2 2.1c: map resources and strategic stockpiles (M2 §3.1), roads and pillage (§3.3).
         // M2 2.2a: city Stability (M2 §5.2). M2 2.2b: quarters, queued quarters and their fixed cost (§5.3).
+        // M2 2.4: raiders and remembered camps (M2 §11), minor factions (§12), trade routes (§13).
         1: ["cities[].quarters", "cities[].quarters[].kind", "cities[].quarters[].tile", "cities[].quarters[].tile.q",
             "cities[].quarters[].tile.r", "cities[].queue[].cost", "cities[].queue[].item.quarter", "cities[].queue[].item.quarter._0",
             "cities[].queue[].item.quarter.at", "cities[].queue[].item.quarter.at.q", "cities[].queue[].item.quarter.at.r",
@@ -40,7 +41,18 @@ import Testing
             "players[].memory.tileRoad.count", "players[].memory.tileRoad.words", "players[].memory.tribalVillages", "players[].stockpile",
             "players[].techCredit", "players[].studying", "players[].civicTarget", "players[].civicProgress", "players[].knownCivics", "players[].civicInsights", "players[].government", "players[].governmentsAdopted", "players[].policies", "players[].freeChangeTurn", "players[].influence", "players[].envoyTokens", "players[].envoysEarned",
             "tribalVillages", "tribalVillages.gifts", "tribalVillages.sites", "units[].attacked",
-            "units[].promotions", "worldEra"],
+            "units[].promotions", "worldEra",
+            "minors", "minors[].envoys", "minors[].firstMet", "minors[].firstMet.rawValue", "minors[].levy",
+            "minors[].levy.player", "minors[].levy.player.rawValue", "minors[].levy.units", "minors[].levy.units[].rawValue",
+            "minors[].levy.until", "minors[].patron", "minors[].patron.rawValue", "minors[].player",
+            "minors[].player.rawValue", "minors[].quest", "minors[].quest.building", "minors[].quest.issued",
+            "minors[].quest.kind", "minors[].questsCompleted", "minors[].type", "nextRouteID", "players[].memory.raiderCamps",
+            "raiders", "raiders.camps", "raiders.camps[].spawnedTurn", "raiders.camps[].tile", "raiders.camps[].units",
+            "raiders.camps[].units[].rawValue", "raiders.cleared", "raiders.rebels", "raiders.rebels[].city",
+            "raiders.rebels[].city.rawValue", "raiders.rebels[].unit", "raiders.rebels[].unit.rawValue", "tradeRoutes",
+            "tradeRoutes[].arrives", "tradeRoutes[].destination", "tradeRoutes[].destination.rawValue", "tradeRoutes[].ends",
+            "tradeRoutes[].id", "tradeRoutes[].kind", "tradeRoutes[].origin", "tradeRoutes[].origin.rawValue",
+            "tradeRoutes[].owner", "tradeRoutes[].owner.rawValue", "tradeRoutes[].path",],
     ]
 
     /// The sorted key paths of a value's JSON encoding: object keys joined with ".", array
