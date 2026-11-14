@@ -79,6 +79,8 @@ struct LegacySave {
         json.removeValue(forKey: "stability")
         // M2 2.2b quarters (M2 §5.3) and their buildings, and the Castle.
         json.removeValue(forKey: "quarters")
+        // M2 2.2c Loyalty and the Free Cities (M2 §5.5, §12.5).
+        json.removeValue(forKey: "loyalty")
         let m1Buildings = ["palace", "monument", "granary", "walls", "library", "market"]
         json["buildings"] = (json["buildings"] as? [[String: Any]] ?? []).filter { m1Buildings.contains($0["id"] as? String ?? "") }
             .map { b in b.filter { !["housing", "stability", "requiresRiver", "quarter", "requires", "excludes"].contains($0.key) } }
@@ -221,6 +223,10 @@ struct LegacySave {
         for _ in 0..<6 { PersistenceFixture.playPhase(&later) }
         #expect(later.tribalVillages == nil && later.players.allSatisfy { $0.memory.tribalVillages == nil })
         #expect(later.checkInvariants().isEmpty)
+        // Nor any Free Cities (M2 §12.5): no such player, and Loyalty neither shows nor threatens a revolt.
+        #expect(later.freeCities == nil && later.players.allSatisfy(\.isMajor))
+        #expect(later.cities.allSatisfy { later.view(for: $0.owner).loyaltyBreakdown(of: $0.id) == nil })
+        #expect(later.cities.allSatisfy { later.view(for: $0.owner).turnsUntilRevolt(of: $0.id) == nil })
     }
 
     /// A game with tribal villages (the populated fixture: two, with gifts given, one

@@ -85,7 +85,7 @@ struct TurtlePlayer {
 
     mutating func diplomacy() {
         for proposer in view.peaceProposals { issue(.respondToPeace(from: proposer, accept: true)) }
-        for other in view.players where other.id != me && other.isAlive && view.isAtWar(with: other.id) {
+        for other in view.players where other.id != me && other.isAlive && other.isMajor && view.isAtWar(with: other.id) {
             if view.peaceProblem(to: other.id) == nil { issue(.proposePeace(to: other.id)) }
         }
     }

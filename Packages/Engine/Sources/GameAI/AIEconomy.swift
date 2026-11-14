@@ -396,7 +396,7 @@ extension AITurn {
     /// A met rival none of whose cities the player remembers (M1 §13 Exploring), lowest first.
     func unlocatedRival(_ v: PlayerView) -> PlayerID? {
         v.players.first { p in
-            p.id != player && p.isAlive && v.hasMet(p.id) && !v.knownCities.contains { $0.owner == p.id }
+            p.id != player && p.isAlive && p.isMajor && v.hasMet(p.id) && !v.knownCities.contains { $0.owner == p.id }
         }?.id
     }
 

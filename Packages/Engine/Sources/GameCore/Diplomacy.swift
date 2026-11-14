@@ -101,6 +101,9 @@ extension GameState {
         guard other != player, players.indices.contains(other.rawValue), players[other.rawValue].isAlive else {
             return "no such player"
         }
+        guard players[player.rawValue].isMajor, players[other.rawValue].isMajor else {
+            return "the Free Cities make no treaties"
+        }
         return nil
     }
 

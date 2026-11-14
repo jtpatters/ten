@@ -62,6 +62,11 @@ public struct City: Codable, Hashable, Sendable, Identifiable {
     public var stability: Int?
     /// Built quarters in build order (M2 §5.3); nil when none.
     public var quarters: [CityQuarter]?
+    /// Loyalty 0–100 (M2 §5.5); nil without Loyalty rules.
+    public var loyalty: Int?
+    /// A Free City's leading civ by pressure and for how many consecutive turns (M2 §5.5).
+    public var freeCityLeader: PlayerID?
+    public var freeCityTurns: Int?
 
     init(id: CityID, name: String, owner: PlayerID, position: HexCoord, turn: Int, hp: Int) {
         self.id = id

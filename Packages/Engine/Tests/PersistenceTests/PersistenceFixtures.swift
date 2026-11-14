@@ -54,9 +54,10 @@ enum PersistenceFixture {
     static func populated(outcome: GameOutcome? = .victory(player: PlayerID(0), kind: .domination)) -> GameState {
         let map = map()
         let civs: [CivID] = ["rome", "mongols", "mali"]
+        // The Free Cities after the civs (M2 §12.5, `Player.kind` additive).
         let players = (0..<3).map { i in
             Player(id: PlayerID(i), name: "Player \(i)", isHuman: i == 0, tileCount: map.tileCount, civ: civs[i], gold: 40 + 7 * i)
-        }
+        } + [Player(id: PlayerID(3), name: "Free Cities", isHuman: false, tileCount: map.tileCount, kind: .free)]
         var state = GameState(seed: 0x5EED_0F_5A7E, map: map, players: players, rules: .standard, mapSizeName: "duel")
         let rome = found(&state, PlayerID(0), at(2, 2))
         let karakorum = found(&state, PlayerID(1), at(7, 2))
@@ -122,6 +123,8 @@ enum PersistenceFixture {
             c.wallHP = 40
             c.lastAttackedPhase = 9
             c.bombarded = true
+            // Loyalty (M2 §5.5, additive).
+            c.loyalty = 72
         }
         city(&state, karakorum) { c in
             c.focus = .food
@@ -137,7 +140,15 @@ enum PersistenceFixture {
             c.buildings = ["monument"]
             c.hp = 60
         }
-        city(&state, avarga) { $0.focus = .balanced }
+        // A Free City that revolted from player 1, pulled towards player 0 for 2 turns (M2 §5.5, additive).
+        city(&state, avarga) { c in
+            c.focus = .balanced
+            c.owner = PlayerID(3)
+            c.loyalty = 50
+            c.capturedTurn = 4
+            c.freeCityLeader = PlayerID(0)
+            c.freeCityTurns = 2
+        }
         state.players[2].capital = nil
         state.players[0].knownTechs = ["animalHusbandry", "bronzeWorking", "mining", "pottery", "sailing"]
         state.players[0].researching = TechID("writing")
@@ -177,7 +188,7 @@ enum PersistenceFixture {
             let placed = DebugTools.placeTribalVillage(at: site, in: &state)
             precondition(placed, "PersistenceFixture: no tribal village at \(site.offset)")
         }
-        state.tribalVillages?.gifts = [1, 3, 0]
+        state.tribalVillages?.gifts = [1, 3, 0, 0]
         refreshEverything(&state)
         state.outcome = outcome
         return state

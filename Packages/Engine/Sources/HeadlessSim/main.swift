@@ -223,7 +223,7 @@ struct Profile {
 /// Counts of the events that show combat, capture and diplomacy happened.
 struct EventCounts {
     var combats = 0, kills = 0, civiliansCaptured = 0, citiesCaptured = 0, citiesRazed = 0, citiesFounded = 0
-    var wars = 0, peaces = 0, eliminations = 0
+    var wars = 0, peaces = 0, eliminations = 0, citiesRevolted = 0, citiesJoined = 0
 
     mutating func add(_ records: [EventRecord]) {
         for record in records {
@@ -232,6 +232,8 @@ struct EventCounts {
             case .unitKilled: kills += 1
             case .unitCaptured: civiliansCaptured += 1
             case .cityCaptured: citiesCaptured += 1
+            case .cityRevolted: citiesRevolted += 1
+            case .cityJoined: citiesJoined += 1
             case .cityRazed: citiesRazed += 1
             case .cityFounded: citiesFounded += 1
             case .warDeclared: wars += 1
@@ -244,7 +246,7 @@ struct EventCounts {
 
     var summary: String {
         "\(citiesFounded) cities founded, \(combats) combats, \(kills) units killed, \(civiliansCaptured) civilians captured, "
-            + "\(citiesCaptured) cities captured, \(citiesRazed) razed, \(wars) wars declared, \(peaces) peace treaties, "
+            + "\(citiesCaptured) cities captured, \(citiesRevolted) revolted, \(citiesJoined) joined, \(citiesRazed) razed, \(wars) wars declared, \(peaces) peace treaties, "
             + "\(eliminations) players eliminated"
     }
 }
@@ -379,7 +381,7 @@ struct GameReport {
         let improvements = Improvement.allCases.enumerated().filter { built[$0.offset] > 0 }
             .map { "\(String(describing: $0.element)) \(built[$0.offset])" }.joined(separator: ", ")
         let strategic = Resource.allCases.filter { rules.resource($0)?.kind == .strategic }
-        let stocks = state.players.filter(\.isAlive).map { player in
+        let stocks = state.players.filter { $0.isAlive && $0.isMajor }.map { player in
             let sources = state.improvedSources(of: player.id)
             return "\(player.id) " + strategic.map { "\(String(describing: $0)) \(player.stock($0))/\(sources[Int($0.rawValue) - 1])" }
                 .joined(separator: " ")
@@ -424,6 +426,16 @@ struct GameReport {
     }
 
     /// "quarters: 31 (campus 12, market 9, …)" and the buildings standing in them (M2 §5.3).
+    var loyaltyLine: String {
+        let free = state.freeCities
+        let held = state.cities.filter { $0.owner != free }
+        let low = held.filter { ($0.loyalty ?? 100) < 50 }.count
+        let falling = held.filter { state.turnsUntilRevolt($0) != nil }.count
+        let lowest = held.compactMap(\.loyalty).min().map(String.init) ?? "-"
+        return "loyalty: \(state.cities.count - held.count) free cities; \(low) of \(held.count) civ cities below 50, "
+            + "\(falling) falling, lowest \(lowest)"
+    }
+
     var quarterLine: String {
         var kinds = [QuarterKind: Int](), buildings = [BuildingID: Int]()
         for city in state.cities {
@@ -782,6 +794,7 @@ if options.games == 1 {
     if !report.state.rules.resources.isEmpty { print(report.resourceLine) }
     if report.state.rules.stability != nil { print(report.cityLine) }
     if report.state.rules.quarters != nil { print(report.quarterLine) }
+    if report.state.rules.loyalty != nil { print(report.loyaltyLine) }
     if report.villages.enabled { print(report.villageLine) }
     print("outcome: " + report.outcomeLine)
     for player in state.players { print(report.playerLine(player)) }
@@ -794,7 +807,7 @@ if options.games == 1 {
         }
         if options.profile { report.profile.print() }
         print("AI ms per phase from turn 140: \(report.aiLate.summary)")
-        for player in state.players { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
+        for player in state.players where player.isMajor { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
     }
 
     // Knowledge cost on the final state (M1 §12.7 budget: visibility + memory ≤ 0.2 ms per
@@ -886,7 +899,7 @@ if options.games == 1 {
             for player in report.state.players { print(report.playerLine(player)) }
             for rejection in report.rejections.prefix(5) { print("  rejected: \(rejection)") }
             if options.mode == .ai {
-                for player in report.state.players { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
+                for player in report.state.players where player.isMajor { print("  \(player.id) pathologies: \(report.observer.lint[player.id.rawValue].summary)") }
                 for p in report.aiPlayers { lint.merge(report.observer.lint[p]) }
             }
             if options.mode == .ai, options.p0 != .ai {

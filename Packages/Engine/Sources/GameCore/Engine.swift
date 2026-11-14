@@ -101,6 +101,10 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case cityShrank(city: CityID, population: Int, at: HexCoord)
     case cityCaptured(city: CityID, name: String, from: PlayerID, to: PlayerID, at: HexCoord)
     case cityRazed(city: CityID, name: String, owner: PlayerID, at: HexCoord)
+    /// A city's Loyalty reached 0 and it became a Free City (M2 §5.5).
+    case cityRevolted(city: CityID, name: String, from: PlayerID, to: PlayerID, at: HexCoord)
+    /// A Free City joined the civ whose pressure led for `flipTurns` turns (M2 §5.5).
+    case cityJoined(city: CityID, name: String, from: PlayerID, to: PlayerID, at: HexCoord)
     case productionCompleted(city: CityID, item: ProductionItem, at: HexCoord)
     case techResearched(player: PlayerID, tech: TechID)
     case borderGrew(city: CityID, tile: HexCoord)

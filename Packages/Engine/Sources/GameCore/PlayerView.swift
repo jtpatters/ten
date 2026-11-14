@@ -19,6 +19,8 @@ public struct PlayerSummary: Hashable, Sendable {
     public var isHuman: Bool
     public var isAlive: Bool
     public var score: Int
+    /// A civ, not the Free Cities (M2 §12.5).
+    public var isMajor = true
 }
 
 /// A player's income per turn (M1 §12.6), from the cities' current yields.
@@ -118,7 +120,8 @@ public struct PlayerView: Sendable {
 
     public var players: [PlayerSummary] {
         state.players.map { p in
-            PlayerSummary(id: p.id, name: p.name, civ: p.civ, isHuman: p.isHuman, isAlive: p.isAlive, score: state.score(of: p.id))
+            PlayerSummary(id: p.id, name: p.name, civ: p.civ, isHuman: p.isHuman, isAlive: p.isAlive, score: state.score(of: p.id),
+                          isMajor: p.isMajor)
         }
     }
 

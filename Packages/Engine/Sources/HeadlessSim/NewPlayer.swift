@@ -133,7 +133,7 @@ struct NewPlayer {
         }
     }
 
-    var atWar: Bool { view.players.contains { $0.id != me && $0.isAlive && view.isAtWar(with: $0.id) } }
+    var atWar: Bool { view.players.contains { $0.id != me && $0.isAlive && $0.isMajor && view.isAtWar(with: $0.id) } }
 
     func isFighter(_ type: UnitType) -> Bool { !type.isCivilian && rules.unit(type).unitClass != .recon }
     func isRanged(_ type: UnitType) -> Bool { rules.unit(type).isRanged }
@@ -166,7 +166,7 @@ struct NewPlayer {
 
     mutating func diplomacy() {
         for proposer in view.peaceProposals { issue(.respondToPeace(from: proposer, accept: true)) }
-        for other in view.players where other.id != me && other.isAlive && view.isAtWar(with: other.id) {
+        for other in view.players where other.id != me && other.isAlive && other.isMajor && view.isAtWar(with: other.id) {
             if view.peaceProblem(to: other.id) == nil { issue(.proposePeace(to: other.id)) }
         }
     }

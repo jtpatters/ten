@@ -591,6 +591,9 @@ extension GameState {
         cities[index].storedProgress = rules.constants.city.capturedProduction // 0 by default (p3f experiment)
         cities[index].hp = rules.constants.city.capturedHP
         cities[index].capturedTurn = turn
+        cities[index].loyalty = rules.loyalty?.capturedStart
+        cities[index].freeCityLeader = nil
+        cities[index].freeCityTurns = nil
         cities[index].bombarded = true
         cities[index].lastAttackedPhase = phaseCount
 
@@ -662,7 +665,7 @@ extension GameState {
     /// A player with cities but no capital gets the Palace in their largest city (ties: lower
     /// id), M1 §5.
     mutating func ensureCapital(of player: PlayerID, _ fx: inout Effects) {
-        guard players[player.rawValue].capital == nil else { return }
+        guard players[player.rawValue].capital == nil, players[player.rawValue].isMajor else { return }
         var best: City?
         for city in cities where city.owner == player {
             if let b = best, b.population >= city.population { continue }

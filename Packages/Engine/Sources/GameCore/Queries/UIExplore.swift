@@ -172,7 +172,7 @@ extension PlayerView {
         let thisPhase = path?.steps.filter { $0.turn <= 1 } ?? []
         // At war it walks a tile at a time (the first it may stop on), so that an enemy coming
         // into its sight (moves reveal, they do not stop, M1 §8.6) stops it with moves left.
-        let atWar = state.players.contains { $0.id != player && isAtWar(with: $0.id) }
+        let atWar = state.players.contains { $0.id != player && $0.isMajor && isAtWar(with: $0.id) }
         func mayEnd(_ step: PathStep) -> Bool {
             guard let t = index(of: step.hex), safe?[t] ?? true else { return false }
             return !units.contains { $0.id != id && $0.position == step.hex && $0.type.isCivilian == unit.type.isCivilian }

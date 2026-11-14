@@ -211,6 +211,25 @@ public enum DebugTools {
         return true
     }
 
+    /// Sets city `id`'s Loyalty (scenarios), clamped to 0–100. False without Loyalty.
+    @discardableResult
+    public static func setLoyalty(_ id: CityID, _ loyalty: Int, in state: inout GameState) -> Bool {
+        guard state.rules.loyalty != nil, let index = state.cityIndex(id) else { return false }
+        state.cities[index].loyalty = max(0, min(100, loyalty))
+        return true
+    }
+
+    /// City `id` revolts at once and becomes a Free City (scenarios), as at Loyalty 0. False
+    /// without the Free Cities or for one of theirs.
+    @discardableResult
+    public static func revolt(_ id: CityID, in state: inout GameState) -> Bool {
+        guard let free = state.freeCities, let index = state.cityIndex(id), state.cities[index].owner != free else { return false }
+        var fx = Effects()
+        state.revolt(index, &fx)
+        state.updateKnowledge(&fx)
+        return true
+    }
+
     /// Builds a quarter of `kind` on `hex` for city `id` at once (scenarios), as finishing it
     /// would. False, with nothing changed, when the city may not have it there.
     @discardableResult

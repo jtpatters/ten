@@ -58,9 +58,9 @@ extension GameState {
         players[player.rawValue].stockpile![Int(r.rawValue) - 1] = value
     }
 
-    /// Whether `player` is at war with anyone alive.
+    /// Whether `player` is at war with any living civ (the Free Cities' standing war is not one).
     func isAtWarWithAnyone(_ player: PlayerID) -> Bool {
-        players.contains { $0.isAlive && isAtWar(player, $0.id) }
+        players.contains { $0.isAlive && $0.isMajor && isAtWar(player, $0.id) }
     }
 
     /// Phase start (M2 §3.1): +`perSource` per improved source up to the cap, then at war each

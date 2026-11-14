@@ -86,6 +86,13 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
         #expect(state.cities.contains { $0.queue.contains { if case .quarter = $0.item { $0.cost != nil } else { false } } })
         #expect(loaded.state.cities.map(\.quarters) == state.cities.map(\.quarters))
         #expect(loaded.state.cities.map(\.queue) == state.cities.map(\.queue))
+        // Loyalty and the Free Cities (M2 §5.5, §12.5, additive) come back as saved.
+        #expect(state.freeCities != nil && state.cities.contains { $0.freeCityLeader != nil && $0.freeCityTurns != nil })
+        #expect(loaded.state.players.map(\.kind) == state.players.map(\.kind))
+        #expect(loaded.state.freeCities == state.freeCities)
+        #expect(loaded.state.cities.map(\.loyalty) == state.cities.map(\.loyalty))
+        #expect(loaded.state.cities.map(\.freeCityLeader) == state.cities.map(\.freeCityLeader))
+        #expect(loaded.state.cities.map(\.freeCityTurns) == state.cities.map(\.freeCityTurns))
             // The loaded game answers the same questions.
             let (a, b) = (loaded.state.view(for: PlayerID(0)), state.view(for: PlayerID(0)))
             #expect(a.dangerMap() == b.dangerMap() && a.knownCities == b.knownCities && a.income() == b.income())
