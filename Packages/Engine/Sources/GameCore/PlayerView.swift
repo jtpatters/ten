@@ -188,6 +188,14 @@ public struct PlayerView: Sendable {
     /// Whether it may fire after moving in the phase (siege may not, M2 §8.1, unless promoted).
     public func firesAfterMoving(_ unit: Unit) -> Bool { state.firesAfterMoving(unit) }
 
+    /// Why an own unit cannot upgrade now (nil: it can, or it is not this player's): moves,
+    /// territory, tech, Gold or the target's strategic resource (M2 §8.2, §3.1).
+    public func upgradeProblem(_ id: UnitID) -> String? {
+        guard let u = state.unit(id), u.owner == player else { return nil }
+        guard isMyPhase else { return "not your turn" }
+        return state.upgradeProblem(u)
+    }
+
     public func upgradeCost(_ id: UnitID) -> Int? {
         guard isMyPhase, let u = state.unit(id), u.owner == player, state.upgradeProblem(u) == nil else { return nil }
         return state.upgradeCost(of: u.type)
@@ -256,6 +264,10 @@ public struct PlayerView: Sendable {
     public func stock(_ resource: Resource) -> (amount: Int, sources: Int, cap: Int) {
         (me.stock(resource), state.improvedSources(of: player)[Int(resource.rawValue) - 1], state.stockpileCap)
     }
+
+    /// Why this player cannot field a unit of `type` now for want of its strategic resource
+    /// ("needs 10 Iron (have 4)"); nil when it needs none or has enough.
+    public func resourceProblem(_ type: UnitType) -> String? { state.resourceProblem(type, owner: player) }
 
     public func tileYields(at hex: HexCoord) -> Yields? {
         guard let tile = tile(at: hex), let t = index(of: hex) else { return nil }

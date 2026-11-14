@@ -28,8 +28,9 @@ extension MapRenderer {
 /// 2-3 level-of-detail class, bits 4-11 a per-instance random byte (sway phase, fade order),
 /// bit 12 marks a cast shadow, bit 13 a tree that grows a little as the secondary trees around
 /// it fade out at strategic zoom, so woods keep their mass instead of turning to speckle, bit
-/// 14 relief, bits 15-16 the improvement an instance needs, bit 17 open-land clutter that
-/// clears from improved tiles. (The flags travel as a Float: exact up to bit 23.)
+/// 14 relief, bits 15-18 the improvement an instance needs, bit 19 open-land clutter that
+/// clears from improved tiles, bit 20 a resource icon, shown only while the viewer knows the
+/// tile's resource. (The flags travel as a Float: exact up to bit 23.)
 enum DecorFlags {
     enum Wind: UInt32 { case none = 0, tree, grass, palm }
     /// 0: always drawn; 1: small scatter, gone by the strategic zoom; 2: secondary trees that
@@ -46,7 +47,10 @@ enum DecorFlags {
     /// building or losing an improvement never rebuilds the decorations.
     static func needs(_ improvement: Improvement) -> UInt32 { UInt32(improvement.rawValue) &<< 15 }
     /// Open-land scatter and landmarks: hidden on farms and mines, thinned on pastures.
-    static let clears: UInt32 = 1 << 17
+    static let clears: UInt32 = 1 << 19
+    /// A resource icon: shown only while the viewer knows the tile's resource (the App's
+    /// `setResources`, `TileBits.resourceKnown`).
+    static let resource: UInt32 = 1 << 20
 
     static func pack(_ wind: Wind, _ detail: Detail, random: UInt32, extra: UInt32 = 0) -> Float {
         Float(wind.rawValue | detail.rawValue &<< 2 | (random & 255) &<< 4 | extra)
@@ -537,6 +541,7 @@ struct DecorPlacer {
                 }
                 balanceShadows(from: start)
             }
+            if !reliefOnly { placeResourceArt(i, tile) }
             i += 1
         }
     }
@@ -1435,6 +1440,35 @@ struct DecorPlacer {
         case 2: add(.rock(.sandstone, v % 4), at: p, height: s * 0.5 * size, tile: i, inverse: inverse, random: roll, extra: DecorFlags.clears)
         case 3: add(.rock(.boulder, v % 4), at: p, height: s * 0.48 * size, tile: i, inverse: inverse, random: roll, extra: DecorFlags.clears)
         default: add(.rock(.snowy, v % 3), at: p, height: s * 0.46 * size, tile: i, inverse: inverse, random: roll, extra: DecorFlags.clears)
+        }
+    }
+
+    /// A resource's icon on the tile's south-west (units stand at the centre, a Builder's job
+    /// badge on the south corner), and the M2 improvement that could stand on the tile behind its
+    /// centre (M2 §3.1, §4.1). Placed from the map on every such tile: the shader shows the icon
+    /// only while the viewer knows the resource and the prop only while the tile has it, so
+    /// neither reveals anything the viewer does not know.
+    private mutating func placeResourceArt(_ i: Int, _ tile: Tile) {
+        let c = center(i), h = { (k: Int) in Self.hash(i, k, 0x7273) }
+        if let resource = tile.resource {
+            add(.resourceIcon(resource), at: c + SIMD2(-0.44, -0.3) * s, height: s * 0.36, tile: i, random: h(0),
+                extra: DecorFlags.resource)
+        }
+        guard let kind = Self.propImprovement(on: tile) else { return }
+        add(.improvementProp(kind), at: c + SIMD2(0.14 + 0.08 * (h(1) - 0.5), 0.24) * s, height: s * 0.4, tile: i, random: h(2),
+            extra: DecorFlags.needs(kind))
+    }
+
+    /// The M2 improvement whose prop stands on a tile (by its resource; a Lumber Mill on a
+    /// forest without one).
+    static func propImprovement(on tile: Tile) -> Improvement? {
+        switch tile.resource {
+        case .stone: .quarry
+        case .bananas, .wine, .silk, .spices, .incense: .plantation
+        case .deer, .ivory, .furs: .camp
+        case .fish, .pearls: .fishingBoats
+        case nil: tile.feature == .forest ? .lumberMill : nil
+        default: nil
         }
     }
 

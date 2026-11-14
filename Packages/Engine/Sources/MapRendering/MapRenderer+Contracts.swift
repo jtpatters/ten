@@ -101,6 +101,8 @@ struct MapInputs {
     var territory: [UInt8] = []
     /// Per tile: the `Improvement` raw value, 0 none.
     var improvements: [UInt8] = []
+    /// Per tile: the `Resource` raw value the viewer knows there, 0 none.
+    var resources: [UInt8] = []
     var movementRange: [HexCoord] = []
     var attackTargets: [HexCoord] = []
     var selectionKind = SelectionKind.unit
@@ -148,6 +150,17 @@ extension MapRenderer {
         guard kinds != inputs.improvements else { return }
         inputs.improvements = kinds
         writeImprovementBits()
+    }
+
+    /// Resources as the viewer knows them (M2 §3.1, `PlayerView.resource(at:)`): per tile the
+    /// `Resource` raw value, 0 for none or not yet revealed. Each known one shows its icon on
+    /// the tile (an explored tile only); a resource never changes, so the icon drawn is the
+    /// map's.
+    public func setResources(_ kinds: [UInt8]) {
+        assert(kinds.isEmpty || kinds.count == state.map.tileCount, "resources need one entry per tile")
+        guard kinds != inputs.resources else { return }
+        inputs.resources = kinds
+        writeResourceBits()
     }
 
     /// The tiles the selected unit can reach this phase (empty: none): a soft cream wash with

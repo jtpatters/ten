@@ -51,11 +51,13 @@ struct LegacySave {
 
     /// The standard rules data as it was when the fixture was saved: without its tribal
     /// village section, without M2's eras, progression, Insights and later techs (M2 2.1a), and
-    /// without M2's units, promotions and wall damage (2.1b). It no longer validates (every unit
+    /// without M2's units, promotions and wall damage (2.1b), and without M2's resources,
+    /// stockpiles and resource improvements (2.1c). It no longer validates (every unit
     /// type needs a definition); its hash is the recorded content hash.
     static func m1Data() throws -> RulesetData { try decode(m1Object().m1) }
 
-    /// C0: the M1 rules data with M2's units appended (needing no tech), so that it validates.
+    /// C0: the M1 rules data with M2's units appended (needing no tech), and M2's resources,
+    /// stockpiles and improvements (without their later techs), so that it validates.
     static func c0() throws -> Ruleset { try Ruleset(data: decode(m1Object().playable)) }
 
     private static func decode(_ object: [String: Any]) throws -> RulesetData {
@@ -64,6 +66,11 @@ struct LegacySave {
 
     private static func m1Object() throws -> (m1: [String: Any], playable: [String: Any]) {
         var json = try standardRulesObject()
+        let m2Resources = json["resources"], m2Stockpile = json["stockpile"]
+        json.removeValue(forKey: "resources")
+        json.removeValue(forKey: "stockpile")
+        let improvements = json["improvements"] as? [[String: Any]] ?? []
+        json["improvements"] = improvements.prefix(3).map { imp in imp.filter { !["resources", "techBonuses"].contains($0.key) } }
         for key in ["tribalVillages", "eras", "progression", "promotions", "promotionXP"] { json.removeValue(forKey: key) }
         var constants = json["constants"] as? [String: Any] ?? [:]
         var combat = constants["combat"] as? [String: Any] ?? [:]
@@ -82,7 +89,7 @@ struct LegacySave {
         json["ai"] = ai
         let units = json["units"] as? [[String: Any]] ?? []
         let m1Units = units.prefix(6).map { unit in
-            var unit = unit.filter { !["upgradesTo", "rangedAfterMove", "wallDamagePct"].contains($0.key) }
+            var unit = unit.filter { !["upgradesTo", "rangedAfterMove", "wallDamagePct", "resource"].contains($0.key) }
             if unit["type"] as? String == "spearman" { unit["classBonuses"] = [["against": "cavalry", "strength": 10]] }
             return unit
         }
@@ -90,6 +97,11 @@ struct LegacySave {
         m1["units"] = Array(m1Units)
         var playable = json
         playable["units"] = Array(m1Units) + units.dropFirst(6).map { unit in unit.filter { $0.key != "tech" } }
+        playable["resources"] = m2Resources
+        playable["stockpile"] = m2Stockpile
+        playable["improvements"] = improvements.map { imp in
+            imp.filter { $0.key != "techBonuses" && !($0.key == "tech" && imp["name"] as? String == "lumberMill") }
+        }
         return (m1, playable)
     }
 }

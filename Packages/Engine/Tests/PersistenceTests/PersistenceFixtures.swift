@@ -10,7 +10,7 @@ func at(_ col: Int, _ row: Int) -> HexCoord { OffsetCoord(col: col, row: row).he
 
 enum PersistenceFixture {
     /// A 12×9 wrapping map holding every terrain, elevation, feature and improvement, with
-    /// rivers, around open grassland.
+    /// rivers and resources, around open grassland.
     static func map() -> HexMap {
         var map = HexMap(width: 12, height: 9, wrapsX: true, fill: Tile(terrain: .grassland))
         for (i, terrain) in Terrain.allCases.enumerated() { map[at(i, 8)] = Tile(terrain: terrain) }
@@ -28,6 +28,14 @@ enum PersistenceFixture {
         map[at(1, 1)] = Tile(terrain: .grassland, riverEdges: 0b0010_0101, improvement: .farm)
         map[at(2, 0)] = Tile(terrain: .plains, elevation: .hills, improvement: .mine)
         map[at(5, 1)] = Tile(terrain: .plains, riverEdges: 0b0000_1000, improvement: .pasture)
+        // M2 resources and resource improvements (M2 §3.1, §4.1).
+        map[at(0, 0)] = Tile(terrain: .grassland, improvement: .quarry, resource: .stone)
+        map[at(8, 0)] = Tile(terrain: .plains, improvement: .plantation, resource: .wine)
+        map[at(9, 3)] = Tile(terrain: .tundra, improvement: .camp, resource: .deer)
+        map[at(0, 6)] = Tile(terrain: .coast, improvement: .fishingBoats, resource: .fish)
+        map[at(11, 0)] = Tile(terrain: .plains, feature: .forest, improvement: .lumberMill)
+        map[at(3, 3)] = Tile(terrain: .plains, resource: .iron)
+        map[at(6, 4)] = Tile(terrain: .grassland, improvement: .pasture, resource: .horses)
         return map
     }
 
@@ -124,6 +132,9 @@ enum PersistenceFixture {
         state.players[0].techCredit = Array(repeating: 0, count: state.rules.techs.count)
         state.players[0].techCredit![state.rules.techIndex("writing")!] = 18
         state.players[0].insights = ["writing"]
+        // Strategic stockpiles (M2 §3.1, an additive field).
+        state.setStock(.iron, of: PlayerID(0), to: 12)
+        state.setStock(.horses, of: PlayerID(0), to: 4)
         state.players[1].knownTechs = ["mining"]
         state.players[1].researching = TechID("masonry")
         state.players[0].citiesNamed = 2

@@ -19,6 +19,13 @@ enum SaveFixture {
         for (i, elevation) in Elevation.allCases.enumerated() { map[hex(i, 5)] = Tile(terrain: .plains, elevation: elevation) }
         map[hex(1, 5)] = Tile(terrain: .plains, elevation: .hills, improvement: .mine)
         map[hex(4, 5)] = Tile(terrain: .plains, improvement: .pasture)
+        // M2 resources and resource improvements (M2 §3.1, §4.1).
+        map[hex(5, 5)] = Tile(terrain: .grassland, improvement: .quarry, resource: .stone)
+        map[hex(6, 5)] = Tile(terrain: .plains, improvement: .plantation, resource: .wine)
+        map[hex(7, 5)] = Tile(terrain: .tundra, improvement: .camp, resource: .deer)
+        map[hex(8, 5)] = Tile(terrain: .plains, feature: .forest, improvement: .lumberMill)
+        map[hex(9, 5)] = Tile(terrain: .coast, improvement: .fishingBoats, resource: .fish)
+        map[hex(0, 4)] = Tile(terrain: .plains, resource: .iron)
         return map
     }
 
@@ -112,6 +119,7 @@ enum SaveFixture {
         state.players[0].techCredit = Array(repeating: 0, count: state.rules.techs.count)
         state.players[0].techCredit![state.rules.techIndex("writing")!] = 18
         state.players[0].insights = ["writing"]
+        state.setStock(.iron, of: PlayerID(0), to: 12)
         state.players[0].lastPhaseStart = 7
         state.players[1].lastPhaseStart = 8
         state.players[2].lastPhaseStart = 6
@@ -176,6 +184,7 @@ enum SaveFixture {
         let p0 = state.players[0]
         #expect(p0.researching != nil && p0.researchTarget != nil && p0.originalCapital != nil && p0.capital != nil)
         #expect(p0.techCredit != nil && p0.insights?.isEmpty == false && state.worldEra != nil)
+        #expect(tiles.contains { $0.resource != nil } && p0.stockpile != nil)
         #expect(!p0.memory.cities.isEmpty && !p0.memory.units.isEmpty && p0.memory.tileImprovement.contains { $0 != 0 })
         // Tribal villages: the live state with gifts, and one remembered.
         #expect(state.tribalVillages.map { $0.sites.count == 2 && $0.gifts.contains { $0 > 0 } } == true)

@@ -184,7 +184,7 @@ extension GameSession {
             guard let head = city.queue.first, let wait = view.productionWait(head.item, in: city.id) else { continue }
             switch wait {
             case .population: if !settlerWaitShown.contains(city.id) { items.append(.settlerWaiting(city.id)) }
-            case .noRoom: items.append(.productionBlocked(city.id))
+            case .noRoom, .resource: items.append(.productionBlocked(city.id))
             }
         }
         if view.upkeepForecast().disbanded > 0 { items.append(.upkeep) }

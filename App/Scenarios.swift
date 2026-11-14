@@ -61,7 +61,7 @@ enum Scenarios {
     @MainActor static var lastNote: String?
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
-                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans"]
+                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -136,6 +136,9 @@ enum Scenarios {
         case "veterans":
             foundCapital(&state, player: viewer)
             made = try veterans(&state)
+        case "resources":
+            foundCapital(&state, player: viewer)
+            made = try resources(&state)
         default:
             throw Failure(description: "no scenario “\(name)” (try \(names.joined(separator: ", ")))")
         }
@@ -645,6 +648,44 @@ extension Scenarios {
         DebugTools.setExperience(tier, of: archer, in: &state)
         return Made(state: state, focus: .unit(warrior),
                     note: "Warrior: Upgrade (lit) and Promote; Archer: Upgrade dimmed, Promote; Next lists Promotion Due")
+    }
+
+    /// M2 §3.1, §4.1: around the viewer's capital, resources placed by hand on its own land
+    /// with their reveal and improvement techs learnt: Stone under a built Quarry, Wine under a
+    /// built Plantation, Iron and Horses unimproved, and Deer with a Builder on it, selected (its
+    /// card offers a Camp).
+    static func resources(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        let centre = try home(state)
+        for tech in ["mining", "animalHusbandry", "bronzeWorking", "masonry", "irrigation", "sailing", "construction"] {
+            DebugTools.learnTech(TechID(tech), player: viewer, in: &state)
+        }
+        let places = spots(state, around: centre, distance: 1...1, for: .builder, owner: viewer, toward: nil)
+            .filter { state.map.index(of: $0).flatMap(state.tileOwner) == viewer }
+        guard places.count >= 5 else { throw Failure(description: "fewer than five own tiles beside the capital") }
+        func put(_ resource: Resource, at hex: HexCoord, terrain: Terrain) {
+            state.map[hex] = Tile(terrain: terrain, riverEdges: state.map[hex].riverEdges, resource: resource)
+        }
+        put(.stone, at: places[0], terrain: .grassland)
+        put(.wine, at: places[1], terrain: .plains)
+        put(.iron, at: places[2], terrain: .plains)
+        put(.horses, at: places[3], terrain: .grassland)
+        put(.deer, at: places[4], terrain: .tundra)
+        for (hex, improvement) in [(places[0], Improvement.quarry), (places[1], .plantation)] {
+            let builder = state.addUnit(.builder, owner: viewer, at: hex)
+            do {
+                try GameEngine.apply(.buildImprovement(unit: builder, improvement: improvement), by: viewer, to: &state)
+            } catch {
+                throw Failure(description: "could not build \(improvement): \(error)")
+            }
+            _ = try? GameEngine.apply(.disband(unit: builder), by: viewer, to: &state)
+        }
+        let builder = state.addUnit(.builder, owner: viewer, at: places[4])
+        DebugTools.refreshAllKnowledge(in: &state)
+        func text(_ hex: HexCoord) -> String { "\(hex.q) \(hex.r)" }
+        return Made(state: state, focus: .unit(builder),
+                    note: "Quarry on Stone at \(text(places[0])), Plantation on Wine at \(text(places[1])), Iron at \(text(places[2])), "
+                        + "Horses at \(text(places[3])); the Builder on Deer at \(text(places[4])) offers a Camp")
     }
 
     static func tribalVillages(_ state: inout GameState) throws -> Made {
