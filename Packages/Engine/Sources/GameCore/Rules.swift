@@ -399,7 +399,6 @@ public struct RoadRules: Codable, Hashable, Sendable {
     public let pillageHeal: Int
 }
 
-/// Embarked land units and naval units (M2 §8.4).
 /// Housing (M2 §5.1).
 public struct HousingRules: Codable, Hashable, Sendable {
     /// Base Housing: no water / coast or lake next to the centre / fresh water.
@@ -440,6 +439,7 @@ public struct StabilityRules: Codable, Hashable, Sendable {
     public let revolt: Int
 }
 
+/// Embarked land units and naval units (M2 §8.4).
 public struct EmbarkRules: Codable, Hashable, Sendable {
     /// Land units may enter Coast and Lake with it.
     public let coastTech: TechID
