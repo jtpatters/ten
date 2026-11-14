@@ -207,6 +207,8 @@ final class AppModel {
         var seed: UInt64
         var civ: CivID
         var diagnostic: Bool
+        /// The land pattern (M2 §3.5): Pangaea unless the player picks another.
+        var script: MapScript = .pangaea
         /// Tribal villages are placed (M1 §7.7, when the rules have them). Every normal game has
         /// them; the debug scenarios turn them off (`Scenarios.make`) and place their own.
         var tribalVillages = true
@@ -228,7 +230,7 @@ final class AppModel {
     nonisolated static func makeGame(_ setup: NewGameSetup) -> GameState {
         let rules = Ruleset.standard
         let civ = rules.civ(setup.civ) != nil ? setup.civ : (rules.civs.first?.id ?? setup.civ)
-        let generated = MapGenerator.generate(MapGenSettings(size: setup.size, seed: setup.seed))
+        let generated = MapGenerator.generate(MapGenSettings(size: setup.size, seed: setup.seed, script: setup.script))
         let civs = GameState.civOrder(human: civ, players: generated.startPositions.count, rules: rules)
         return GameState.newGame(seed: setup.seed, map: generated.map, startPositions: generated.startPositions, rules: rules,
                                  civs: civs, mapSizeName: setup.size.rawValue, placeTribalVillages: setup.tribalVillages)

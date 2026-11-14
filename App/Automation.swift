@@ -66,12 +66,13 @@ final class AutomationInbox {
 
         switch verb {
         case "newgame":
-            // newgame [size] [seed] [civ] [fog|nofog]
+            // newgame [size] [seed] [civ] [fog|nofog] [pangaea|continents|archipelago]
             let size = args.first.flatMap(MapSize.init(rawValue:)) ?? .duel
             let seed = args.count > 1 ? UInt64(args[1]) ?? 42 : 42
             let civ = args.count > 2 ? CivID(args[2]) : AppModel.defaultCiv
             let diagnostic = args.contains("nofog")
-            await model.startNewGame(AppModel.NewGameSetup(size: size, seed: seed, civ: civ, diagnostic: diagnostic))
+            let script = args.lazy.compactMap(MapScript.init(rawValue:)).first ?? .pangaea
+            await model.startNewGame(AppModel.NewGameSetup(size: size, seed: seed, civ: civ, diagnostic: diagnostic, script: script))
             try await waitIdle(model)
             return describe(model.session)
         case "scenario":
