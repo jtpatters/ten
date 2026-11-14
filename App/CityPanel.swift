@@ -157,6 +157,7 @@ struct CityPanel: View {
             }
             if let yields { YieldStrip(population: city.population, yields: yields) }
             if let growth { GrowthRow(growth: growth) }
+            if let wellbeing = view.wellbeing(of: city.id) { WellbeingRow(wellbeing: wellbeing, population: city.population) }
             if city.hp < maxHP {
                 HStack(spacing: HUD.Space.s) {
                     Image(systemName: "heart.fill").font(.system(size: 12, weight: .semibold))
@@ -338,6 +339,8 @@ struct CityPanel: View {
                               (y.culture, "Culture")] where value != 0 {
             parts.append("\(YieldChip.signed(value)) \(name)")
         }
+        if let housing = def.housing, housing != 0 { parts.append("\(YieldChip.signed(housing)) Housing") }
+        if let stability = def.stability, stability != 0 { parts.append("\(YieldChip.signed(stability)) Stability") }
         if def.wallHP > 0 {
             parts.append("Wall \(city.wallHP)/\(def.wallHP)")
             if def.cityStrength > 0 { parts.append("+\(def.cityStrength) City Strength") }
@@ -458,6 +461,7 @@ struct ItemIcon: View {
             case "library": "books.vertical"
             case "walls": "shield"
             case "market": "storefront"
+            case "waterMill": "water.waves"
             default: "building.2"
             }
         }
@@ -525,6 +529,125 @@ private struct GrowthRow: View {
         if let turns = growth.turnsToShrink { return "Starving: shrinks to \(growth.population - 1) in \(turnsText(turns))" }
         if growth.surplus < 0 { return "Starving, at its smallest" }
         return "Not growing: no spare food"
+    }
+}
+
+/// Housing ("Pop 7 / 8", and the growth it allows) and Stability with its state (M2 §18); a tap
+/// opens both breakdowns.
+struct WellbeingRow: View {
+    var wellbeing: CityWellbeing
+    var population: Int
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HUD.Space.s) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+            } label: {
+                HStack(spacing: HUD.Space.m) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "house.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(HUD.ink)
+                        Text(housingText).font(HUD.body(.subheadline).weight(.semibold))
+                            .foregroundStyle(population > wellbeing.housing.total ? HUD.danger : HUD.ink)
+                        if wellbeing.growthPct < 100 {
+                            Text("growth \(wellbeing.growthPct)%").font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
+                        }
+                    }
+                    Spacer(minLength: HUD.Space.s)
+                    HStack(spacing: 5) {
+                        Image(systemName: Self.symbol(wellbeing.state)).font(.system(size: 12, weight: .semibold))
+                        Text("\(YieldChip.signed(wellbeing.stability)) \(Self.name(wellbeing.state))")
+                            .font(HUD.body(.subheadline).weight(.semibold))
+                    }
+                    .foregroundStyle(Self.tint(wellbeing.state))
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(HUD.inkSoft)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(housingText), growth \(wellbeing.growthPct) percent. Stability \(wellbeing.stability), \(Self.name(wellbeing.state)).")
+            .accessibilityHint(expanded ? "Hides the breakdown." : "Shows the breakdown.")
+            if expanded { breakdown }
+        }
+    }
+
+    private var housingText: String { "Pop \(population) / \(wellbeing.housing.total)" }
+
+    private var breakdown: some View {
+        let h = wellbeing.housing, b = wellbeing.breakdown
+        return Grid(alignment: .leading, horizontalSpacing: HUD.Space.m, verticalSpacing: 4) {
+            heading("Housing")
+            row("Water", h.base)
+            row("Buildings", h.buildings)
+            row("Improved tiles", h.improvements)
+            total("Housing", h.total)
+            heading("Stability")
+            row("Buildings", b.buildings)
+            row("Luxuries", b.luxuries)
+            row("Need (citizens)", -b.need)
+            row("Empire size", b.empireSize)
+            row("Overcrowding", b.overcrowding)
+            row("Occupied", b.occupied)
+            total(b.total == wellbeing.stability ? "Stability" : "Next turn", b.total)
+        }
+        .padding(HUD.Space.m)
+        .parchmentWell()
+    }
+
+    private func heading(_ title: String) -> some View {
+        GridRow {
+            Text(title.uppercased()).font(HUD.label()).tracking(0.8).foregroundStyle(HUD.inkSoft)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("")
+        }
+    }
+
+    private func row(_ name: String, _ value: Int) -> some View {
+        GridRow {
+            Text(name).font(HUD.body(.caption))
+            Text(value == 0 ? "·" : value > 0 ? "+\(value)" : "−\(-value)")
+                .font(HUD.body(.caption).monospacedDigit())
+                .foregroundStyle(value < 0 ? HUD.danger : value == 0 ? HUD.inkFaint : HUD.ink)
+                .gridColumnAlignment(.trailing)
+        }
+    }
+
+    private func total(_ name: String, _ value: Int) -> some View {
+        GridRow {
+            Text(name).font(HUD.title(.caption))
+            Text(name == "Housing" ? "\(value)" : YieldChip.signed(value)).font(HUD.numeric(.caption))
+                .foregroundStyle(value < 0 ? HUD.danger : HUD.ink)
+        }
+    }
+
+    static func name(_ state: StabilityState) -> String {
+        switch state {
+        case .thriving: "Thriving"
+        case .content: "Content"
+        case .restless: "Restless"
+        case .unrest: "Unrest"
+        case .revolt: "Revolt"
+        }
+    }
+
+    static func symbol(_ state: StabilityState) -> String {
+        switch state {
+        case .thriving: "face.smiling.inverse"
+        case .content: "face.smiling"
+        case .restless: "exclamationmark.bubble"
+        case .unrest: "exclamationmark.triangle"
+        case .revolt: "flame"
+        }
+    }
+
+    static func tint(_ state: StabilityState) -> Color {
+        switch state {
+        case .thriving: HUD.good
+        case .content: HUD.ink
+        case .restless: HUD.amber
+        case .unrest, .revolt: HUD.danger
+        }
     }
 }
 

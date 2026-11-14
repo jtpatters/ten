@@ -128,6 +128,8 @@ enum PersistenceFixture {
             c.owner = PlayerID(0)
             c.focus = .gold
             c.capturedTurn = 3
+            // Restless under occupation (M2 §5.2, an additive field).
+            c.stability = -2
             c.buildings = ["monument"]
             c.hp = 60
         }
