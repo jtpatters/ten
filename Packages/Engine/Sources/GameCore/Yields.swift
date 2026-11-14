@@ -19,6 +19,8 @@ public enum YieldSource: Hashable, Sendable {
     case government
     /// A quarter's adjacency bonus (M2 §5.3).
     case quarter(QuarterKind)
+    /// Envoys at minor factions (M2 §12.2).
+    case envoys
 }
 
 /// A city's yields this phase with their sources (M1 §12.6).
@@ -147,6 +149,8 @@ extension GameState {
         for (kind, yields) in quarterYields(city) { breakdown.append((.quarter(kind), yields)) }
         let government = governmentYields(city)
         if !government.isZero { breakdown.append((.government, government)) }
+        let envoys = envoyYields(city)
+        if !envoys.isZero { breakdown.append((.envoys, envoys)) }
         var total = breakdown.reduce(Yields.zero) { $0 + $1.1 }
         let pct = rules.stabilityYieldPct(rules.stabilityState(city.stability ?? 0))
         if pct != 0 {

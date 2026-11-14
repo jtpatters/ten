@@ -225,6 +225,9 @@ struct EventCounts {
     var combats = 0, kills = 0, civiliansCaptured = 0, citiesCaptured = 0, citiesRazed = 0, citiesFounded = 0
     var wars = 0, peaces = 0, eliminations = 0, citiesRevolted = 0, citiesJoined = 0
     var campsAppeared = 0, campsCleared = 0, citiesSacked = 0, rebels = 0, raiderCasualties = 0
+    var envoys = 0, patronChanges = 0, quests = 0, levies = 0, minorsEliminated = 0
+    /// The minors' players, for their eliminations.
+    var minorPlayers: [PlayerID] = []
     /// The raiders' player, for their casualties.
     var raider: PlayerID?
 
@@ -243,7 +246,13 @@ struct EventCounts {
             case .cityFounded: citiesFounded += 1
             case .warDeclared: wars += 1
             case .peaceSigned: peaces += 1
-            case .playerEliminated: eliminations += 1
+            case let .playerEliminated(p):
+                eliminations += 1
+                if minorPlayers.contains(p) { minorsEliminated += 1 }
+            case .envoySent: envoys += 1
+            case .patronChanged: patronChanges += 1
+            case .questCompleted: quests += 1
+            case .levied: levies += 1
             case .raiderCampAppeared: campsAppeared += 1
             case .raiderCampCleared: campsCleared += 1
             case .citySacked: citiesSacked += 1
@@ -258,6 +267,7 @@ struct EventCounts {
             + "\(citiesCaptured) cities captured, \(citiesRevolted) revolted, \(citiesJoined) joined, \(citiesRazed) razed, \(wars) wars declared, \(peaces) peace treaties, "
             + "\(eliminations) players eliminated"
             + (campsAppeared + rebels > 0 ? "; raiders: \(campsAppeared) camps, \(campsCleared) cleared, \(raiderCasualties) raiders killed, \(citiesSacked) cities sacked, \(rebels) rebels" : "")
+            + (minorPlayers.isEmpty ? "" : "; minors: \(envoys) envoys, \(patronChanges) Patron changes, \(quests) quests, \(levies) levies, \(minorsEliminated) conquered")
     }
 }
 
@@ -312,6 +322,7 @@ struct GameReport {
         early = EarlyObserver(seed: seed, p0: p0, turns: turns)
         villages = TribalVillageStats(state: state, sites: sites)
         counts.raider = state.raiderPlayer
+        counts.minorPlayers = state.players.filter { $0.kind == .minor }.map(\.id)
         if let sites { early.startTribalVillages(sites, state: state) }
     }
 
@@ -507,14 +518,14 @@ func playGame(seed: UInt64, _ o: Options, verbose: Bool) -> GameReport {
     // p3g: `--random` and `--ai` games place tribal villages (none without the rules section).
     var state = GameState.newGame(seed: seed, map: generated.map, startPositions: generated.startPositions,
                                   humanPlayers: [], rules: gameRules, mapSizeName: o.size.rawValue,
-                                  placeTribalVillages: o.mode != .scripted)
+                                  placeTribalVillages: o.mode != .scripted, placeMinors: o.mode != .scripted)
     // Their tags (the start whose own round placed each one, nil for a shared one) come from
     // placement run again on the same inputs (DESIGN §3.2), so they must name the very sites the
     // game placed.
     var villageSites: [TribalVillageSite]?
     if o.mode != .scripted, gameRules.tribalVillages != nil {
         let sites = DebugTools.tribalVillagePlacement(seed: seed, map: generated.map, startPositions: generated.startPositions,
-                                                      rules: gameRules)
+                                                      rules: gameRules, mapSizeName: o.size.rawValue, placeMinors: true)
         let placed = DebugTools.tribalVillages(in: state)
         guard sites.map(\.hex) == placed else {
             print("error: seed \(seed): placement's tags name \(sites.map(\.hex)), the game placed \(placed)")
@@ -892,6 +903,7 @@ if options.games == 1 {
     var profile = Profile()
     var threeCities = 0, warBy80 = 0, captureBy150 = 0, rejected = 0, capHits = 0
     var raiderTotals = EventCounts()
+    var minorCount = 0, minorPatrons = 0
     var lint = Lint()
     // Against a stand-in in player 0's seat (`--p0`): games the AIs won, player 0 won or nobody
     // won; cities AIs took from player 0 and player 0 took from AIs; wars on player 0.
@@ -952,6 +964,11 @@ if options.games == 1 {
             raiderTotals.raiderCasualties += report.counts.raiderCasualties
             raiderTotals.citiesSacked += report.counts.citiesSacked
             raiderTotals.rebels += report.counts.rebels
+            raiderTotals.envoys += report.counts.envoys
+            raiderTotals.quests += report.counts.quests
+            raiderTotals.minorsEliminated += report.counts.minorsEliminated
+            minorCount += report.state.minors?.count ?? 0
+            minorPatrons += report.state.minors?.count { $0.patron != nil && report.state.players[$0.player.rawValue].isAlive } ?? 0
             rejected += report.rejected
             capHits += report.capHits
             hashes ^= hash &* (combined.next() | 1)
@@ -978,6 +995,11 @@ if options.games == 1 {
             print(String(format: "raiders (per game): camps %.2f, cleared %.2f [target ≥ 3], raiders killed %.2f, cities sacked %.2f, rebels %.2f",
                          Double(r.campsAppeared) / Double(n), Double(r.campsCleared) / Double(n), Double(r.raiderCasualties) / Double(n),
                          Double(r.citiesSacked) / Double(n), Double(r.rebels) / Double(n)))
+        }
+        if minorCount > 0 {
+            print(String(format: "minors: %d of %d with a Patron at the end (%.0f%%) [target ≥ 60%% by turn 100]; conquered per game %.2f [≤ 1]; envoys per game %.1f, quests per game %.1f",
+                         minorPatrons, minorCount, 100.0 * Double(minorPatrons) / Double(minorCount), Double(r.minorsEliminated) / Double(n),
+                         Double(r.envoys) / Double(n), Double(r.quests) / Double(n)))
         }
     }
     villages.print()

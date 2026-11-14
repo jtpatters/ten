@@ -15,7 +15,7 @@ extension GameState {
 
     /// Gold `player` pays per turn for its military units beyond the free allowance.
     public func upkeep(of player: PlayerID) -> Int {
-        guard !isRaider(player) else { return 0 }
+        guard !isRaider(player), !isMinor(player) else { return 0 }
         return max(0, militaryUnitCount(of: player) - freeUnitAllowance(of: player))
             * max(0, rules.constants.upkeep.goldPerUnit - bonus(\.unitUpkeepCut, for: player))
     }

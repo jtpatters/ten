@@ -78,6 +78,7 @@ extension GameState {
         relations[i].met = true
         let (x, y) = (relations[i].a, relations[i].b)
         fx.emit(.playersMet(x, y), .pair(x, y))
+        if isMinor(x) || isMinor(y) { minorMet(x, y, &fx) }
     }
 
     /// Phase start step 1 (M1 §3, §9): `player`'s own unanswered peace proposals expire and start
@@ -101,9 +102,9 @@ extension GameState {
         guard other != player, players.indices.contains(other.rawValue), players[other.rawValue].isAlive else {
             return "no such player"
         }
-        guard players[player.rawValue].isMajor, players[other.rawValue].isMajor else {
-            return "the Free Cities make no treaties"
-        }
+        let kinds = [players[player.rawValue].kind, players[other.rawValue].kind]
+        guard !kinds.contains(where: { $0 == .free || $0 == .raiders }) else { return "the Free Cities make no treaties" }
+        guard players[player.rawValue].isMajor || players[other.rawValue].isMajor else { return "minor factions deal only with civs" }
         return nil
     }
 
@@ -113,6 +114,7 @@ extension GameState {
         if let problem = counterpartProblem(player, other) { return problem }
         let relation = relation(player, other)
         let name = players[other.rawValue].name
+        guard players[player.rawValue].isMajor else { return "minor factions never declare war" }
         guard relation.met else { return "you have not met \(name)" }
         guard relation.stance == .peace else { return "already at war with \(name)" }
         if let since = relation.since {
@@ -130,6 +132,7 @@ extension GameState {
             relation.since = turn
             relation.proposalFrom = nil
         }
+        if isMinor(other) { minorWarDeclared(by: player, on: other, &fx) }
         fx.emit(.warDeclared(by: player, on: other), .metEither(player, other))
     }
 

@@ -26,7 +26,7 @@ extension GameState {
         }
         check(tileCity.count == count, "territory size")
         for r in relations {
-            let free = !players[r.a.rawValue].isMajor || !players[r.b.rawValue].isMajor
+            let free = [players[r.a.rawValue].kind, players[r.b.rawValue].kind].contains { $0 == .free || $0 == .raiders }
             if free { check(r.stance == .war && r.proposalFrom == nil, "\(r.a)-\(r.b): the Free Cities at peace") }
             if r.stance == .war, !free { check(r.met, "\(r.a) and \(r.b) at war without having met") }
             if let from = r.proposalFrom {
@@ -166,6 +166,9 @@ extension GameState {
             let hasCities = cities.contains { $0.owner == p.id }
             if p.isMajor {
                 check(hasCities == (p.capital != nil), "\(p.id) has \(hasCities ? "cities but no capital" : "a capital but no city")")
+            } else if p.kind == .minor {
+                check(cities.count { $0.owner == p.id } <= 1 && hasCities == (p.capital != nil), "\(p.id) minor with \(cities.count { $0.owner == p.id }) cities")
+                check(minor(p.id)?.envoys.count == players.count, "\(p.id) minor without its envoy table")
             } else if p.kind == .raiders {
                 check(p.capital == nil && !hasCities && p.id == raiderPlayer, "\(p.id) raiders with a city")
             } else {

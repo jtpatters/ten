@@ -134,11 +134,15 @@ extension GameState {
         }
         if !cities.isEmpty {
             let owners = cityOwnerTable()
+            let patrons = minors == nil ? [] : patronTable()
             for t in 0..<count {
                 let code = tileCity[t]
                 guard code != 0 else { continue }
                 let o = owners[Int(code) - 1]
-                if o >= 0, mask & (1 << UInt64(o)) != 0 { result[o][t] = true }
+                guard o >= 0 else { continue }
+                if mask & (1 << UInt64(o)) != 0 { result[o][t] = true }
+                // A Patron sees its minors' territory (M2 §12.2).
+                if !patrons.isEmpty, patrons[o] >= 0, mask & (1 << UInt64(patrons[o])) != 0 { result[patrons[o]][t] = true }
             }
         }
         return result
@@ -148,7 +152,10 @@ extension GameState {
     /// visibility is recomputed for `fx.dirtyPlayers`; memory refreshes for newly visible tiles
     /// and for `fx.dirtyTiles` that are visible. Emits `playersMet`.
     mutating func updateKnowledge(_ fx: inout Effects) {
-        let recompute = fx.dirtyPlayers
+        var recompute = fx.dirtyPlayers
+        for m in minors ?? [] where recompute & (1 << UInt64(m.player.rawValue)) != 0 {
+            if let p = m.patron { recompute |= 1 << UInt64(p.rawValue) }
+        }
         fx.dirtyPlayers = 0
         let territory = (recompute != 0 || !fx.dirtyTiles.isEmpty) ? territoryCodes() : []
 

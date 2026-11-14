@@ -29,6 +29,7 @@ extension GameState {
                 addTechCredit(rules.techs[i].cost * progression.catchUpInsightPct / 100, techIndex: i, player: PlayerID(p))
             }
         }
+        giveMinorsEraDefenders(&fx)
         fx.emit(.worldEraAdvanced(era: era + 1), .everyone)
     }
 
@@ -53,8 +54,10 @@ extension GameState {
         for event in events {
             switch event {
             case let .playersMet(a, b):
-                mark(a, .meetPlayers)
-                mark(b, .meetPlayers)
+                mark(a, .meetPlayers, .meetMinors)
+                mark(b, .meetPlayers, .meetMinors)
+            case let .patronChanged(_, patron):
+                if let patron { mark(patron, .bePatron) }
             case let .cityFounded(_, _, owner, _):
                 mark(owner, .ownCities, .ownCoastalCities)
             case let .warDeclared(_, on):
@@ -125,7 +128,11 @@ extension GameState {
     func insightCount(_ insight: InsightDef, for player: PlayerID) -> Int {
         switch insight.kind {
         case .meetPlayers:
-            return players.indices.count { $0 != player.rawValue && hasMet(player, PlayerID($0)) }
+            return players.indices.count { $0 != player.rawValue && players[$0].isMajor && hasMet(player, PlayerID($0)) }
+        case .meetMinors:
+            return players.count { $0.kind == .minor && hasMet(player, $0.id) }
+        case .bePatron:
+            return patronages(of: player).count
         case .ownCities:
             return cities.count { $0.owner == player }
         case .ownCoastalCities:

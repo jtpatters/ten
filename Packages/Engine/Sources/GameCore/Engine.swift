@@ -52,6 +52,10 @@ public enum Command: Codable, Hashable, Sendable {
     case buildRoad(unit: UnitID)
     /// A military unit pillages the enemy tile it stands on (M2 §3.3).
     case pillage(unit: UnitID)
+    /// Spend an envoy token at a minor faction met (M2 §12.2).
+    case sendEnvoy(to: PlayerID)
+    /// The Patron takes a minor's military units for Gold (M2 §12.2).
+    case levy(minor: PlayerID)
 }
 
 public enum CommandError: Error, Hashable, Sendable, CustomStringConvertible {
@@ -126,6 +130,13 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case citySacked(city: CityID, by: PlayerID, gold: Int, at: HexCoord)
     /// M2 §5.2: a city in Revolt raised rebel `unit`.
     case rebelsRose(city: CityID, unit: UnitID, at: HexCoord)
+    /// M2 §12.2: `player` now has `envoys` envoys at `minor`.
+    case envoySent(player: PlayerID, minor: PlayerID, envoys: Int)
+    case patronChanged(minor: PlayerID, patron: PlayerID?)
+    /// M2 §12.3: `player` completed `minor`'s quest (+1 envoy).
+    case questCompleted(minor: PlayerID, player: PlayerID)
+    case levied(minor: PlayerID, player: PlayerID, units: Int)
+    case levyEnded(minor: PlayerID, player: PlayerID)
     case borderGrew(city: CityID, tile: HexCoord)
     case improvementBuilt(improvement: Improvement, at: HexCoord, owner: PlayerID)
     case playersMet(PlayerID, PlayerID)
@@ -395,6 +406,14 @@ public enum GameEngine {
             let unit = try ownedUnit(id, by: player, in: state)
             if let problem = state.pillageProblem(unit) { throw .rejected(reason: problem) }
             state.pillage(by: id, &fx)
+
+        case let .sendEnvoy(minor):
+            if let problem = state.envoyProblem(player, to: minor) { throw .rejected(reason: problem) }
+            state.sendEnvoy(player, to: minor, &fx)
+
+        case let .levy(minor):
+            if let problem = state.levyProblem(player, on: minor) { throw .rejected(reason: problem) }
+            state.levy(player, on: minor, &fx)
         }
 
         state.checkInsights(&fx)

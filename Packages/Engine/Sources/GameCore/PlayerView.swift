@@ -23,6 +23,8 @@ public struct PlayerSummary: Hashable, Sendable {
     public var isMajor = true
     /// The raiders (M2 §11).
     public var isRaiders = false
+    /// A minor faction (M2 §12).
+    public var isMinor = false
 }
 
 /// A player's income per turn (M1 §12.6), from the cities' current yields.
@@ -125,7 +127,7 @@ public struct PlayerView: Sendable {
     public var players: [PlayerSummary] {
         state.players.map { p in
             PlayerSummary(id: p.id, name: p.name, civ: p.civ, isHuman: p.isHuman, isAlive: p.isAlive, score: state.score(of: p.id),
-                          isMajor: p.isMajor, isRaiders: p.kind == .raiders)
+                          isMajor: p.isMajor, isRaiders: p.kind == .raiders, isMinor: p.kind == .minor)
         }
     }
 
@@ -157,6 +159,10 @@ public struct PlayerView: Sendable {
     public var knownTribalVillages: [Int32] { me.memory.tribalVillages ?? [] }
     /// Raider camps the player remembers (M2 §11).
     public var knownRaiderCamps: [Int32] { me.memory.raiderCamps ?? [] }
+    /// Minor factions met, with everyone's envoys there, their Patron and quest (M2 §12).
+    public var knownMinors: [MinorFaction] { (state.minors ?? []).filter { state.hasMet(player, $0.player) } }
+    public func envoyProblem(to minor: PlayerID) -> String? { state.envoyProblem(player, to: minor) }
+    public func levyProblem(on minor: PlayerID) -> String? { state.levyProblem(player, on: minor) }
     /// The world era (M2 §3), 0 before any.
     public var worldEra: Int { state.worldEra ?? 0 }
 

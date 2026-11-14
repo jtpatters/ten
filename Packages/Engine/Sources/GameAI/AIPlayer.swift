@@ -94,6 +94,7 @@ public enum AIPlayer {
     public static func playPhase(_ state: inout GameState, player: PlayerID, narrate: Bool = false,
                                  profile: Bool = false) -> AIPhaseReport {
         if state.isRaider(player) { return RaiderAI.playPhase(&state, player: player) }
+        if state.isMinor(player) { return MinorAI.playPhase(&state, player: player) }
         var turn = AITurn(state: state, player: player, narrate: narrate, profile: profile)
         turn.play()
         state = turn.state

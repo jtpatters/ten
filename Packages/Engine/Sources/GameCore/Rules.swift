@@ -74,6 +74,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public let loyalty: LoyaltyRules?
     /// Raiders (M2 §11); nil without the section: no raider faction.
     public let raiders: RaiderRules?
+    /// Minor factions (M2 §12); nil without the section: no minors.
+    public let minors: MinorRules?
     /// Optional (M2 §7.4): absent, tiles cannot be bought.
     public let tileBuying: TileBuyingRules?
     /// In tree order (M2 §7.1); empty in rules without civics.
@@ -150,6 +152,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         quarters = data.quarters
         loyalty = data.loyalty
         raiders = data.raiders
+        minors = data.minors
         tileBuying = data.tileBuying
         let civics = data.civics ?? []
         self.civics = civics
@@ -386,6 +389,7 @@ struct RulesetData: Codable, Hashable, Sendable {
     /// Optional (M2 §5.5, §12.5): absent, cities have no Loyalty and there are no Free Cities.
     var loyalty: LoyaltyRules?
     var raiders: RaiderRules?
+    var minors: MinorRules?
     var tileBuying: TileBuyingRules?
     var civics: [CivicDef]?
     var governance: GovernanceRules?
@@ -885,6 +889,10 @@ public enum InsightKind: String, Codable, Hashable, Sendable, CaseIterable {
     case ownMilitaryUnits
     /// Clear a raider camp (M2 §11).
     case clearRaiderCamp
+    /// Have met `count` minor factions (M2 §12).
+    case meetMinors
+    /// Be the Patron of a minor faction (M2 §12.2).
+    case bePatron
 }
 
 public struct InsightDef: Codable, Hashable, Sendable {
@@ -1329,6 +1337,17 @@ extension RulesetData {
             }
         }
         if let cycle = techCycle() { problems.append("techs: cycle through \(cycle)") }
+        if let m = minors {
+            let ids = Set(buildings.map(\.id))
+            for b in m.startBuildings + m.questBuildings + m.types.flatMap({ $0.tiers.flatMap { $0.buildings ?? [] } }) where !ids.contains(b) {
+                problems.append("minors: unknown building \(b)")
+            }
+            check(Set(m.types.map(\.type)).count == m.types.count, "minors: duplicate types")
+            for t in m.types {
+                check(["food", "production", "gold", "science", "culture"].contains(t.yield), "minors: \(t.type) unknown yield \(t.yield)")
+                check(t.whileBuilding == nil || ["units", "buildings"].contains(t.whileBuilding!), "minors: \(t.type) unknown whileBuilding")
+            }
+        }
         let civicIDs = (civics ?? []).map(\.id)
         check(Set(civicIDs).count == civicIDs.count, "civics: duplicate ids")
         for (i, civic) in (civics ?? []).enumerated() {
@@ -1550,7 +1569,7 @@ extension RulesetData {
     private func insightProblems(_ insight: InsightDef, _ context: String) -> [String] {
         var problems: [String] = []
         let needsCount: Set<InsightKind> = [.ownCoastalCities, .meetPlayers, .ownCities, .buildImprovements, .ownBuildings, .ownUnits,
-                                            .ownQuarters, .cityPopulation, .cityInUnrest, .ownMilitaryUnits]
+                                            .ownQuarters, .cityPopulation, .cityInUnrest, .ownMilitaryUnits, .meetMinors]
         if needsCount.contains(insight.kind), (insight.count ?? 0) < 1 { problems.append("\(context): insight needs a count ≥ 1") }
         switch insight.kind {
         case .buildImprovements:
@@ -1568,7 +1587,7 @@ extension RulesetData {
         case .ownQuarters:
             if let t = insight.target, !(quarters?.kinds ?? []).contains(where: { $0.id.rawValue == t }) { problems.append("\(context): insight quarter \(t) unknown") }
         case .ownCoastalCities, .meetPlayers, .ownCities, .cityDefended, .cityPopulation, .cityInUnrest, .warDeclaredOn,
-             .ownMilitaryUnits, .clearRaiderCamp:
+             .ownMilitaryUnits, .clearRaiderCamp, .meetMinors, .bePatron:
             break
         }
         if insight.text.isEmpty { problems.append("\(context): insight text is empty") }

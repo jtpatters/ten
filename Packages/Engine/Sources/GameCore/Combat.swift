@@ -425,7 +425,7 @@ extension GameState {
             sackCity(index, by: id, &fx)
             return
         }
-        if case let .city(city) = target, !ranged, city.hp == 0, capturesCities(attacker.type), let index = cityIndex(city.id) {
+        if case let .city(city) = target, !ranged, city.hp == 0, capturesCities(attacker.type), !isMinor(attacker.owner), let index = cityIndex(city.id) {
             captureCity(index, by: id, &fx)
             return
         }

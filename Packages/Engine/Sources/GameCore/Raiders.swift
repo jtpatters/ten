@@ -219,6 +219,7 @@ extension GameState {
         fx.emit(.raiderCampCleared(player: player, at: map.coord(at: t), gold: gold), .ownerAndTiles(player, [t]))
         fx.touchTile(t)
         fx.touchPlayer(player)
+        campClearedForQuests(t, by: player, &fx)
     }
 
     /// A raider attacked city `index` at 0 HP (M2 §11): it loses a citizen (never below 1) and

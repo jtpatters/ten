@@ -42,7 +42,7 @@ extension GameState {
         if isRaider(player) {
             runRaiders(&fx)
         } else {
-            updateStability(for: player)
+            if isMinor(player) { runMinor(player, &fx) } else { updateStability(for: player) }
             updateLoyalty(for: player, &fx)
             var gold = 0, science = 0, culture = 0
             for index in cities.indices where cities[index].owner == player {
@@ -59,7 +59,7 @@ extension GameState {
                 culture += yields.total.culture
             }
 
-            let shortfall = runGold(for: player, income: gold, &fx)
+            let shortfall = runGold(for: player, income: gold + bonus(\.envoyGold, for: player) * envoysSent(by: player), &fx)
             runResearch(for: player, science: max(0, science - shortfall), &fx)
             if players[player.rawValue].isMajor {
                 runCivics(for: player, culture: culture, &fx)
@@ -98,7 +98,7 @@ extension GameState {
         guard outcome == nil else { return false }
         var changed = false
         var currentEliminated = false
-        for p in players.indices where players[p].isAlive && players[p].isMajor {
+        for p in players.indices where players[p].isAlive && (players[p].isMajor || players[p].kind == .minor) {
             let id = PlayerID(p)
             let hasCity = cities.contains { $0.owner == id }
             let hasFounder = units.contains { $0.owner == id && rules.unit($0.type).foundsCity }

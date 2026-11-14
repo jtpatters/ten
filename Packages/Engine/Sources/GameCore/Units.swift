@@ -49,7 +49,7 @@ public enum UnitActivity: String, Codable, Hashable, Sendable {
 
 public struct Unit: Codable, Hashable, Sendable {
     public let id: UnitID
-    public let owner: PlayerID
+    public internal(set) var owner: PlayerID
     public var type: UnitType
     public var position: HexCoord
     public var movesLeft: Int

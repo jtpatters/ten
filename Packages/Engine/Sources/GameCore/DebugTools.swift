@@ -153,9 +153,11 @@ public enum DebugTools {
     /// runs the same routine, so the start units stand where they do in the real game. Empty
     /// for rules without the section.
     public static func tribalVillagePlacement(seed: UInt64, map: HexMap, startPositions: [HexCoord],
-                                              rules: Ruleset = .standard) -> [TribalVillageSite] {
+                                              rules: Ruleset = .standard, mapSizeName: String = "",
+                                              placeMinors: Bool = false) -> [TribalVillageSite] {
         guard let villageRules = rules.tribalVillages else { return [] }
-        let state = GameState.newGame(seed: seed, map: map, startPositions: startPositions, rules: rules)
+        let state = GameState.newGame(seed: seed, map: map, startPositions: startPositions, rules: rules,
+                                      mapSizeName: mapSizeName, placeMinors: placeMinors)
         var placer = TribalVillagePlacer(state: state, startPositions: startPositions, rules: villageRules)
         return placer.place().map { TribalVillageSite(hex: map.coord(at: $0.tile), start: $0.start) }
     }

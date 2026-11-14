@@ -10,7 +10,7 @@ public struct PlayerID: Hashable, Codable, Sendable, Comparable, CustomStringCon
 /// One player: civ, treasury, research and knowledge (M1 §12.3). `players[i].id == PlayerID(i)`.
 /// M2 §12.5, §20: the Free Cities are a fixed non-player faction after the civs.
 public enum PlayerKind: String, Codable, Hashable, Sendable {
-    case major, free, raiders
+    case major, free, raiders, minor
 }
 
 public struct Player: Codable, Hashable, Sendable {
@@ -79,7 +79,7 @@ public struct Player: Codable, Hashable, Sendable {
     /// A civ that takes phases, researches and can win; not the Free Cities.
     public var isMajor: Bool { kind == nil || kind == .major }
     /// Takes phases: the civs and the raiders (M2 §11); not the Free Cities.
-    public var takesPhases: Bool { isMajor || kind == .raiders }
+    public var takesPhases: Bool { isMajor || kind == .raiders || kind == .minor }
 
     /// A new, living player with nothing yet. An empty `civ` is filled in by `GameState.init`.
     public init(id: PlayerID, name: String, isHuman: Bool, tileCount: Int, civ: CivID = "", gold: Int = 0,
@@ -159,6 +159,8 @@ public struct GameState: Codable, Hashable, Sendable {
     var tribalVillages: TribalVillageState?
     /// Raider camps and rebels (M2 §11); nil in a game without raiders.
     public internal(set) var raiders: RaiderState?
+    /// Minor factions (M2 §12), in player order; nil in a game without them.
+    public internal(set) var minors: [MinorFaction]?
     /// The world era's index (M2 §2); nil in a game whose rules have no eras (left out of saves).
     public internal(set) var worldEra: Int?
 
@@ -192,7 +194,7 @@ public struct GameState: Codable, Hashable, Sendable {
         for i in players.indices {
             for j in players.indices where j > i {
                 var relation = Relation(PlayerID(i), PlayerID(j))
-                if !players[i].isMajor || !players[j].isMajor { relation.stance = .war }
+                if [players[i].kind, players[j].kind].contains(where: { $0 == .free || $0 == .raiders }) { relation.stance = .war }
                 relations.append(relation)
             }
         }
@@ -209,13 +211,17 @@ public struct GameState: Codable, Hashable, Sendable {
     /// in a start's sight are known on turn 1.
     public static func newGame(seed: UInt64, map: HexMap, startPositions: [HexCoord], humanPlayers: Set<Int> = [0],
                                rules: Ruleset = .standard, civs: [CivID]? = nil, mapSizeName: String = "",
-                               placeTribalVillages: Bool = false) -> GameState {
+                               placeTribalVillages: Bool = false, placeMinors: Bool = false) -> GameState {
         var players = startPositions.indices.map { i -> Player in
             let civ = civs.flatMap { i < $0.count ? $0[i] : nil } ?? rules.civs[i % rules.civs.count].id
             let name = rules.civ(civ)?.name ?? "Player \(i + 1)"
             return Player(id: PlayerID(i), name: name, isHuman: humanPlayers.contains(i), tileCount: map.tileCount,
                           civ: civ, gold: rules.constants.start.gold)
         }
+        let minorSites = placeMinors ? minorSites(map: map, starts: startPositions, rules: rules, seed: seed,
+                                                  count: rules.minors?.count(mapSize: mapSizeName) ?? 0) : []
+        let minorPlayers = minorPlayers(sites: minorSites, firstID: players.count, rules: rules, seed: seed, tileCount: map.tileCount)
+        players += minorPlayers.map(\.0)
         if rules.raiders != nil {
             players.append(Player(id: PlayerID(players.count), name: "Raiders", isHuman: false,
                                   tileCount: map.tileCount, kind: .raiders))
@@ -226,6 +232,11 @@ public struct GameState: Codable, Hashable, Sendable {
         }
         var state = GameState(seed: seed, map: map, players: players, rules: rules, mapSizeName: mapSizeName)
         if rules.raiders != nil { state.raiders = RaiderState() }
+        var setupFx = Effects()
+        if !minorPlayers.isEmpty {
+            state.minors = minorPlayers.map { MinorFaction(player: $0.0.id, type: $0.1, envoys: [Int](repeating: 0, count: players.count)) }
+            state.foundMinorCities(at: minorSites, &setupFx)
+        }
         for (i, start) in startPositions.enumerated() {
             let owner = PlayerID(i)
             for type in rules.constants.start.units {

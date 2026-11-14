@@ -109,6 +109,7 @@ struct AITurn {
         timed("civics") { $0.chooseCivic() }
         timed("government") { $0.chooseGovernment() }
         timed("policies") { $0.choosePolicies() }
+        timed("envoys") { $0.sendEnvoys() }
         timed("firstCity") { $0.foundFirstCity() }
         // Tactics in the order of M1 §13; 4 also applies at peace.
         let atWar = !plan.enemies.isEmpty

@@ -82,7 +82,10 @@ extension GameState {
         let player = players[city.owner.rawValue]
         switch item {
         case let .unit(type):
-            if let tech = rules.unit(type).tech, !player.knows(tech) { return "needs \(techName(tech))" }
+            if isMinor(city.owner) {
+                let allowed = rules.minors?.eraUnits.prefix((worldEra ?? 0) + 1).joined().contains(type) ?? false
+                if !allowed { return "minor factions build only their era's units" }
+            } else if let tech = rules.unit(type).tech, !player.knows(tech) { return "needs \(techName(tech))" }
             if type.isNaval, !isCoastal(city) { return "needs a coastal city" }
         case let .building(id):
             guard let def = rules.building(id), def.buildable else { return "cannot be built" }
@@ -160,6 +163,7 @@ extension GameState {
             fx.touchTile(map.index(of: city.position)!)
             fx.emit(.productionCompleted(city: city.id, item: item, at: city.position), .owner(city.owner))
             if def.food != 0 { assignCitizens(index) }
+            buildingCompletedForQuests(id, by: city.owner, &fx)
         case let .quarter(kind, at):
             buildQuarter(kind, at: at, inCity: index, &fx)
             fx.emit(.productionCompleted(city: city.id, item: item, at: city.position), .owner(city.owner))
