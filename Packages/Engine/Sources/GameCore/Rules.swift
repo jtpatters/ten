@@ -64,6 +64,10 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public var movePoints: Int { roads?.movePoints ?? 1 }
     /// Embarking and naval units (M2 §8.4); nil without the section.
     public let embark: EmbarkRules?
+    /// Housing and Stability (M2 §5.1, §5.2); nil without the sections: no growth scale, no
+    /// Stability.
+    public let housing: HousingRules?
+    public let stability: StabilityRules?
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
@@ -121,6 +125,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         stockpile = data.stockpile
         roads = data.roads
         embark = data.embark
+        housing = data.housing
+        stability = data.stability
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -330,6 +336,8 @@ struct RulesetData: Codable, Hashable, Sendable {
     var stockpile: StockpileRules?
     var roads: RoadRules?
     var embark: EmbarkRules?
+    var housing: HousingRules?
+    var stability: StabilityRules?
 }
 
 /// What a resource is for (M2 §3.1).
@@ -389,6 +397,46 @@ public struct RoadRules: Codable, Hashable, Sendable {
     /// Pillaging an improvement gives this much Gold, or heals this much when wounded.
     public let pillageGold: Int
     public let pillageHeal: Int
+}
+
+/// Housing (M2 §5.1).
+public struct HousingRules: Codable, Hashable, Sendable {
+    /// Base Housing: no water / coast or lake next to the centre / fresh water.
+    public let base: Int
+    public let coast: Int
+    public let freshWater: Int
+    /// +1 per `improvedTilesPerHousing` worked tiles with one of `improvements` (case names).
+    public let improvements: [String]
+    public let improvedTilesPerHousing: Int
+    /// Growth scale (percent of a positive surplus) by population vs Housing: ≤ H − 2, H − 1,
+    /// ≥ H, ≥ H + `noGrowthAbove`.
+    public let belowPct: Int
+    public let nearPct: Int
+    public let atPct: Int
+    public let noGrowthAbove: Int
+}
+
+/// Stability (M2 §5.2).
+public struct StabilityRules: Codable, Hashable, Sendable {
+    /// Need: max(0, (pop − 1) / `needDivisor`).
+    public let needDivisor: Int
+    /// Each distinct improved luxury: +1 in the `luxuryCities` cities with the least Stability.
+    public let luxuryCities: Int
+    /// −1 in every city per full `citiesPerPenalty` cities beyond `freeCities`.
+    public let freeCities: Int
+    public let citiesPerPenalty: Int
+    /// In a city captured ≤ `occupiedTurns` turns ago.
+    public let occupied: Int
+    public let occupiedTurns: Int
+    /// States, from the top: at least `thriving` → +`thrivingPct` to every yield but Food; below
+    /// 0 down to `unrest` + 1 (restless) → `restlessPct` and growth ×½; from `unrest` →
+    /// `unrestPct` and no growth; at `revolt` or below, revolt (as unrest).
+    public let thriving: Int
+    public let thrivingPct: Int
+    public let restlessPct: Int
+    public let unrest: Int
+    public let unrestPct: Int
+    public let revolt: Int
 }
 
 /// Embarked land units and naval units (M2 §8.4).
@@ -607,6 +655,11 @@ public struct BuildingDef: Codable, Hashable, Sendable {
     public let wallHP: Int
     /// City Strength while its wall HP is above 0 (Walls).
     public let cityStrength: Int
+    /// Housing and Stability it adds in its city (M2 §5.1, §5.2); nil = 0.
+    public let housing: Int?
+    public let stability: Int?
+    /// Only in a city on a river (Water Mill).
+    public let requiresRiver: Bool?
 
     public var yields: Yields { Yields(food: food, production: production, gold: gold, science: science, culture: culture) }
 }

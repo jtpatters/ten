@@ -17,6 +17,18 @@ public struct CityGrowth: Hashable, Sendable {
     public var turnsToShrink: Int?
 }
 
+/// An own city's Housing and Stability (M2 §5.1, §5.2).
+public struct CityWellbeing: Hashable, Sendable {
+    public var housing: HousingBreakdown
+    /// Percent of a positive food surplus that goes into the store.
+    public var growthPct: Int
+    /// The Stability its yields use (from its phase start) and its state.
+    public var stability: Int
+    public var state: StabilityState
+    /// Its Stability by source as things stand now (the next phase start's value).
+    public var breakdown: StabilityBreakdown
+}
+
 /// Why a queued item waits instead of taking production (M1 §5 "An item waits while it cannot").
 public enum ProductionWait: Hashable, Sendable {
     /// A unit that needs this population to complete (a Settler in a city of population 1).
@@ -84,6 +96,15 @@ public struct UpkeepForecast: Hashable, Sendable {
 }
 
 extension PlayerView {
+    /// An own city's Housing and Stability (nil without the rules or for another's city).
+    public func wellbeing(of id: CityID) -> CityWellbeing? {
+        guard rules.stability != nil, let city = city(id), let index = state.cityIndex(id) else { return nil }
+        let breakdown = state.stabilityBreakdowns(for: city.owner)[index] ?? StabilityBreakdown()
+        let stability = city.stability ?? breakdown.total
+        return CityWellbeing(housing: state.housing(of: city), growthPct: state.growthPct(of: city), stability: stability,
+                             state: rules.stabilityState(stability), breakdown: breakdown)
+    }
+
     /// An own city's food store, threshold, surplus and the phases until it grows or shrinks.
     public func growth(of id: CityID) -> CityGrowth? {
         guard let city = city(id) else { return nil }

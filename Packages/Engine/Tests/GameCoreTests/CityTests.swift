@@ -177,7 +177,7 @@ import Testing
     @Test func theFoodFloorComesFirst() {
         let (state, id) = makeState()
         #expect(state.city(id)!.workedTiles == [hex(1, 1), hex(3, 2)])
-        #expect(state.cityYields(state.city(id)!).foodSurplus == 1)
+        #expect(state.cityYields(state.city(id)!).rawFoodSurplus == 1)
     }
 
     @Test func focusChangesWhatCitizensWork() throws {

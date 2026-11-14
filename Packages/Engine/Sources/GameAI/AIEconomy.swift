@@ -181,6 +181,13 @@ extension AITurn {
             if unlocatedRival(v) != nil { offer(.unit(.scout)) }
         }
 
+        // 1c. M2 §8: a city projected below Content queues its Monument first; one near its
+        //     Housing, its Granary.
+        if let w = v.wellbeing(of: city.id) {
+            if w.breakdown.total < 0 { offer(.building(monumentID)) }
+            if city.population >= w.housing.total - 1 { offer(.building(granaryID)) }
+        }
+
         // 2a. A few ships in coastal cities after the early turns (M2 §8.4), ahead of Settlers
         //     and the army: the quota is small, and below the defence quota and the army a
         //     ship is never the first choice.
@@ -227,7 +234,7 @@ extension AITurn {
         }
 
         // 7. Granary, Library, Market (the Monument first if it is still missing).
-        for building in [monumentID, granaryID, libraryID, marketID] { offer(.building(building)) }
+        for building in [monumentID, granaryID, libraryID, marketID, waterMillID] { offer(.building(building)) }
 
         // Nothing else wanted: Walls, then an army unit the treasury can keep.
         offer(.building(wallsID))
@@ -240,6 +247,7 @@ extension AITurn {
     var granaryID: BuildingID { "granary" }
     var libraryID: BuildingID { "library" }
     var marketID: BuildingID { "market" }
+    var waterMillID: BuildingID { "waterMill" }
     var wallsID: BuildingID { rules.buildings.first { $0.wallHP > 0 }?.id ?? "walls" }
 
     /// ⌈n · pct / 100⌉.
@@ -253,6 +261,7 @@ extension AITurn {
             return fieldable(type, v)
         case let .building(id):
             guard let def = rules.building(id), def.buildable, !city.has(id) else { return false }
+            if def.requiresRiver == true, (v.tile(at: city.position)?.riverEdges ?? 0) == 0 { return false }
             return def.tech.map(v.me.knows) ?? true
         }
     }

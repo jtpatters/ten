@@ -74,6 +74,11 @@ struct LegacySave {
         json.removeValue(forKey: "roads")
         // M2 naval units' embarking rules (M2 §3.2).
         json.removeValue(forKey: "embark")
+        // M2 2.2 Housing and Stability (M2 §5.1, §5.2) and the Water Mill.
+        json.removeValue(forKey: "housing")
+        json.removeValue(forKey: "stability")
+        json["buildings"] = (json["buildings"] as? [[String: Any]] ?? []).filter { $0["id"] as? String != "waterMill" }
+            .map { b in b.filter { !["housing", "stability", "requiresRiver"].contains($0.key) } }
         let improvements = json["improvements"] as? [[String: Any]] ?? []
         json["improvements"] = improvements.prefix(3).map { imp in imp.filter { !["resources", "techBonuses"].contains($0.key) } }
         for key in ["tribalVillages", "eras", "progression", "promotions", "promotionXP"] { json.removeValue(forKey: key) }

@@ -389,6 +389,39 @@ struct GameReport {
             + "; roads \(roads), pillaged \(pillaged); stock/sources " + stocks
     }
 
+    /// "cities: 40; stability thriving 3, content 30, restless 5, unrest 2, revolt 0; pop − Housing
+    /// median 0 (min −3, max 4); growth 100% 20, 50% 8, 25% 10, 0% 2" (M2 §5.1, §5.2, §19).
+    var cityLine: String {
+        let cities = state.cities
+        var states = [StabilityState: Int]()
+        var over: [Int] = [], growth = [Int: Int]()
+        for city in cities {
+            states[state.rules.stabilityState(city.stability ?? 0), default: 0] += 1
+            over.append(city.population - state.housing(of: city).total)
+            growth[state.growthPct(of: city), default: 0] += 1
+        }
+        over.sort()
+        let order: [(StabilityState, String)] = [(.thriving, "thriving"), (.content, "content"), (.restless, "restless"),
+                                                  (.unrest, "unrest"), (.revolt, "revolt")]
+        return "cities: \(cities.count); stability " + order.map { "\($0.1) \(states[$0.0, default: 0])" }.joined(separator: ", ")
+            + "; pop − Housing median \(over.isEmpty ? 0 : over[over.count / 2]) (min \(over.first ?? 0), max \(over.last ?? 0)); growth "
+            + growth.keys.sorted(by: >).map { "\($0)% \(growth[$0]!)" }.joined(separator: ", ")
+            + "; stability sums " + stabilitySums
+    }
+
+    /// Each Stability term summed over all cities (M2 §5.2), to show what drives the states.
+    private var stabilitySums: String {
+        var sum = StabilityBreakdown()
+        for player in state.players where player.isAlive {
+            for b in state.stabilityBreakdowns(for: player.id).values {
+                sum.buildings += b.buildings; sum.luxuries += b.luxuries; sum.need += b.need
+                sum.empireSize += b.empireSize; sum.overcrowding += b.overcrowding; sum.occupied += b.occupied
+            }
+        }
+        return "buildings \(sum.buildings), luxuries \(sum.luxuries), need −\(sum.need), empire \(sum.empireSize), "
+            + "overcrowding \(sum.overcrowding), occupied \(sum.occupied)"
+    }
+
     func playerLine(_ player: Player) -> String {
         let cities = state.cities.filter { $0.owner == player.id }
         let t = tallies[player.id.rawValue]
@@ -734,6 +767,7 @@ if options.games == 1 {
     print(report.warLine)
     if !report.state.rules.eras.isEmpty { print(report.eraLine) }
     if !report.state.rules.resources.isEmpty { print(report.resourceLine) }
+    if report.state.rules.stability != nil { print(report.cityLine) }
     if report.villages.enabled { print(report.villageLine) }
     print("outcome: " + report.outcomeLine)
     for player in state.players { print(report.playerLine(player)) }

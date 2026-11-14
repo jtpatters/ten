@@ -199,6 +199,18 @@ public enum DebugTools {
         return true
     }
 
+    /// Sets city `id`'s population and adds buildings it lacks, then reassigns its citizens
+    /// (scenarios: a city past its Housing). False, with nothing changed, for an unknown city or
+    /// a population below 1.
+    @discardableResult
+    public static func setCity(_ id: CityID, population: Int, adding buildings: [BuildingID] = [], in state: inout GameState) -> Bool {
+        guard population >= 1, let index = state.cityIndex(id) else { return false }
+        state.cities[index].population = population
+        for b in buildings where !state.cities[index].has(b) { state.cities[index].buildings.append(b) }
+        state.assignCitizens(index)
+        return true
+    }
+
     /// Fills city `id`'s culture store to one phase short of its next border tile, so its
     /// owner's next phase start grows its borders (M1 §5), and returns the tile they will take:
     /// the one `borderCandidate` picks now, unless the map or the territory around it changes

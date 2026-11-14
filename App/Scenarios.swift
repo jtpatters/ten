@@ -61,7 +61,8 @@ enum Scenarios {
     @MainActor static var lastNote: String?
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
-                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads", "naval"]
+                        "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads", "naval",
+                        "stability"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -145,6 +146,9 @@ enum Scenarios {
         case "naval":
             foundCapital(&state, player: viewer)
             made = try naval(&state)
+        case "stability":
+            foundCapital(&state, player: viewer)
+            made = try stability(&state)
         default:
             throw Failure(description: "no scenario “\(name)” (try \(names.joined(separator: ", ")))")
         }
@@ -694,9 +698,6 @@ extension Scenarios {
                         + "Horses at \(text(places[3])); the Builder on Deer at \(text(places[4])) offers a Camp")
     }
 
-    /// M2 §3.3: `resources`, plus roads laid by hand from the capital out through its land and
-    /// two tiles beyond, and the Quarry pillaged; The Wheel learnt, so the Builder's card
-    /// offers a Road.
     /// M2 §3.2, §8.4: Sailing and Shipbuilding learnt, a Galley and a Quadrireme on the water
     /// nearest the capital and a Warrior embarked beside them; the Galley selected.
     static func naval(_ state: inout GameState) throws -> Made {
@@ -718,6 +719,25 @@ extension Scenarios {
                     note: "Galley at \(water[0].q) \(water[0].r), Quadrireme at \(water[1].q) \(water[1].r), embarked Warrior at \(water[2].q) \(water[2].r); capital coastal: \(coastal)")
     }
 
+    /// M2 §5.1, §5.2: the capital with a Monument, two citizens over its Housing: overcrowded,
+    /// Restless (a City Unrest item) and growing slowly; the capital selected.
+    static func stability(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else {
+            throw Failure(description: "no capital")
+        }
+        DebugTools.setCity(capital.id, population: state.housing(of: capital).total + 2, adding: ["monument"], in: &state)
+        DebugTools.refreshAllKnowledge(in: &state)
+        guard let city = state.city(capital.id) else { throw Failure(description: "the capital is gone") }
+        let wellbeing = state.view(for: viewer).wellbeing(of: city.id)
+        return Made(state: state, focus: .city(city.id),
+                    note: "\(city.name): pop \(city.population), housing \(wellbeing?.housing.total ?? 0), "
+                        + "stability \(wellbeing?.stability ?? 0), growth \(wellbeing?.growthPct ?? 0)%")
+    }
+
+    /// M2 §3.3: `resources`, plus roads laid by hand from the capital out through its land and
+    /// two tiles beyond, and the Quarry pillaged; The Wheel learnt, so the Builder's card
+    /// offers a Road.
     static func roads(_ state: inout GameState) throws -> Made {
         let viewer = PlayerID(0)
         var made = try resources(&state)

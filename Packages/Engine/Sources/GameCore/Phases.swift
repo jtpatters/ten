@@ -23,7 +23,7 @@ extension GameState {
 
     /// Starts `player`'s phase (M1 §3), steps in order:
     /// 1. expire the player's own unanswered peace proposals;
-    /// 2. its cities in id order: assign citizens → collect yields → food and growth →
+    /// 2. Stability of its cities (M2 §5.2); its cities in id order: assign citizens → collect yields → food and growth →
     ///    production → culture and borders → healing and wall repair → clear the bombard flag
     ///    (then citizens are reassigned so the city shows what it works next);
     /// 3. gold: the gold yield, then upkeep; 4. science;
@@ -38,6 +38,7 @@ extension GameState {
 
         expireProposals(of: player, &fx)
 
+        updateStability(for: player)
         var gold = 0, science = 0
         for index in cities.indices where cities[index].owner == player {
             assignCitizens(index)

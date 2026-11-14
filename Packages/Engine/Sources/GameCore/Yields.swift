@@ -11,6 +11,8 @@ public enum YieldSource: Hashable, Sendable {
     /// +1 Science per `populationPerScience` citizens.
     case population
     case building(BuildingID)
+    /// The city's Stability state (M2 §5.2): a percentage of every yield but Food.
+    case stability
 }
 
 /// A city's yields this phase with their sources (M1 §12.6).
@@ -21,11 +23,15 @@ public struct CityYields: Hashable, Sendable {
     public var breakdown: [(source: YieldSource, yields: Yields)]
     /// Food the citizens eat.
     public var foodEaten: Int
-    /// Food into (or out of) the store.
-    public var foodSurplus: Int { total.food - foodEaten }
+    /// Percent of a positive surplus that goes into the store (Housing and Stability, M2 §5.1).
+    public var growthPct = 100
+    /// Food left after the citizens eat.
+    public var rawFoodSurplus: Int { total.food - foodEaten }
+    /// Food into (or out of) the store: a positive surplus scaled by `growthPct`.
+    public var foodSurplus: Int { rawFoodSurplus > 0 ? rawFoodSurplus * growthPct / 100 : rawFoodSurplus }
 
     public static func == (a: CityYields, b: CityYields) -> Bool {
-        a.total == b.total && a.foodEaten == b.foodEaten && a.breakdown.count == b.breakdown.count
+        a.total == b.total && a.foodEaten == b.foodEaten && a.growthPct == b.growthPct && a.breakdown.count == b.breakdown.count
             && zip(a.breakdown, b.breakdown).allSatisfy { $0.source == $1.source && $0.yields == $1.yields }
     }
 
@@ -129,9 +135,19 @@ extension GameState {
         for id in city.buildings {
             if let def = rules.building(id), !def.yields.isZero { breakdown.append((.building(id), def.yields)) }
         }
-        let total = breakdown.reduce(Yields.zero) { $0 + $1.1 }
+        var total = breakdown.reduce(Yields.zero) { $0 + $1.1 }
+        let pct = rules.stabilityYieldPct(rules.stabilityState(city.stability ?? 0))
+        if pct != 0 {
+            func scaled(_ v: Int) -> Int { max(0, v) * (100 + pct) / 100 - max(0, v) }
+            let delta = Yields(production: scaled(total.production), gold: scaled(total.gold),
+                               science: scaled(total.science), culture: scaled(total.culture))
+            if !delta.isZero {
+                breakdown.append((.stability, delta))
+                total += delta
+            }
+        }
         return CityYields(total: total, breakdown: breakdown.map { (source: $0.0, yields: $0.1) },
-                          foodEaten: city.population * rules.constants.growth.foodPerCitizen)
+                          foodEaten: city.population * rules.constants.growth.foodPerCitizen, growthPct: growthPct(of: city))
     }
 
     /// Food from the city's buildings.
