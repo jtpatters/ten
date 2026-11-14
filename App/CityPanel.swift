@@ -231,6 +231,10 @@ struct CityPanel: View {
                     OptionRow(option: option, city: city.id, session: session, readOnly: readOnly, builderNote: builderNote)
                 }
             }
+            let quarters = view.quarterOptions(for: city.id)
+            if !quarters.isEmpty {
+                QuarterOptionList(options: quarters, city: city.id, session: session, readOnly: readOnly)
+            }
             if !later.isEmpty {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showsLater.toggle() }
@@ -304,6 +308,9 @@ struct CityPanel: View {
     @ViewBuilder
     private func buildings(_ view: PlayerView) -> some View {
         let defs = city.buildings.compactMap { view.rules.building($0) }
+        if let quarters = city.quarters, !quarters.isEmpty {
+            BuiltQuarterList(quarters: quarters, city: city, view: view)
+        }
         VStack(alignment: .leading, spacing: HUD.Space.s) {
             SectionHeader(title: "Buildings")
             if defs.isEmpty {
@@ -462,9 +469,18 @@ struct ItemIcon: View {
             case "walls": "shield"
             case "market": "storefront"
             case "waterMill": "water.waves"
+            case "castle": "shield.lefthalf.filled.badge.checkmark"
+            case "university": "graduationcap"
+            case "bank": "banknote"
+            case "workshop": "gearshape.2"
+            case "lighthouse": "light.beacon.max"
+            case "barracks": "flag.2.crossed"
+            case "stable": "hare"
+            case "amphitheater": "theatermasks"
+            case "arena": "sportscourt"
             default: "building.2"
             }
-        case .quarter: "square.grid.3x3"
+        case let .quarter(kind, _): QuarterArt.symbol(kind)
         }
     }
 }
@@ -1176,5 +1192,147 @@ private struct BuyButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(ChipButtonStyle())
+    }
+}
+
+// MARK: Quarters
+
+/// Quarter kinds' symbols (M2 §5.3): the city panel and the map's quarter marks.
+enum QuarterArt {
+    static func symbol(_ kind: QuarterKind) -> String {
+        switch kind.rawValue {
+        case "campus": "graduationcap.fill"
+        case "market": "storefront.fill"
+        case "workshop": "gearshape.2.fill"
+        case "harbor": "ferry.fill"
+        case "barracks": "flag.2.crossed.fill"
+        case "theater": "theatermasks.fill"
+        case "arena": "sportscourt.fill"
+        case "aqueduct": "drop.fill"
+        default: "square.grid.3x3.fill"
+        }
+    }
+
+    /// "Science", "Gold"… for an adjacency yield name.
+    static func yieldName(_ yield: String?) -> String? {
+        yield.map { $0.prefix(1).uppercased() + $0.dropFirst() }
+    }
+}
+
+/// The quarters a city could build (M2 §18.2): tap one to pick its tile on the map, where its
+/// legal sites are marked with their adjacency.
+private struct QuarterOptionList: View {
+    var options: [QuarterOption]
+    var city: CityID
+    var session: GameSession
+    var readOnly: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HUD.Space.xs) {
+            HeaderRow(title: "Quarters") {
+                if let cap = session.view.quarterCap(of: city) {
+                    let built = (session.view.city(city)?.quarters ?? []).filter { session.state.rules.quarter($0.kind)?.capExempt != true }.count
+                    Text("\(built) of \(cap) built").font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
+                }
+            }
+            .padding(.top, HUD.Space.xs)
+            ForEach(options, id: \.kind) { option in
+                row(option)
+            }
+        }
+    }
+
+    private func row(_ option: QuarterOption) -> some View {
+        let placeable = option.problem == nil
+        return Button {
+            if let problem = option.problem {
+                session.show("Can't place a \(option.name): \(problem)")
+            } else {
+                session.beginQuarter(option.kind, in: city)
+            }
+        } label: {
+            HStack(spacing: HUD.Space.s) {
+                ItemIcon(item: .quarter(option.kind, at: HexCoord(q: 0, r: 0)), size: 30,
+                         tint: placeable ? HUD.Yield.production : HUD.inkFaint)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(option.name).font(HUD.title(.subheadline)).foregroundStyle(placeable ? HUD.ink : HUD.inkSoft)
+                    Text(detail(option)).font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: HUD.Space.xs)
+                if placeable {
+                    Image(systemName: "mappin.circle.fill").font(.system(size: 18)).foregroundStyle(HUD.bronzeBottom)
+                }
+            }
+            .padding(.horizontal, HUD.Space.s)
+            .frame(minHeight: 48)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ChipButtonStyle())
+        .disabled(readOnly)
+        .background(RoundedRectangle(cornerRadius: HUD.Radius.small, style: .continuous).fill(HUD.parchmentWell.opacity(placeable ? 1 : 0.5)))
+        .accessibilityLabel("\(option.name), \(detail(option))")
+        .accessibilityHint(option.problem.map { "Unavailable: \($0)." } ?? "Choose its tile on the map.")
+    }
+
+    /// "55 production · 7 turns · best +2 Science, 3 tiles", or why not.
+    private func detail(_ option: QuarterOption) -> String {
+        var parts = ["\(option.cost) production"]
+        if let turns = option.turns { parts.append(turns == 1 ? "1 turn" : "\(turns) turns") }
+        if let problem = option.problem {
+            parts.append(problem.prefix(1).uppercased() + problem.dropFirst())
+        } else {
+            let tiles = option.sites.count == 1 ? "1 tile" : "\(option.sites.count) tiles"
+            if let best = option.sites.first, let yield = QuarterArt.yieldName(option.yield) {
+                parts.append("best +\(best.adjacency) \(yield), \(tiles)")
+            } else {
+                parts.append(tiles)
+            }
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// A city's built quarters: each with its adjacency bonus (or Housing, Stability), pillaged
+/// ones marked.
+private struct BuiltQuarterList: View {
+    var quarters: [CityQuarter]
+    var city: City
+    var view: PlayerView
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HUD.Space.s) {
+            SectionHeader(title: "Quarters")
+            VStack(spacing: 0) {
+                ForEach(Array(quarters.enumerated()), id: \.element.kind) { i, quarter in
+                    HStack(spacing: HUD.Space.s) {
+                        ItemIcon(item: .quarter(quarter.kind, at: quarter.tile), size: 28)
+                        Text(view.rules.quarter(quarter.kind)?.name ?? quarter.kind.rawValue.capitalized).font(HUD.title(.subheadline))
+                        Spacer(minLength: HUD.Space.s)
+                        Text(effect(quarter))
+                            .font(HUD.body(.caption))
+                            .foregroundStyle(quarter.isPillaged ? HUD.danger : HUD.inkSoft)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .padding(.horizontal, HUD.Space.m)
+                    .frame(minHeight: 40)
+                    .accessibilityElement(children: .combine)
+                    if i < quarters.count - 1 { Rectangle().fill(HUD.ink.opacity(0.1)).frame(height: 1).padding(.leading, 48) }
+                }
+            }
+            .parchmentWell()
+        }
+    }
+
+    /// "+2 Science (adjacency)", "+4 Housing", "Pillaged".
+    private func effect(_ quarter: CityQuarter) -> String {
+        if quarter.isPillaged { return "Pillaged" }
+        guard let def = view.rules.quarter(quarter.kind) else { return "—" }
+        var parts: [String] = []
+        if let yield = QuarterArt.yieldName(def.yield) {
+            parts.append("\(YieldChip.signed(view.quarterAdjacency(quarter, of: city.id))) \(yield)")
+        }
+        if let housing = def.housing { parts.append("\(YieldChip.signed(housing)) Housing") }
+        if let stability = def.stability { parts.append("\(YieldChip.signed(stability)) Stability") }
+        return parts.isEmpty ? "—" : parts.joined(separator: " · ")
     }
 }

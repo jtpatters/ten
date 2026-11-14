@@ -44,7 +44,7 @@ extension GameSession {
     /// its side, where card and side panel would leave the map a sliver between them) the panel
     /// also steps aside for a card (attention such as Keep/Raze, combat preview, tile, game over).
     func panelCity(compact: Bool) -> City? {
-        guard let city = selectedCity, city.owner == viewer, bombardTargeting == nil else { return nil }
+        guard let city = selectedCity, city.owner == viewer, bombardTargeting == nil, quarterPlacing == nil else { return nil }
         if compact, attentionCard != nil || pendingAttack != nil || inspectedHex != nil || state.outcome != nil { return nil }
         return city
     }
@@ -146,4 +146,51 @@ extension GameSession {
         if case .city? = pendingAttack?.attacker { cancelAttack() }
         bombardTargeting = nil
     }
+
+    // MARK: Quarters
+
+    /// A quarter's tile choice (M2 §18.2): the panel steps aside and the map marks the legal
+    /// sites with their adjacency; a tap on one queues the quarter there.
+    func beginQuarter(_ kind: QuarterKind, in id: CityID) {
+        guard let option = view.quarterOptions(for: id).first(where: { $0.kind == kind }) else { return }
+        if let problem = option.problem ?? (isInputEnabled ? nil : "not your turn") {
+            show("Can't place a \(option.name): \(problem)")
+            return
+        }
+        if selection != .city(id) { select(.city(id)) }
+        quarterPlacing = QuarterPlacing(city: id, kind: kind)
+        refreshSelection()
+    }
+
+    /// Leaves the tile choice; the panel returns.
+    func endQuarter() {
+        quarterPlacing = nil
+        refreshSelection()
+    }
+
+    /// The legal sites of the quarter being placed, best first.
+    func quarterSites() -> [QuarterSite] {
+        guard let placing = quarterPlacing else { return [] }
+        return view.quarterOptions(for: placing.city).first { $0.kind == placing.kind }?.sites ?? []
+    }
+
+    /// A tap while placing: a marked site queues the quarter there and the panel returns on its
+    /// production; elsewhere it says to tap a marked tile.
+    func placeQuarter(at hex: HexCoord) {
+        guard let placing = quarterPlacing else { return }
+        let name = state.rules.quarter(placing.kind)?.name ?? placing.kind.rawValue
+        guard quarterSites().contains(where: { $0.tile == hex }) else {
+            show("Tap a marked tile for the \(name), or Cancel")
+            return
+        }
+        quarterPlacing = nil
+        if enqueue(.quarter(placing.kind, at: hex), in: placing.city) { requestCityPanel(.production) }
+        refreshSelection()
+    }
+}
+
+/// A city choosing a quarter's tile.
+struct QuarterPlacing: Equatable {
+    var city: CityID
+    var kind: QuarterKind
 }

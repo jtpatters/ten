@@ -62,7 +62,7 @@ enum Scenarios {
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
                         "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads", "naval",
-                        "stability"]
+                        "stability", "quarters"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -146,6 +146,9 @@ enum Scenarios {
         case "naval":
             foundCapital(&state, player: viewer)
             made = try naval(&state)
+        case "quarters":
+            foundCapital(&state, player: viewer)
+            made = try quarters(&state)
         case "stability":
             foundCapital(&state, player: viewer)
             made = try stability(&state)
@@ -717,6 +720,32 @@ extension Scenarios {
         let coastal = state.cities.first.map(view.isCoastal) ?? false
         return Made(state: state, focus: .unit(galley),
                     note: "Galley at \(water[0].q) \(water[0].r), Quadrireme at \(water[1].q) \(water[1].r), embarked Warrior at \(water[2].q) \(water[2].r); capital coastal: \(coastal)")
+    }
+
+    /// M2 §5.3, §18.2: the capital at population 9 (four quarters) knowing Writing, Currency,
+    /// Bronze Working, Engineering and Apprenticeship, with a Campus and a Market on their best
+    /// tiles and an Aqueduct where it may stand, so a Workshop or Barracks has a few legal sites
+    /// left; the capital selected.
+    static func quarters(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else { throw Failure(description: "no capital") }
+        for tech in ["writing", "currency", "bronzeWorking", "engineering", "apprenticeship", "mining"] {
+            DebugTools.learnTech(TechID(tech), player: viewer, in: &state)
+        }
+        DebugTools.setCity(capital.id, population: 9, in: &state)
+        var built: [String] = []
+        for kind: QuarterKind in ["campus", "market", "aqueduct"] {
+            if let site = state.view(for: viewer).quarterOptions(for: capital.id).first(where: { $0.kind == kind })?.sites.first,
+               DebugTools.addQuarter(kind, at: site.tile, to: capital.id, in: &state) {
+                built.append(kind.rawValue)
+            }
+        }
+        guard !built.isEmpty else { throw Failure(description: "no quarter fits around the capital") }
+        DebugTools.refreshAllKnowledge(in: &state)
+        let open = state.view(for: viewer).quarterOptions(for: capital.id).filter { $0.problem == nil }
+            .map { "\($0.kind.rawValue) \($0.sites.count)" }
+        return Made(state: state, focus: .city(capital.id),
+                    note: "built \(built.joined(separator: ", ")); sites: \(open.joined(separator: ", "))")
     }
 
     /// M2 §5.1, §5.2: the capital with a Monument, two citizens over its Housing: overcrowded,

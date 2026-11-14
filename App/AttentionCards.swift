@@ -312,6 +312,33 @@ struct BombardHintCard: View {
     }
 }
 
+/// Placing a quarter (M2 §18.2): which, where, and Cancel.
+struct QuarterHintCard: View {
+    let session: GameSession
+    let placing: QuarterPlacing
+
+    var body: some View {
+        let name = session.state.rules.quarter(placing.kind)?.name ?? placing.kind.rawValue
+        let city = session.view.city(placing.city)?.name ?? "the city"
+        let sites = session.quarterSites().count
+        HStack(spacing: HUD.Space.m) {
+            Image(systemName: QuarterArt.symbol(placing.kind)).font(.system(size: 18, weight: .semibold)).foregroundStyle(HUD.bronzeBottom)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(name) in \(city)").font(HUD.title(.subheadline))
+                Text(sites == 1 ? "Tap the marked tile. Its number is the adjacency bonus."
+                     : "Tap one of the \(sites) marked tiles. Numbers are adjacency bonuses.")
+                    .font(HUD.body(.caption))
+                    .foregroundStyle(HUD.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: HUD.Space.s)
+            Button("Cancel") { session.endQuarter() }
+                .buttonStyle(ParchmentButtonStyle())
+        }
+        .hudCard()
+    }
+}
+
 /// Next (Space): what the attention queue visits next, with how many items are pending, or End
 /// Turn when none is; "Waiting for <civ>" in another player's phase. While items are pending,
 /// the hourglass beside it (and its menu) ends the turn at once (asking once per game).

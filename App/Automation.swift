@@ -271,6 +271,20 @@ final class AutomationInbox {
             }
             try await Task.sleep(for: .milliseconds(300))
             return "targeting \(session.bombardTargeting.map { "\($0.rawValue)" } ?? "none"), " + selectionText(session)
+        case "quarter":
+            // quarter <kind>|cancel: a Quarters row of the selected city's panel (its tile
+            // choice on the map), or leaving it; the result lists the marked sites.
+            guard let city = session.selectedCity else { throw Failure(description: "no city selected") }
+            if args.first == "cancel" {
+                session.endQuarter()
+            } else {
+                guard let kind = args.first else { throw Failure(description: "quarter <kind>|cancel") }
+                session.beginQuarter(QuarterKind(kind), in: city.id)
+            }
+            try await Task.sleep(for: .milliseconds(300))
+            guard let placing = session.quarterPlacing else { return session.message ?? "placing none" }
+            let sites = session.quarterSites().map { "\($0.tile.q) \($0.tile.r) +\($0.adjacency)" }
+            return "placing \(placing.kind.rawValue): " + sites.joined(separator: ", ")
         case "keep", "raze":
             guard case let .capture(id)? = session.attentionCard else { throw Failure(description: "no Keep/Raze card") }
             if verb == "keep" { session.keepCity(id) } else { session.askToRaze(id) }
@@ -788,6 +802,7 @@ final class AutomationInbox {
             "selectionInOpen": optional(session.selectionHex.map { session.isOnScreen($0, margin: 0) }),
             "cityPanel": optional(session.selectedCity.map { _ in "\(session.cityPanelRequest.focus)" }),
             "bombardTargeting": optional(session.bombardTargeting?.rawValue),
+            "quarterPlacing": optional(session.quarterPlacing.map { "\($0.city.rawValue) \($0.kind.rawValue)" }),
             "endTurnPrompt": optional(session.endTurnPrompt),
             "pendingPurchase": optional(session.pendingPurchase.map { "\($0.name) \($0.price)" }),
             "pendingRaze": optional(session.pendingRaze?.rawValue),

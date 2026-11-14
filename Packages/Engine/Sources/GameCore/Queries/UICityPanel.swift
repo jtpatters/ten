@@ -341,3 +341,66 @@ private struct PopulationForecast {
         }
     }
 }
+
+// MARK: Quarters
+
+/// A legal site for a quarter, with the adjacency bonus it would have there (M2 §18.2).
+public struct QuarterSite: Hashable, Sendable {
+    public var tile: HexCoord
+    public var adjacency: Int
+}
+
+/// A quarter kind as the city panel lists it (M2 §18.2): its cost now, phases at the city's
+/// production, its legal sites best first, and why it may not be placed now (nil: it may).
+public struct QuarterOption: Hashable, Sendable {
+    public var kind: QuarterKind
+    public var name: String
+    /// The yield its adjacency gives ("science", "gold", ...); nil: none.
+    public var yield: String?
+    public var cost: Int
+    public var turns: Int?
+    public var sites: [QuarterSite]
+    public var problem: String?
+}
+
+extension PlayerView {
+    /// Every quarter kind for an own city, in rules order, but the ones it has built.
+    public func quarterOptions(for id: CityID) -> [QuarterOption] {
+        guard let city = city(id), let kinds = rules.quarters?.kinds else { return [] }
+        let production = state.cityYields(city).total.production
+        let queued = city.queue.compactMap { entry -> QuarterKind? in
+            if case let .quarter(kind, _) = entry.item { return kind }
+            return nil
+        }
+        let cappedQueued = queued.filter { state.countsTowardCap($0) }.count
+        let cap = state.quarterCap(of: city)
+        return kinds.filter { state.quarter($0.id, of: city) == nil }.map { def in
+            let cost = state.quarterCost(def.id)
+            var problem = state.quarterKindProblem(def.id, in: city)
+            if problem == nil {
+                if queued.contains(def.id) { problem = "already queued" }
+                else if city.queue.count >= rules.constants.production.maxQueue { problem = "queue full" }
+                else if state.countsTowardCap(def.id), state.cappedQuarterCount(city) + cappedQueued >= cap {
+                    problem = "at most \(cap) quarters at population \(city.population)"
+                }
+            }
+            let sites = problem == nil ? state.quarterSites(def.id, in: city).map { QuarterSite(tile: $0.tile, adjacency: $0.adjacency) } : []
+            if problem == nil, sites.isEmpty { problem = "no tile for it" }
+            return QuarterOption(kind: def.id, name: def.name, yield: def.yield, cost: cost,
+                                 turns: production > 0 ? max(1, (cost + production - 1) / production) : nil,
+                                 sites: sites, problem: problem)
+        }
+    }
+
+    /// How many quarters an own city may have (cap-exempt kinds aside), at its population.
+    public func quarterCap(of id: CityID) -> Int? {
+        city(id).map { state.quarterCap(of: $0) }
+    }
+
+    /// A built quarter's adjacency bonus where it stands, for its own city (0 when pillaged).
+    public func quarterAdjacency(_ quarter: CityQuarter, of id: CityID) -> Int {
+        guard let city = city(id), !quarter.isPillaged, let t = state.map.index(of: quarter.tile),
+              let centre = state.map.index(of: city.position) else { return 0 }
+        return state.quarterAdjacency(quarter.kind, at: t, owner: player, centre: centre)
+    }
+}

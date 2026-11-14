@@ -100,4 +100,25 @@ enum MapAdapter {
     static func overlayByte(shade: Int) -> UInt8 {
         UInt8(clamping: (min(max(shade, 1), 7) - 1) * 256 / 7 + 18)
     }
+
+    /// The overlay's wash for a quarter's legal sites (M2 §18.2): the best adjacency gilt, none
+    /// plain; empty with no sites.
+    static func quarterSiteScores(_ view: PlayerView, sites: [QuarterSite]) -> [UInt8] {
+        guard !sites.isEmpty else { return [] }
+        var scores = [UInt8](repeating: 0, count: view.tileCount)
+        let best = max(1, sites.map(\.adjacency).max() ?? 1)
+        for site in sites {
+            guard let t = view.index(of: site.tile) else { continue }
+            scores[t] = overlayByte(shade: 4 + (site.adjacency * 3 + best - 1) / best)
+        }
+        return scores
+    }
+
+    /// The built quarters to mark on the map: the viewer's own (every city's in diagnostic mode).
+    static func quarterMarks(state: GameState, viewer: PlayerID, diagnostic: Bool) -> [MapOverlay.QuarterMark] {
+        let cities = diagnostic ? state.cities : state.view(for: viewer).cities
+        return cities.flatMap { city in
+            (city.quarters ?? []).map { MapOverlay.QuarterMark(hex: $0.tile, symbol: QuarterArt.symbol($0.kind), pillaged: $0.isPillaged) }
+        }
+    }
 }
