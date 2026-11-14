@@ -101,6 +101,7 @@ New Game, `newgame` and `-autostart` always place them.
 | `resources` | Turn 1, the capital founded, with resources placed by hand on its own land and their techs learnt (M2 §3.1, §4.1): Stone under a built Quarry, Wine under a built Plantation, Iron and Horses unimproved (the top bar's stock chip shows both), and Deer with a Builder on it, selected (its card offers a Camp). |
 | `roads` | As `resources`, plus roads laid by hand from the capital out through its land and beyond (M2 §3.3), the Quarry pillaged (its mark on the map), and The Wheel learnt (the Builder's card offers a Road). |
 | `naval` | Sailing and Shipbuilding learnt; a Galley and a Quadrireme on the coast nearest the capital and a Warrior embarked beside them (M2 §3.2, §8.4); the Galley selected. |
+| `stability` | The capital with a Monument and two citizens over its Housing: overcrowded, Restless, slow growth and a City Unrest item (M2 §5.1, §5.2); the capital selected. |
 
 The `scenario` command's result ends with the scenario's note when it has one: the units and
 tiles to use next (`rivals`, `walls`, `repreview`, `tribal-villages`).

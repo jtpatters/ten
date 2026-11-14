@@ -78,6 +78,9 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
             #expect(loaded.state.stateHash() == state.stateHash(), "\(String(describing: outcome))")
             #expect(loaded.warnings.isEmpty && loaded.summary == summary)
             #expect(loaded.state.rules === Ruleset.standard)
+            // City Stability (M2 §5.2, additive) comes back as saved.
+            #expect(state.cities.contains { $0.stability == -2 })
+            #expect(loaded.state.cities.map(\.stability) == state.cities.map(\.stability))
             // The loaded game answers the same questions.
             let (a, b) = (loaded.state.view(for: PlayerID(0)), state.view(for: PlayerID(0)))
             #expect(a.dangerMap() == b.dangerMap() && a.knownCities == b.knownCities && a.income() == b.income())
