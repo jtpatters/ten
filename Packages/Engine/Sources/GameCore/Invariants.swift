@@ -14,7 +14,7 @@ extension GameState {
         check(players.indices.contains(currentPlayer.rawValue), "current player \(currentPlayer) does not exist")
         if outcome == nil, players.indices.contains(currentPlayer.rawValue) {
             check(players[currentPlayer.rawValue].isAlive, "current player \(currentPlayer) is eliminated")
-            check(players[currentPlayer.rawValue].isMajor, "current player \(currentPlayer) takes no phases")
+            check(players[currentPlayer.rawValue].takesPhases, "current player \(currentPlayer) takes no phases")
         }
         check(relations.count == players.count * (players.count - 1) / 2, "relation count")
         var k = 0
@@ -166,6 +166,8 @@ extension GameState {
             let hasCities = cities.contains { $0.owner == p.id }
             if p.isMajor {
                 check(hasCities == (p.capital != nil), "\(p.id) has \(hasCities ? "cities but no capital" : "a capital but no city")")
+            } else if p.kind == .raiders {
+                check(p.capital == nil && !hasCities && p.id == raiderPlayer, "\(p.id) raiders with a city")
             } else {
                 check(p.capital == nil && palaces.isEmpty && p.id == freeCities, "\(p.id) Free Cities with a capital")
             }

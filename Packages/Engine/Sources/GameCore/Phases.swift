@@ -6,7 +6,7 @@ extension GameState {
     /// ends, the score victory decides the game instead.
     mutating func endPhase(_ fx: inout Effects) {
         guard outcome == nil else { return }
-        let living = players.indices.filter { players[$0].isAlive && players[$0].isMajor }
+        let living = players.indices.filter { players[$0].isAlive && players[$0].takesPhases }
         guard let first = living.first else { return }
         let next = living.first { $0 > currentPlayer.rawValue }
         if next == nil {
@@ -39,30 +39,34 @@ extension GameState {
 
         expireProposals(of: player, &fx)
 
-        updateStability(for: player)
-        updateLoyalty(for: player, &fx)
-        var gold = 0, science = 0, culture = 0
-        for index in cities.indices where cities[index].owner == player {
-            assignCitizens(index)
-            let yields = cityYields(cities[index])
-            runGrowth(inCity: index, surplus: yields.foodSurplus, &fx)
-            runProduction(inCity: index, production: yields.total.production, &fx)
-            runBorders(inCity: index, culture: yields.total.culture, &fx)
-            healCity(index, &fx)
-            cities[index].bombarded = false
-            assignCitizens(index)
-            gold += yields.total.gold
-            science += yields.total.science
-            culture += yields.total.culture
-        }
+        if isRaider(player) {
+            runRaiders(&fx)
+        } else {
+            updateStability(for: player)
+            updateLoyalty(for: player, &fx)
+            var gold = 0, science = 0, culture = 0
+            for index in cities.indices where cities[index].owner == player {
+                assignCitizens(index)
+                let yields = cityYields(cities[index])
+                runGrowth(inCity: index, surplus: yields.foodSurplus, &fx)
+                runProduction(inCity: index, production: yields.total.production, &fx)
+                runBorders(inCity: index, culture: yields.total.culture, &fx)
+                healCity(index, &fx)
+                cities[index].bombarded = false
+                assignCitizens(index)
+                gold += yields.total.gold
+                science += yields.total.science
+                culture += yields.total.culture
+            }
 
-        let shortfall = runGold(for: player, income: gold, &fx)
-        runResearch(for: player, science: max(0, science - shortfall), &fx)
-        if players[player.rawValue].isMajor {
-            runCivics(for: player, culture: culture, &fx)
-            runInfluence(for: player, &fx)
+            let shortfall = runGold(for: player, income: gold, &fx)
+            runResearch(for: player, science: max(0, science - shortfall), &fx)
+            if players[player.rawValue].isMajor {
+                runCivics(for: player, culture: culture, &fx)
+                runInfluence(for: player, &fx)
+            }
+            runStockpiles(for: player)
         }
-        runStockpiles(for: player)
 
         let ids = units.compactMap { $0.owner == player ? $0.id : nil }
         for id in ids {

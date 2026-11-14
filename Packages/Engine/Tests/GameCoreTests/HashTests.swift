@@ -127,7 +127,7 @@ import MapGen
         // p3g contracts: the rules' tribal village section added (0x04D7_4139_CB7A_64C6 before);
         // the game has none, so only the rules content hash moved (`goldenHashWithoutTribalVillages`).
         // M2 2.1a: 30 techs, eras and Insights in the rules; the state's world era (0xD11F_A96D_D6E7_E48A before).
-        #expect(state.stateHash() == 0x26CD_1102_0929_566F, // M2 2.3a civics (2.2d 0xE94C_AA4C_B9E6_3364) (2.2c 0x8201_1D4E_2B85_A854) (2.2b 0x91B3_2F7B_3E05_CA8C) (2.2a 0x7B53_282C_28E3_9C1E) (city attack 0x370B_03B3_246D_4B53) (naval 0x5A22_6436_087E_0D82; roads 0x1675_6DCB_85EA_5E09; resources 0xB3AC_BDA5_E8F0_0455; 2.1b 0xF02C_AF50_2AD7_DAE3; 0x01B1_8EA9_AAFB_33AD; 2.1a 0xA75D_D47F_DE8E_AE8A)
+        #expect(state.stateHash() == 0x06A9_B33B_A966_C9D4, // M2 2.4a raiders (2.3 0x26CD_1102_0929_566F) M2 2.3a civics (2.2d 0xE94C_AA4C_B9E6_3364) (2.2c 0x8201_1D4E_2B85_A854) (2.2b 0x91B3_2F7B_3E05_CA8C) (2.2a 0x7B53_282C_28E3_9C1E) (city attack 0x370B_03B3_246D_4B53) (naval 0x5A22_6436_087E_0D82; roads 0x1675_6DCB_85EA_5E09; resources 0xB3AC_BDA5_E8F0_0455; 2.1b 0xF02C_AF50_2AD7_DAE3; 0x01B1_8EA9_AAFB_33AD; 2.1a 0xA75D_D47F_DE8E_AE8A)
                 "golden hash: 0x\(String(state.stateHash(), radix: 16))")
     }
 
@@ -216,7 +216,7 @@ import MapGen
         // At pinning: 6 taken, all by units (none by a city); 3 Gold, 2 Science, 1 Builder; 2 left.
         #expect(byUnit > 0 && gold > 0 && science > 0 && builders > 0)
         #expect(byUnit + byCity == gold + science + builders && state.tribalVillages?.gifts.reduce(0, +) == byUnit + byCity)
-        #expect(state.stateHash() == 0x397B_4870_04E3_8A5F, // M2 2.3a civics (2.2d 0x9FA8_6DD6_217E_A9A3) (2.2c 0xAE64_D7B7_AA3D_C3DF) (2.2b 0x5512_D9E6_C312_CED3) (2.2a 0x544E_BF1B_74C8_8C61) (city attack 0xFE0E_4F21_AC3F_2A67) (naval 0x3BCA_9015_D530_6474) (roads 0x9AE0_D946_36E8_6017) (resources 0xAD3C_557E_A36E_4FD9) (2.1b 0xCFA3_9056_772E_7BA6) (0x21E2_F500_2BB9_D548) (2.1a: 0x184E_3AA6_7A01_0E95) (0x1346_6444_C3B0_D609 before)
+        #expect(state.stateHash() == 0xEFEE_329F_6E32_6C73, // M2 2.4a raiders (2.3 0x397B_4870_04E3_8A5F) M2 2.3a civics (2.2d 0x9FA8_6DD6_217E_A9A3) (2.2c 0xAE64_D7B7_AA3D_C3DF) (2.2b 0x5512_D9E6_C312_CED3) (2.2a 0x544E_BF1B_74C8_8C61) (city attack 0xFE0E_4F21_AC3F_2A67) (naval 0x3BCA_9015_D530_6474) (roads 0x9AE0_D946_36E8_6017) (resources 0xAD3C_557E_A36E_4FD9) (2.1b 0xCFA3_9056_772E_7BA6) (0x21E2_F500_2BB9_D548) (2.1a: 0x184E_3AA6_7A01_0E95) (0x1346_6444_C3B0_D609 before)
                 "golden hash with tribal villages: 0x\(String(state.stateHash(), radix: 16))")
     }
 
@@ -225,7 +225,7 @@ import MapGen
     @Test func goldenHashWithoutTribalVillages() throws {
         let (state, _) = try Self.goldenGame(rules: try c0Rules())
         #expect(state.rules.tribalVillages == nil && state.rules.contentHash == preTribalVillagesContentHash)
-        #expect(state.stateHash() == 0x07FE_686C_278F_9273, // M2 2.3a civics (2.2d 0x105B_B862_79E2_895A) (2.2c 0x42F6_AAAE_A25A_9055) (2.2b 0xB4B8_128C_07A8_15DB) (2.2a 0xB04D_678F_14A0_C5A5) (city attack 0x7067_BDA5_BC04_AD53) (naval 0x14AF_7B45_2154_E8F2) (roads 0x7141_182D_444C_7E53) (resources 0xB01D_ED97_0541_E3D5) (2.1b 0x6727_BE8E_6D58_9247) (0x3864_3AAA_2133_7AAA) (2.1a: 0x4386_124D_CC4E_C3A5) (0x04D7_4139_CB7A_64C6 before)
+        #expect(state.stateHash() == 0xA6F4_05DC_38C8_CABD, // M2 2.4a raiders (2.3 0x07FE_686C_278F_9273) M2 2.3a civics (2.2d 0x105B_B862_79E2_895A) (2.2c 0x42F6_AAAE_A25A_9055) (2.2b 0xB4B8_128C_07A8_15DB) (2.2a 0xB04D_678F_14A0_C5A5) (city attack 0x7067_BDA5_BC04_AD53) (naval 0x14AF_7B45_2154_E8F2) (roads 0x7141_182D_444C_7E53) (resources 0xB01D_ED97_0541_E3D5) (2.1b 0x6727_BE8E_6D58_9247) (0x3864_3AAA_2133_7AAA) (2.1a: 0x4386_124D_CC4E_C3A5) (0x04D7_4139_CB7A_64C6 before)
                 "C0 golden hash: 0x\(String(state.stateHash(), radix: 16))")
     }
 }

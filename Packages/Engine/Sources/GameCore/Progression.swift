@@ -83,6 +83,8 @@ extension GameState {
                     defended[city.owner.rawValue] = true
                     mark(city.owner, .cityDefended)
                 }
+            case let .raiderCampCleared(player, _, _):
+                mark(player, .clearRaiderCamp)
             default:
                 break
             }
@@ -110,7 +112,7 @@ extension GameState {
             for civic in rules.civics {
                 guard let insight = civic.insight, dirty[p].contains(insight.kind), !players[p].knowsCivic(civic.id),
                       players[p].civicInsights?.contains(civic.id) != true else { continue }
-                let fired = insight.kind == .warDeclaredOn || insightCount(insight, for: PlayerID(p)) >= (insight.count ?? 1)
+                let fired = insight.kind == .warDeclaredOn || insight.kind == .clearRaiderCamp || insightCount(insight, for: PlayerID(p)) >= (insight.count ?? 1)
                 guard fired else { continue }
                 players[p].civicInsights = ((players[p].civicInsights ?? []) + [civic.id]).sorted()
                 let credit = civic.cost * progression.insightPct / 100
@@ -159,7 +161,7 @@ extension GameState {
             }
         case .ownMilitaryUnits:
             return units.count { $0.owner == player && rules.unit($0.type).isMilitary }
-        case .killWith, .cityDefended, .warDeclaredOn:
+        case .killWith, .cityDefended, .warDeclaredOn, .clearRaiderCamp:
             return 0
         }
     }

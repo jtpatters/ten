@@ -10,7 +10,7 @@ public struct PlayerID: Hashable, Codable, Sendable, Comparable, CustomStringCon
 /// One player: civ, treasury, research and knowledge (M1 §12.3). `players[i].id == PlayerID(i)`.
 /// M2 §12.5, §20: the Free Cities are a fixed non-player faction after the civs.
 public enum PlayerKind: String, Codable, Hashable, Sendable {
-    case major, free
+    case major, free, raiders
 }
 
 public struct Player: Codable, Hashable, Sendable {
@@ -78,6 +78,8 @@ public struct Player: Codable, Hashable, Sendable {
 
     /// A civ that takes phases, researches and can win; not the Free Cities.
     public var isMajor: Bool { kind == nil || kind == .major }
+    /// Takes phases: the civs and the raiders (M2 §11); not the Free Cities.
+    public var takesPhases: Bool { isMajor || kind == .raiders }
 
     /// A new, living player with nothing yet. An empty `civ` is filled in by `GameState.init`.
     public init(id: PlayerID, name: String, isHuman: Bool, tileCount: Int, civ: CivID = "", gold: Int = 0,
@@ -155,6 +157,8 @@ public struct GameState: Codable, Hashable, Sendable {
     /// them, so the key is absent from saves and the state hash. Internal: players learn of
     /// them only through their memory (`PlayerView.knownTribalVillages`).
     var tribalVillages: TribalVillageState?
+    /// Raider camps and rebels (M2 §11); nil in a game without raiders.
+    public internal(set) var raiders: RaiderState?
     /// The world era's index (M2 §2); nil in a game whose rules have no eras (left out of saves).
     public internal(set) var worldEra: Int?
 
@@ -212,11 +216,16 @@ public struct GameState: Codable, Hashable, Sendable {
             return Player(id: PlayerID(i), name: name, isHuman: humanPlayers.contains(i), tileCount: map.tileCount,
                           civ: civ, gold: rules.constants.start.gold)
         }
+        if rules.raiders != nil {
+            players.append(Player(id: PlayerID(players.count), name: "Raiders", isHuman: false,
+                                  tileCount: map.tileCount, kind: .raiders))
+        }
         if rules.loyalty != nil {
             players.append(Player(id: PlayerID(players.count), name: "Free Cities", isHuman: false,
                                   tileCount: map.tileCount, kind: .free))
         }
         var state = GameState(seed: seed, map: map, players: players, rules: rules, mapSizeName: mapSizeName)
+        if rules.raiders != nil { state.raiders = RaiderState() }
         for (i, start) in startPositions.enumerated() {
             let owner = PlayerID(i)
             for type in rules.constants.start.units {

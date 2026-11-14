@@ -421,6 +421,10 @@ extension GameState {
         guard let attacker = unit(id), let from = map.index(of: attacker.position) else { return }
         let def = rules.unit(attacker.type)
         let ranged = def.isRanged
+        if case let .city(city) = target, !ranged, city.hp == 0, isRaider(attacker.owner), let index = cityIndex(city.id) {
+            sackCity(index, by: id, &fx)
+            return
+        }
         if case let .city(city) = target, !ranged, city.hp == 0, capturesCities(attacker.type), let index = cityIndex(city.id) {
             captureCity(index, by: id, &fx)
             return
@@ -474,6 +478,9 @@ extension GameState {
             updateUnit(id) { $0.position = hex }
             fx.emit(.unitMoved(unit: id, from: attacker.position, path: [hex]), .tiles([from, t]))
             captureCivilians(at: t, by: attacker.owner, &fx)
+            if raiders != nil, players[attacker.owner.rawValue].isMajor, holdsRaiderCamp(t) {
+                clearRaiderCamp(at: t, by: attacker.owner, &fx)
+            }
         }
     }
 
@@ -549,6 +556,11 @@ extension GameState {
         let hex = map.coord(at: t)
         let victims = units.filter { $0.position == hex && $0.owner != captor && $0.type.isCivilian && isAtWar(captor, $0.owner) }
         for victim in victims {
+            if isRaider(captor) {
+                killUnit(victim.id, &fx)
+                fx.touchPlayer(victim.owner)
+                continue
+            }
             let def = rules.unit(victim.type)
             let type = def.capturedAs ?? victim.type
             let charges = def.capturedCharges ?? victim.charges

@@ -72,6 +72,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     /// cannot be built.
     public let quarters: QuarterRules?
     public let loyalty: LoyaltyRules?
+    /// Raiders (M2 §11); nil without the section: no raider faction.
+    public let raiders: RaiderRules?
     /// Optional (M2 §7.4): absent, tiles cannot be bought.
     public let tileBuying: TileBuyingRules?
     /// In tree order (M2 §7.1); empty in rules without civics.
@@ -147,6 +149,7 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         stability = data.stability
         quarters = data.quarters
         loyalty = data.loyalty
+        raiders = data.raiders
         tileBuying = data.tileBuying
         let civics = data.civics ?? []
         self.civics = civics
@@ -382,6 +385,7 @@ struct RulesetData: Codable, Hashable, Sendable {
     var quarters: QuarterRules?
     /// Optional (M2 §5.5, §12.5): absent, cities have no Loyalty and there are no Free Cities.
     var loyalty: LoyaltyRules?
+    var raiders: RaiderRules?
     var tileBuying: TileBuyingRules?
     var civics: [CivicDef]?
     var governance: GovernanceRules?
@@ -879,6 +883,8 @@ public enum InsightKind: String, Codable, Hashable, Sendable, CaseIterable {
     case warDeclaredOn
     /// Own `count` military units.
     case ownMilitaryUnits
+    /// Clear a raider camp (M2 §11).
+    case clearRaiderCamp
 }
 
 public struct InsightDef: Codable, Hashable, Sendable {
@@ -1562,7 +1568,7 @@ extension RulesetData {
         case .ownQuarters:
             if let t = insight.target, !(quarters?.kinds ?? []).contains(where: { $0.id.rawValue == t }) { problems.append("\(context): insight quarter \(t) unknown") }
         case .ownCoastalCities, .meetPlayers, .ownCities, .cityDefended, .cityPopulation, .cityInUnrest, .warDeclaredOn,
-             .ownMilitaryUnits:
+             .ownMilitaryUnits, .clearRaiderCamp:
             break
         }
         if insight.text.isEmpty { problems.append("\(context): insight text is empty") }

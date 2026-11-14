@@ -21,6 +21,8 @@ public struct PlayerSummary: Hashable, Sendable {
     public var score: Int
     /// A civ, not the Free Cities (M2 §12.5).
     public var isMajor = true
+    /// The raiders (M2 §11).
+    public var isRaiders = false
 }
 
 /// A player's income per turn (M1 §12.6), from the cities' current yields.
@@ -123,7 +125,7 @@ public struct PlayerView: Sendable {
     public var players: [PlayerSummary] {
         state.players.map { p in
             PlayerSummary(id: p.id, name: p.name, civ: p.civ, isHuman: p.isHuman, isAlive: p.isAlive, score: state.score(of: p.id),
-                          isMajor: p.isMajor)
+                          isMajor: p.isMajor, isRaiders: p.kind == .raiders)
         }
     }
 
@@ -153,6 +155,10 @@ public struct PlayerView: Sendable {
     /// The tribal villages the player knows of (M1 §7.7), as tile indices in order: current on
     /// visible tiles, as last seen elsewhere. From memory only.
     public var knownTribalVillages: [Int32] { me.memory.tribalVillages ?? [] }
+    /// Raider camps the player remembers (M2 §11).
+    public var knownRaiderCamps: [Int32] { me.memory.raiderCamps ?? [] }
+    /// The world era (M2 §3), 0 before any.
+    public var worldEra: Int { state.worldEra ?? 0 }
 
     /// Whether the player knows of a tribal village on the tile (memory only).
     public func isKnownTribalVillage(_ hex: HexCoord) -> Bool {

@@ -43,6 +43,8 @@ public struct PlayerMemory: Codable, Hashable, Sendable {
     /// Tribal villages seen and not seen gone since (M1 §7.7): tile indices, sorted and unique;
     /// nil when there are none (never empty), so the key is absent from saves without them.
     public internal(set) var tribalVillages: [Int32]?
+    /// Raider camps remembered (M2 §11): sorted tile indices; nil rather than empty.
+    public internal(set) var raiderCamps: [Int32]?
     /// Roads last seen (M2 §3.4); nil when none (never empty), so the key is absent from saves
     /// without them.
     public internal(set) var tileRoad: TileBitSet?
@@ -185,6 +187,9 @@ extension GameState {
         }
         if tribalVillages != nil || players[p.rawValue].memory.tribalVillages != nil {
             players[p.rawValue].memory.rememberTribalVillage(at: t, standing: holdsTribalVillage(t))
+        }
+        if raiders != nil || players[p.rawValue].memory.raiderCamps != nil {
+            players[p.rawValue].memory.rememberRaiderCamp(at: t, standing: holdsRaiderCamp(t))
         }
         if owner != 0, Int(owner) - 1 != p.rawValue { meet(p, PlayerID(Int(owner) - 1), &fx) }
     }

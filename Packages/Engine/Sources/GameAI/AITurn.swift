@@ -118,6 +118,7 @@ struct AITurn {
             timed("3 meleeAttacks") { $0.meleeAttacks() }
         }
         timed("4 retreatWounded") { $0.retreatWounded() }
+        timed("fightRaiders") { $0.fightRaiders() }
         if atWar {
             timed("5 defendCities") { $0.defendCities() }
             timed("6 captureCivilians") { $0.captureCivilians() }

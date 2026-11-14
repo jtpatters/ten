@@ -72,7 +72,7 @@ extension GameState {
 
     /// Marks a pair as met (once), with a `playersMet` event for both.
     mutating func meet(_ a: PlayerID, _ b: PlayerID, _ fx: inout Effects) {
-        guard a != b else { return }
+        guard a != b, !isRaider(a), !isRaider(b) else { return }
         let i = relationIndex(a, b)
         guard !relations[i].met else { return }
         relations[i].met = true

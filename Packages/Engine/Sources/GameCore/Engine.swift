@@ -118,6 +118,14 @@ public enum GameEvent: Hashable, Sendable, Codable {
     case civicCompleted(player: PlayerID, civic: CivicID)
     /// M2 §4.3: Influence reached the envoy threshold; `tokens` is the new total.
     case envoyEarned(player: PlayerID, tokens: Int)
+    /// M2 §11: a raider camp appeared.
+    case raiderCampAppeared(at: HexCoord)
+    /// M2 §11: `player` cleared the camp at `at` and got `gold`.
+    case raiderCampCleared(player: PlayerID, at: HexCoord, gold: Int)
+    /// M2 §11: a raider took a city at 0 HP: it lost a citizen (if above 1) and `gold`.
+    case citySacked(city: CityID, by: PlayerID, gold: Int, at: HexCoord)
+    /// M2 §5.2: a city in Revolt raised rebel `unit`.
+    case rebelsRose(city: CityID, unit: UnitID, at: HexCoord)
     case borderGrew(city: CityID, tile: HexCoord)
     case improvementBuilt(improvement: Improvement, at: HexCoord, owner: PlayerID)
     case playersMet(PlayerID, PlayerID)

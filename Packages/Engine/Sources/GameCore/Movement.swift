@@ -93,6 +93,9 @@ struct MoveKnowledge {
         for city in state.cities where city.owner == unit.owner {
             ownCities[map.index(of: city.position)!] = true
         }
+        if state.isRaider(unit.owner), let villages = state.tribalVillages {
+            for site in villages.sites { blocked[Int(site)] = true }
+        }
         self.blocked = blocked
         self.occupied = occupied
         self.ownCities = ownCities
@@ -317,10 +320,13 @@ extension GameState {
             if !start.type.isCivilian {
                 for t in tiles.dropFirst() { captureCivilians(at: t, by: start.owner, &fx) }
             }
-            if tribalVillages != nil {
+            if tribalVillages != nil, !isRaider(start.owner) {
                 for t in tiles.dropFirst() where holdsTribalVillage(t) {
                     takeTribalVillage(at: t, by: start.owner, unit: id, city: nil, &fx)
                 }
+            }
+            if raiders != nil, players[start.owner.rawValue].isMajor {
+                for t in tiles.dropFirst() where holdsRaiderCamp(t) { clearRaiderCamp(at: t, by: start.owner, &fx) }
             }
         }
         if interrupted {

@@ -82,7 +82,7 @@ extension GameState {
 
     /// The resource a unit is short of: it needs one, its owner is at war and the stock is empty.
     public func shortage(of unit: Unit) -> Resource? {
-        guard let r = resourceNeeded(by: unit.type), rules.stockpile != nil,
+        guard let r = resourceNeeded(by: unit.type), rules.stockpile != nil, !isRaider(unit.owner),
               players[unit.owner.rawValue].stock(r) == 0, isAtWarWithAnyone(unit.owner) else { return nil }
         return r
     }

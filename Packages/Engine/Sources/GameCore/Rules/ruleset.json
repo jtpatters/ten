@@ -165,7 +165,8 @@
         { "id": "foreignTrade", "name": "Foreign Trade", "era": "ancient", "cost": 40, "requires": ["codeOfLaws"] },
         { "id": "earlyEmpire", "name": "Early Empire", "era": "ancient", "cost": 60, "requires": ["foreignTrade"],
           "insight": { "kind": "ownCities", "count": 3, "text": "Own 3 cities" } },
-        { "id": "militaryTradition", "name": "Military Tradition", "era": "ancient", "cost": 55, "requires": ["craftsmanship"] },
+        { "id": "militaryTradition", "name": "Military Tradition", "era": "ancient", "cost": 55, "requires": ["craftsmanship"],
+          "insight": { "kind": "clearRaiderCamp", "count": 1, "text": "Clear a raider camp" } },
         { "id": "stateWorkforce", "name": "State Workforce", "era": "ancient", "cost": 60, "requires": ["craftsmanship"],
           "insight": { "kind": "ownQuarters", "count": 1, "text": "Build a quarter" } },
         { "id": "politicalPhilosophy", "name": "Political Philosophy", "era": "classical", "cost": 110, "requires": ["stateWorkforce", "earlyEmpire"] },
@@ -543,5 +544,21 @@
                  "garrison": 2, "stabilityMax": 3, "stabilityMin": -5, "captured": -3, "capturedTurns": 10,
                  "enemyUnit": -1, "enemyUnitsMax": 3, "deltaCap": 10, "founded": 100, "capturedStart": 50,
                  "flipped": 50, "flipTurns": 5, "warningTurns": 5, "defenderEvery": 10, "defenderMax": 2,
-                 "defenders": ["warrior", "swordsman", "manAtArms"] }
+                 "defenders": ["warrior", "swordsman", "manAtArms"] },
+    "raiders": {
+        "firstCampTurn": 50, "campInterval": 10,
+        "maxCamps": [
+            { "mapSize": "duel", "camps": 2 },
+            { "mapSize": "small", "camps": 3 },
+            { "mapSize": "standard", "camps": 5 },
+            { "mapSize": "large", "camps": 7 }
+        ],
+        "defaultMaxCamps": 4,
+        "campMinCityDistance": 7, "campMinCampDistance": 4,
+        "spawnInterval": 8, "campUnits": 3,
+        "eraUnits": [["warrior", "archer"], ["swordsman", "horseman"], ["manAtArms", "crossbowman", "horseman"]],
+        "campGold": 50, "campGoldPerEra": 25, "sackGold": 50,
+        "rebelInterval": 5, "rebelsPerCity": 2, "rebelRadius": 2,
+        "roamRange": 8, "homeRange": 3
+    }
 }

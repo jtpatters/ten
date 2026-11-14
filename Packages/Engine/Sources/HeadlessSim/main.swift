@@ -224,6 +224,7 @@ struct Profile {
 struct EventCounts {
     var combats = 0, kills = 0, civiliansCaptured = 0, citiesCaptured = 0, citiesRazed = 0, citiesFounded = 0
     var wars = 0, peaces = 0, eliminations = 0, citiesRevolted = 0, citiesJoined = 0
+    var campsAppeared = 0, campsCleared = 0, citiesSacked = 0, rebels = 0
 
     mutating func add(_ records: [EventRecord]) {
         for record in records {
@@ -239,6 +240,10 @@ struct EventCounts {
             case .warDeclared: wars += 1
             case .peaceSigned: peaces += 1
             case .playerEliminated: eliminations += 1
+            case .raiderCampAppeared: campsAppeared += 1
+            case .raiderCampCleared: campsCleared += 1
+            case .citySacked: citiesSacked += 1
+            case .rebelsRose: rebels += 1
             default: break
             }
         }
@@ -248,6 +253,7 @@ struct EventCounts {
         "\(citiesFounded) cities founded, \(combats) combats, \(kills) units killed, \(civiliansCaptured) civilians captured, "
             + "\(citiesCaptured) cities captured, \(citiesRevolted) revolted, \(citiesJoined) joined, \(citiesRazed) razed, \(wars) wars declared, \(peaces) peace treaties, "
             + "\(eliminations) players eliminated"
+            + (campsAppeared + rebels > 0 ? "; raiders: \(campsAppeared) camps, \(campsCleared) cleared, \(citiesSacked) cities sacked, \(rebels) rebels" : "")
     }
 }
 

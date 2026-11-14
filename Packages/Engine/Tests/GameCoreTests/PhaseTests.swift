@@ -25,12 +25,15 @@ import Testing
             #expect(units.first { $0.type == .builder } == nil)
             #expect(player.explored.setCount > 0)
         }
-        // The Free Cities (M2 §12.5) come last, permanently at war with both.
-        #expect(state.players.map(\.kind) == [nil, nil, .free] && state.freeCities == PlayerID(2))
-        #expect(state.units(of: PlayerID(2)).isEmpty && state.livingPlayers == [PlayerID(0), PlayerID(1)])
-        #expect(state.relations.count == 3)
+        // The raiders (M2 §11) and the Free Cities (M2 §12.5) come last, permanently at war with both.
+        #expect(state.players.map(\.kind) == [nil, nil, .raiders, .free])
+        #expect(state.raiderPlayer == PlayerID(2) && state.freeCities == PlayerID(3))
+        #expect(state.units(of: PlayerID(2)).isEmpty && state.units(of: PlayerID(3)).isEmpty)
+        #expect(state.livingPlayers == [PlayerID(0), PlayerID(1)] && state.raiderCamps.isEmpty)
+        #expect(state.relations.count == 6)
         #expect(!state.relations[0].met && state.relations[0].stance == .peace)
         #expect(state.isAtWar(PlayerID(0), PlayerID(2)) && state.isAtWar(PlayerID(1), PlayerID(2)))
+        #expect(state.isAtWar(PlayerID(0), PlayerID(3)) && state.isAtWar(PlayerID(1), PlayerID(3)))
         expectSound(state)
     }
 

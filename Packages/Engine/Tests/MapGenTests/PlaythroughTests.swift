@@ -354,6 +354,8 @@ struct Playthrough {
         let capturedThisPhase = milestones.last.map { $0.0 == "captured second" && $0.1 == turn } ?? false
         try play(.endTurn)
         if state.outcome == nil, state.currentPlayer == them { try opponentPhase() }
+        // The raiders (M2 §11) stand idle.
+        if state.outcome == nil, state.isRaider(state.currentPlayer) { try play(.endTurn) }
         expectSound(state)
         // The raze window closes with the phase of the capture.
         if capturedThisPhase, let city = theirSecondCity {

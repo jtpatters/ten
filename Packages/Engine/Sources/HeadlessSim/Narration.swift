@@ -190,6 +190,10 @@ struct Observer {
                     }
                 } ?? (command == .endTurn ? " (phase start)" : "")
                 say(turn, owner, "loses \(type.displayName) \(unit) at \(at)\(by)")
+            case let .citySacked(city, by, gold, at):
+                if let owner = state.city(city)?.owner { say(turn, owner, "\(cityName(city, state)) at \(at) sacked by \(by) (−\(gold) Gold)") }
+            case let .raiderCampCleared(player, at, gold):
+                say(turn, player, "clears the raider camp at \(at) (+\(gold) Gold)")
             case let .unitCaptured(old, _, type, from, to, at):
                 // `type` is what the captor gets: a captured Settler arrives as a Builder (p3f: it was
                 // counted as a Builder lost, and no Settler was ever lost).
