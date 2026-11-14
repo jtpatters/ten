@@ -91,7 +91,7 @@ struct LegacySave {
         json["ai"] = ai
         let units = json["units"] as? [[String: Any]] ?? []
         let m1Units = units.prefix(6).map { unit in
-            var unit = unit.filter { !["upgradesTo", "rangedAfterMove", "wallDamagePct", "resource"].contains($0.key) }
+            var unit = unit.filter { !["upgradesTo", "rangedAfterMove", "wallDamagePct", "resource", "vsCity"].contains($0.key) }
             if unit["type"] as? String == "spearman" { unit["classBonuses"] = [["against": "cavalry", "strength": 10]] }
             return unit
         }

@@ -127,7 +127,7 @@ import MapGen
         // p3g contracts: the rules' tribal village section added (0x04D7_4139_CB7A_64C6 before);
         // the game has none, so only the rules content hash moved (`goldenHashWithoutTribalVillages`).
         // M2 2.1a: 30 techs, eras and Insights in the rules; the state's world era (0xD11F_A96D_D6E7_E48A before).
-        #expect(state.stateHash() == 0x5A22_6436_087E_0D82, // M2 2.1c naval (roads 0x1675_6DCB_85EA_5E09; resources 0xB3AC_BDA5_E8F0_0455; 2.1b 0xF02C_AF50_2AD7_DAE3; 0x01B1_8EA9_AAFB_33AD; 2.1a 0xA75D_D47F_DE8E_AE8A)
+        #expect(state.stateHash() == 0x370B_03B3_246D_4B53, // M2 2.1c city attack (naval 0x5A22_6436_087E_0D82; roads 0x1675_6DCB_85EA_5E09; resources 0xB3AC_BDA5_E8F0_0455; 2.1b 0xF02C_AF50_2AD7_DAE3; 0x01B1_8EA9_AAFB_33AD; 2.1a 0xA75D_D47F_DE8E_AE8A)
                 "golden hash: 0x\(String(state.stateHash(), radix: 16))")
     }
 
@@ -216,7 +216,7 @@ import MapGen
         // At pinning: 6 taken, all by units (none by a city); 3 Gold, 2 Science, 1 Builder; 2 left.
         #expect(byUnit > 0 && gold > 0 && science > 0 && builders > 0)
         #expect(byUnit + byCity == gold + science + builders && state.tribalVillages?.gifts.reduce(0, +) == byUnit + byCity)
-        #expect(state.stateHash() == 0x3BCA_9015_D530_6474, // M2 2.1c naval (roads 0x9AE0_D946_36E8_6017) (resources 0xAD3C_557E_A36E_4FD9) (2.1b 0xCFA3_9056_772E_7BA6) (0x21E2_F500_2BB9_D548) (2.1a: 0x184E_3AA6_7A01_0E95) (0x1346_6444_C3B0_D609 before)
+        #expect(state.stateHash() == 0xFE0E_4F21_AC3F_2A67, // M2 2.1c city attack (naval 0x3BCA_9015_D530_6474) (roads 0x9AE0_D946_36E8_6017) (resources 0xAD3C_557E_A36E_4FD9) (2.1b 0xCFA3_9056_772E_7BA6) (0x21E2_F500_2BB9_D548) (2.1a: 0x184E_3AA6_7A01_0E95) (0x1346_6444_C3B0_D609 before)
                 "golden hash with tribal villages: 0x\(String(state.stateHash(), radix: 16))")
     }
 
@@ -225,7 +225,7 @@ import MapGen
     @Test func goldenHashWithoutTribalVillages() throws {
         let (state, _) = try Self.goldenGame(rules: try c0Rules())
         #expect(state.rules.tribalVillages == nil && state.rules.contentHash == preTribalVillagesContentHash)
-        #expect(state.stateHash() == 0x14AF_7B45_2154_E8F2, // M2 2.1c naval (roads 0x7141_182D_444C_7E53) (resources 0xB01D_ED97_0541_E3D5) (2.1b 0x6727_BE8E_6D58_9247) (0x3864_3AAA_2133_7AAA) (2.1a: 0x4386_124D_CC4E_C3A5) (0x04D7_4139_CB7A_64C6 before)
+        #expect(state.stateHash() == 0x7067_BDA5_BC04_AD53, // M2 2.1c city attack (naval 0x14AF_7B45_2154_E8F2) (roads 0x7141_182D_444C_7E53) (resources 0xB01D_ED97_0541_E3D5) (2.1b 0x6727_BE8E_6D58_9247) (0x3864_3AAA_2133_7AAA) (2.1a: 0x4386_124D_CC4E_C3A5) (0x04D7_4139_CB7A_64C6 before)
                 "C0 golden hash: 0x\(String(state.stateHash(), radix: 16))")
     }
 }
