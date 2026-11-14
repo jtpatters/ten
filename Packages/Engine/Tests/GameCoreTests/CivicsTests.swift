@@ -34,6 +34,29 @@ import Testing
         expectSound(state)
     }
 
+    @Test func civicOptionsShowThePathAndWhatEachUnlocks() throws {
+        var state = makeTestState(map: openMap(), gold: 0)
+        try apply(.setCivic(civic: "earlyEmpire"), &state)
+        let options = state.view(for: p0).civicOptions()
+        #expect(options.count == state.rules.civics.count)
+        let laws = try #require(options.first { $0.civic == "codeOfLaws" })
+        #expect(laws.available && laws.studying && !laws.isTarget && !laws.known)
+        #expect(laws.unlocks.contains("Chiefdom") && laws.unlocks.contains("Discipline"))
+        let empire = try #require(options.first { $0.civic == "earlyEmpire" })
+        #expect(empire.isTarget && !empire.available && !empire.studying)
+    }
+
+    @Test func debugLearnCivicClearsTheStudyAndFreesAChange() throws {
+        var state = makeTestState(map: openMap(), gold: 0)
+        try apply(.setCivic(civic: "codeOfLaws"), &state)
+        #expect(DebugTools.learnCivic("codeOfLaws", player: p0, in: &state))
+        #expect(!DebugTools.learnCivic("codeOfLaws", player: p0, in: &state))
+        #expect(state.players[0].knowsCivic("codeOfLaws"))
+        #expect(state.players[0].studying == nil && state.players[0].civicTarget == nil)
+        #expect(state.isFreeChangeTurn(for: p0))
+        #expect(state.view(for: p0).civicOptions().first { $0.civic == "codeOfLaws" }?.known == true)
+    }
+
     @Test func theArenaQuarterNeedsGamesAndRecreation() {
         var state = makeTestState(map: openMap(), gold: 0)
         let id = addCity(&state, p0, at: hex(3, 4))

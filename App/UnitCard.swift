@@ -88,7 +88,7 @@ struct UnitCard: View {
     /// What the upgrade costs now, else what it would cost (the rules' price).
     private var upgradePrice: (cost: Int?, available: Bool) {
         if let cost = session.view.upgradeCost(unit.id) { return (cost, true) }
-        return (session.state.upgradeCost(of: unit.type), false)
+        return (session.state.upgradeCost(of: unit.type, for: session.viewer), false)
     }
 
     /// Upgrade, with its price; lit when it can be done now (`PlayerView.upgradeCost`). A tap

@@ -96,6 +96,15 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
         #expect(loaded.state.cities.map(\.specialists) == state.cities.map(\.specialists))
         #expect(loaded.state.cities.map(\.freeCityLeader) == state.cities.map(\.freeCityLeader))
         #expect(loaded.state.cities.map(\.freeCityTurns) == state.cities.map(\.freeCityTurns))
+        // Civics, government, policies and Influence (M2 §7, §4.3).
+        #expect(state.players[0].knownCivics?.isEmpty == false && state.players[0].policies?.isEmpty == false)
+        for (a, b) in zip(loaded.state.players, state.players) {
+            #expect(a.studying == b.studying && a.civicTarget == b.civicTarget && a.civicProgress == b.civicProgress)
+            #expect(a.knownCivics == b.knownCivics && a.civicInsights == b.civicInsights)
+            #expect(a.government == b.government && a.governmentsAdopted == b.governmentsAdopted && a.policies == b.policies)
+            #expect(a.freeChangeTurn == b.freeChangeTurn && a.influence == b.influence)
+            #expect(a.envoyTokens == b.envoyTokens && a.envoysEarned == b.envoysEarned)
+        }
             // The loaded game answers the same questions.
             let (a, b) = (loaded.state.view(for: PlayerID(0)), state.view(for: PlayerID(0)))
             #expect(a.dangerMap() == b.dangerMap() && a.knownCities == b.knownCities && a.income() == b.income())

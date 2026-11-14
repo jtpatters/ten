@@ -24,7 +24,8 @@ struct TopBar<MenuContent: View>: View {
                 turnChip(view)
                 goldChip(view, income)
                 if !compact { researchChip(view, income) }
-                cultureChip(income)
+                cultureChip(view, income)
+                if view.government != nil { InfluenceChip(view: view, compact: compact) }
                 StrategicChip(view: view, compact: compact)
                 Spacer(minLength: 0)
                 menu()
@@ -62,11 +63,44 @@ struct TopBar<MenuContent: View>: View {
         }
     }
 
-    private func cultureChip(_ income: Income) -> some View {
-        Button {
-            showingCulture = true
+    /// Culture per turn, with the civic being studied (M2 §7.1) and its turns; a tap opens the
+    /// civic panel (in rules with civics), else says what Culture does.
+    private func cultureChip(_ view: PlayerView, _ income: Income) -> some View {
+        let hasCivics = !view.rules.civics.isEmpty
+        let studying = hasCivics ? view.civicOptions().first(where: \.studying) : nil
+        let progress = studying.map { Double(view.me.civicProgress ?? 0) / Double(max($0.cost, 1)) } ?? 0
+        return Button {
+            if hasCivics { session.openPanel = .civics } else { showingCulture = true }
         } label: {
-            YieldChip(kind: .culture, total: nil, perTurn: income.culture)
+            if hasCivics {
+                HStack(spacing: HUD.Space.xs) {
+                    Image(systemName: YieldChip.Kind.culture.systemImage)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(HUD.Yield.culture)
+                    Text(YieldChip.signed(income.culture)).font(HUD.numeric()).lineLimit(1).fixedSize()
+                    if !compact {
+                        if let studying {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: HUD.Space.xs) {
+                                    Text(studying.name).font(HUD.title(.caption)).lineLimit(1)
+                                    if let turns = studying.turns {
+                                        Text("· \(turnsText(turns))").font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft).lineLimit(1)
+                                    }
+                                }
+                                ProgressBar(fraction: progress, tint: HUD.Yield.culture, height: 3).frame(maxWidth: 120)
+                            }
+                            .fixedSize()
+                        } else if view.civicOptions().contains(where: { !$0.known }) {
+                            Text("Choose civic").font(HUD.title(.caption)).foregroundStyle(HUD.danger).lineLimit(1).fixedSize()
+                        }
+                    }
+                }
+                .padding(.horizontal, HUD.Space.m)
+                .frame(minHeight: HUD.touch)
+                .parchmentCapsule()
+            } else {
+                YieldChip(kind: .culture, total: nil, perTurn: income.culture)
+            }
         }
         .buttonStyle(ChipButtonStyle())
         .popover(isPresented: $showingCulture) {
@@ -126,6 +160,44 @@ struct TopBar<MenuContent: View>: View {
         } ?? "Science \(YieldChip.signed(income.science)) per turn, no research chosen")
         .accessibilityHint("Choose what to research.")
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// Influence (M2 §4.3): the stock toward the next envoy token, with its income; a tap explains.
+struct InfluenceChip: View {
+    let view: PlayerView
+    var compact: Bool
+    @State private var showing = false
+
+    var body: some View {
+        let influence = view.me.influence ?? 0
+        let threshold = view.envoyThreshold
+        let income = view.influenceIncome
+        let tokens = view.me.envoyTokens ?? 0
+        Button {
+            showing = true
+        } label: {
+            HStack(spacing: HUD.Space.xs) {
+                Image(systemName: "person.wave.2.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(HUD.Yield.science)
+                Text(compact ? "\(influence)" : "\(influence)/\(threshold)").font(HUD.numeric()).lineLimit(1).fixedSize()
+                if tokens > 0 {
+                    Text("\(tokens)").font(HUD.numeric(.caption2)).foregroundStyle(HUD.parchmentTop)
+                        .padding(.horizontal, 5).background(Capsule().fill(HUD.Yield.science))
+                }
+            }
+            .padding(.horizontal, HUD.Space.m)
+            .frame(minHeight: HUD.touch)
+            .parchmentCapsule()
+        }
+        .buttonStyle(ChipButtonStyle())
+        .accessibilityLabel("Influence \(influence) of \(threshold), \(YieldChip.signed(income)) per turn, \(tokens) envoy tokens")
+        .popover(isPresented: $showing) {
+            InfoPopover(title: "Influence", systemImage: "person.wave.2.fill", tint: HUD.Yield.science,
+                        lines: ["\(YieldChip.signed(income)) per turn, from the Palace, your government and policies.",
+                                "\(influence) of \(threshold): at \(threshold) it becomes an envoy token, and the next costs more.",
+                                tokens == 1 ? "1 envoy token to send." : "\(tokens) envoy tokens to send."])
+                .presentationCompactAdaptation(.popover)
+        }
     }
 }
 

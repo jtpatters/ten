@@ -62,7 +62,7 @@ enum Scenarios {
 
     static let names = ["fresh", "founded", "midgame", "war", "siege", "melee", "cities", "attention", "capture", "conquest", "peace",
                         "rivals", "taps", "walls", "repreview", "tribal-villages", "veterans", "resources", "roads", "naval",
-                        "stability", "quarters", "loyalty", "upkeep"]
+                        "stability", "quarters", "loyalty", "upkeep", "governance"]
 
     /// What to select and look at once the preset is on screen.
     enum Focus: Sendable {
@@ -158,6 +158,9 @@ enum Scenarios {
         case "upkeep":
             foundCapital(&state, player: viewer)
             made = try upkeep(&state)
+        case "governance":
+            foundCapital(&state, player: viewer)
+            made = try governance(&state)
         default:
             throw Failure(description: "no scenario “\(name)” (try \(names.joined(separator: ", ")))")
         }
@@ -524,7 +527,7 @@ extension Scenarios {
             throw Failure(description: "player 1 never learnt \(walls.tech?.rawValue ?? "the walls' tech") with a capital")
         }
         let item = ProductionItem.building(walls.id)
-        state.players[enemy.rawValue].gold += state.purchasePrice(of: item)
+        state.players[enemy.rawValue].gold += state.purchasePrice(of: item, for: enemy)
         do {
             try GameEngine.apply(.purchase(city: city.id, item: item), by: enemy, to: &state)
         } catch {
@@ -778,6 +781,32 @@ extension Scenarios {
             .map { "\($0.kind.rawValue) \($0.sites.count)" }
         return Made(state: state, focus: .city(capital.id),
                     note: "built \(built.joined(separator: ", ")); sites: \(open.joined(separator: ", "))")
+    }
+
+    /// M2 §7.1–7.3, §4.3: the civics up to Political Philosophy learnt (the last this turn, so
+    /// changes are free), Oligarchy adopted with a policy in its slots, the next civic being
+    /// studied, and Influence part way to an envoy token; 200 Gold. The government panel open.
+    static func governance(_ state: inout GameState) throws -> Made {
+        let viewer = PlayerID(0)
+        guard let capital = state.cities.first(where: { $0.owner == viewer }) else { throw Failure(description: "no capital") }
+        for civic in ["codeOfLaws", "craftsmanship", "foreignTrade", "earlyEmpire", "stateWorkforce", "politicalPhilosophy"] {
+            DebugTools.learnCivic(CivicID(civic), player: viewer, in: &state)
+        }
+        state.players[viewer.rawValue].gold = 200
+        DebugTools.setInfluence(14, tokens: 1, player: viewer, in: &state)
+        try GameEngine.apply(.setGovernment(government: "oligarchy"), by: viewer, to: &state)
+        let open = state.view(for: viewer).availablePolicies
+        let picks = [PolicyKind.military, .economic].compactMap { kind in open.first { $0.kind == kind }?.id }
+        try GameEngine.apply(.setPolicies(policies: picks), by: viewer, to: &state)
+        if let next = state.view(for: viewer).civicOptions().first(where: \.available) {
+            try GameEngine.apply(.setCivic(civic: next.civic), by: viewer, to: &state)
+        }
+        DebugTools.refreshAllKnowledge(in: &state)
+        let view = state.view(for: viewer)
+        return Made(state: state, focus: .city(capital.id),
+                    note: "government \(view.government?.name ?? "none"), policies \(view.policies.map(\.name).joined(separator: ", ")); "
+                        + "studying \(view.me.studying?.rawValue ?? "nothing"); free change \(view.isFreeChangeTurn); "
+                        + "influence \(view.me.influence ?? 0)/\(view.envoyThreshold) (+\(view.influenceIncome)) (use panel government|civics)")
     }
 
     /// M2 §5.3, §5.4, §7.4: the capital with a Campus and its Library (a specialist slot) and a

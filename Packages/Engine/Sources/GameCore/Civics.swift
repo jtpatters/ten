@@ -65,3 +65,70 @@ extension GameState {
         }
     }
 }
+
+/// A civic in the civic tree (M2 §7.1), as the panel shows it.
+public struct CivicOption: Hashable, Sendable {
+    public var civic: CivicID
+    public var name: String
+    public var cost: Int
+    public var requires: [CivicID]
+    public var known: Bool
+    public var studying: Bool
+    public var isTarget: Bool
+    /// Its prerequisites are known (and it is not).
+    public var available: Bool
+    /// Phases to complete it, missing prerequisites first, at the current Culture (nil when
+    /// known or with no Culture).
+    public var turns: Int?
+    /// The governments and policies it unlocks, by name.
+    public var unlocks: [String]
+    /// Its era's index (0 without eras).
+    public var era: Int
+    /// Credit toward it from its Insight.
+    public var credit: Int
+    public var insight: String?
+    public var insightGained: Bool
+}
+
+extension PlayerView {
+    /// The civics in tree order with their state, phases to complete and unlocks.
+    public func civicOptions() -> [CivicOption] {
+        let culture = income().culture
+        let progress = me.civicProgress ?? 0
+        return rules.civics.indices.map { index in
+            let civic = rules.civics[index]
+            let known = me.knowsCivic(civic.id)
+            var turns: Int?
+            if !known, culture > 0 {
+                var needed = [Bool](repeating: false, count: rules.civics.count)
+                needed[index] = true
+                for i in stride(from: index, through: 0, by: -1) where needed[i] {
+                    for r in rules.civicRequires[i] { needed[r] = true }
+                }
+                var cost = 0
+                for i in rules.civics.indices where needed[i] && !me.knowsCivic(rules.civics[i].id) {
+                    cost += max(0, rules.civics[i].cost - state.civicCredit(i, for: player))
+                }
+                turns = max(1, (max(0, cost - progress) + culture - 1) / culture)
+            }
+            let era = civic.era.flatMap { e in rules.eras.firstIndex { $0.id == e } } ?? 0
+            return CivicOption(civic: civic.id, name: civic.name, cost: civic.cost, requires: civic.requires, known: known,
+                               studying: me.studying == civic.id, isTarget: me.civicTarget == civic.id,
+                               available: !known && civic.requires.allSatisfy(me.knowsCivic),
+                               turns: turns, unlocks: unlocks(of: civic.id), era: era,
+                               credit: state.civicCredit(index, for: player), insight: civic.insight?.text,
+                               insightGained: me.civicInsights?.contains(civic.id) == true)
+        }
+    }
+
+    /// Names of the governments and policies a civic unlocks.
+    public func unlocks(of civic: CivicID) -> [String] {
+        let g = rules.governance
+        return (g?.governments ?? []).filter { $0.civic == civic }.map(\.name)
+            + (g?.policies ?? []).filter { $0.civic == civic }.map(\.name)
+    }
+
+    /// Influence per turn and toward the next envoy token (M2 §4.3).
+    public var influenceIncome: Int { state.influenceIncome(of: player) }
+    public var envoyThreshold: Int { state.envoyThreshold(for: player) }
+}

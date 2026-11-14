@@ -810,6 +810,7 @@ private struct YieldBreakdown: View {
         case let .building(id): rules.building(id)?.name ?? id.rawValue.capitalized
         case let .quarter(kind): rules.quarter(kind)?.name ?? kind.rawValue.capitalized
         case .stability: "Stability"
+        case .government: "Government and policies"
         }
     }
 }
