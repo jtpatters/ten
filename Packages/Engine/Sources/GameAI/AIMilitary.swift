@@ -676,6 +676,18 @@ extension AITurn {
         return field
     }
 
+    /// M2 §3.3: at war, each own military unit (id order) with moves left on an enemy tile it may
+    /// pillage pillages it (the wounded heal by it), unless it guards a civilian there.
+    mutating func pillage() {
+        for unit in view.units where !unit.type.isCivilian && unit.movesLeft > 0 {
+            let v = view
+            guard live, let u = v.unit(unit.id),
+                  v.unitActions(for: u.id).contains(where: { $0.kind == .pillage && $0.isAvailable }),
+                  !v.units(at: u.position).contains(where: { $0.owner == player && $0.type.isCivilian }) else { continue }
+            issue(.pillage(unit: u.id))
+        }
+    }
+
     /// Garrisons fortify.
     mutating func fortifyGarrisons() {
         for city in view.cities {

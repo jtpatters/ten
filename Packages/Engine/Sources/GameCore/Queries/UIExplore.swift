@@ -390,6 +390,7 @@ extension PlayerView {
             }
         }
         let river = explored[from] && state.map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0
+        // An enemy may know Engineering: assume it does (the wider reach).
         return rules.stepPoints(cost, crossesRiver: river, road: me.memory.remembersRoad(from) && me.memory.remembersRoad(to), bridges: true)
     }
 

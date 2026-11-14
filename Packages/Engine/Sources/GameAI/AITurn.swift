@@ -125,6 +125,7 @@ struct AITurn {
         timed("moveBuilders") { $0.moveBuilders() }
         timed("explore") { $0.explore() }
         timed("moveMilitary") { $0.moveMilitary() }
+        if atWar { timed("pillage") { $0.pillage() } }
         timed("secureCivilians") { $0.secureCivilians() }
         timed("manageCities") { $0.manageCities() }
         timed("fortifyNewUnits") { $0.fortifyNewUnits() }

@@ -163,12 +163,14 @@ extension AITurn {
         guard !ids.isEmpty else { return }
         let work = improvableWorkedTiles(view)
         var reserved: [Int] = []
+        var roads: [Int]?
         for id in ids {
             guard live, let unit = view.unit(id) else { continue }
             let v = view
             acted.insert(id)
             guard !work.isEmpty else {
-                parkInNearestCity(unit)
+                if roads == nil { roads = roadWork(v) }
+                if !layRoad(unit, roads!, &reserved) { parkInNearestCity(unit) }
                 continue
             }
             // ai-3: tiles a Builder may stand on safely come first (M1 §13 Safety), so Builders
@@ -189,7 +191,8 @@ extension AITurn {
             var choice = pick(field(id, within: rules.points(ai.builderMaxMoveCost)))
             if choice == nil { choice = pick(field(id)) }
             guard let best = choice else {
-                parkInNearestCity(unit)
+                if roads == nil { roads = roadWork(v) }
+                if !layRoad(unit, roads!, &reserved) { parkInNearestCity(unit) }
                 continue
             }
             reserved.append(best.tile)
@@ -205,6 +208,30 @@ extension AITurn {
             }
             travel(id, to: v.coord(at: best.tile))
         }
+    }
+
+    /// M2 §3.3: a Builder with nothing to improve lays the nearest road tile within
+    /// builderMaxMoveCost (safe tiles first), as for improvements. Returns whether it had one.
+    mutating func layRoad(_ unit: Unit, _ roads: [Int], _ reserved: inout [Int]) -> Bool {
+        guard !roads.isEmpty else { return false }
+        let v = view
+        let danger = civilianDanger(v)
+        let f = field(unit.id, within: rules.points(ai.builderMaxMoveCost))
+        var best: (unsafe: Int, cost: Int32, tile: Int)?
+        for t in roads where !reserved.contains(t) && f[t] >= 0 {
+            let key = (safe(t, v, danger: danger) ? 0 : 1, f[t], t)
+            if let b = best, (b.unsafe, b.cost, b.tile) <= key { continue }
+            best = key
+        }
+        guard let best else { return false }
+        reserved.append(best.tile)
+        if v.index(of: unit.position) == best.tile {
+            guard unit.movesLeft > 0 else { return true }
+            if safe(best.tile, v, danger: danger) { issue(.buildRoad(unit: unit.id)) } else { seekSafety(unit, danger) }
+            return true
+        }
+        travel(unit.id, to: v.coord(at: best.tile))
+        return true
     }
 
     // MARK: Civilian safety
