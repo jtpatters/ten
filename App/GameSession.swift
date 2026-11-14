@@ -80,6 +80,8 @@ final class GameSession {
     /// The action the unit card describes (a long-press on it, or a tap on one that cannot be
     /// done now).
     var describedAction: UnitActionKind?
+    /// The unit whose card lists the promotions on offer (Promote, or Next's "Promotion Due").
+    var promotingUnit: UnitID?
 
     // MARK: Phases
 

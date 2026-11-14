@@ -16,6 +16,7 @@ extension GameState {
             }
             turn += 1
             fx.emit(.turnStarted(turn: turn), .everyone)
+            advanceWorldEraIfDue(&fx)
         }
         startPhase(of: PlayerID(next ?? first), &fx)
     }

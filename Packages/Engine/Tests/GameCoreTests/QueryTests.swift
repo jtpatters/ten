@@ -189,7 +189,7 @@ import Testing
 
         // Player 2 sees nothing of it.
         var records = try apply(.attack(unit: a, target: hex(9, 7)), &state)
-        #expect(records.map(\.audience) == [0b011, 0b011, 0b011]) // combat, killed, moved in
+        #expect(records.map(\.audience) == [0b011, 0b011, 0b011, 0b001]) // combat, killed, moved in, Insight (owner)
         #expect(events(records)[1] == .unitKilled(unit: d, type: .warrior, owner: PlayerID(1), at: hex(9, 7)))
 
         // A watcher of player 2 next to the city sees the capture.

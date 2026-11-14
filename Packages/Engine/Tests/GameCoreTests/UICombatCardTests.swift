@@ -26,7 +26,7 @@ import Testing
         let card = view.combatCard(for: p)
         #expect(card.killLabel == "chance to bring it to 0 HP")
         #expect(card.killOdds == "100%")
-        #expect(card.verdict == "Sure to bring it to 0 HP: then a Warrior or Spearman can take it.")
+        #expect(card.verdict == "Sure to bring it to 0 HP: then a melee or anti-cavalry unit can take it.")
         #expect(card.defender.hp == 10 && card.defender.hpAfter == 0 && card.defender.damage == 10...10)
         #expect(!card.attacker.keepsOneIfItWins, "bringing a city to 0 HP saves no one")
 
@@ -71,7 +71,7 @@ import Testing
         let card = try #require(fired.card)
         #expect(card.killOdds == nil)
         #expect(card.deathOdds == nil, "no retaliation")
-        #expect(card.verdict == "No damage: the city is at 0 HP. Firing keeps it from healing next turn; only a Warrior or Spearman can take it.")
+        #expect(card.verdict == "No damage: the city is at 0 HP. Firing keeps it from healing next turn; only a melee or anti-cavalry unit can take it.")
         #expect(!card.notes.contains("Ranged attacks never take cities."))
     }
 

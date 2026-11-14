@@ -73,6 +73,7 @@ struct UnitOut {
     float4 cell [[flat]];       // figures and standards: the whole atlas cell; else the instance's rect
     float4 params [[flat]];     // kind, flags.z, flags.w, quad width
     float quadHeight [[flat]];  // figures: the whole cell's height (the quad may be trimmed)
+    float maskHigh [[flat]];    // figures: 1 when the data is in the cell's blue and alpha
     uint instance [[flat]];     // index into the instance buffer (tap picking)
     float rise;                 // height above the anchor (world units): a figure's feet
     float reach [[flat]];       // figures: how far (texels) the rim can reach past the art
@@ -119,6 +120,7 @@ vertex UnitOut unit_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     o.position = u.viewProj * float4(p, 1.0);
     o.uv = float2(s.uv.x + corner.x * s.uv.z, s.uv.y + (1.0 - corner.y) * s.uv.w);
     o.maskUV = o.uv;
+    o.maskHigh = 0.0;
     o.local = corner;
     o.cell = s.uv;
     o.cellLocal = corner;
@@ -139,6 +141,7 @@ vertex UnitOut unit_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
         float2 maskOrigin = float2(float(index % kUnitBodiesPerRow), float(index / kUnitBodiesPerRow)) * kUnitBodyCell;
         float2 at = float2(code < 0.0 ? 1.0 - o.cellLocal.x : o.cellLocal.x, 1.0 - o.cellLocal.y);
         o.maskUV = maskOrigin + at * kUnitBodyCell;
+        o.maskHigh = fract(abs(code)) > 0.1 ? 1.0 : 0.0;
     }
     if (kind == 11 && s.flags.w > 0.5) {
         // A city piece's team cell: flags.w is its index in rows of cells its size, plus one.
@@ -805,16 +808,23 @@ static float4 cityToken(float2 local, float4 cell, float3 team, float capital, t
 }
 
 // An instance's color at a fragment, premultiplied, before atmosphere.
+// A figure's data: x is team paint, y nearness to the silhouette (red and green, or blue and
+// alpha in a cell shared by two M2 types).
+static float2 unitData(UnitOut in, texture2d<float> atlas, sampler smp) {
+    float4 d = atlas.sample(smp, in.maskUV);
+    return in.maskHigh > 0.5 ? d.ba : d.rg;
+}
+
 static float4 unitColor(UnitOut in, constant Uniforms& u, texture2d<float> atlas, texture2d<float> town, sampler smp) {
     int kind = int(in.params.x + 0.5);
     float time = u.cameraUp.w;
     float4 c;
     if (kind == 0) {
         float4 body = atlas.sample(smp, in.uv);
-        float4 data = atlas.sample(smp, in.maskUV);   // r: team paint, g: nearness to the silhouette
-        c = unitFigure(body, data.r, in.tint.rgb, in.params.y) * in.tint.a;
+        float2 data = unitData(in, atlas, smp);   // x: team paint, y: nearness to the silhouette
+        c = unitFigure(body, data.x, in.tint.rgb, in.params.y) * in.tint.a;
         // The rim lies under the figure and fades out at the feet, so it stays planted.
-        float4 rim = unitRim(1.0 - data.g, unitTexelsPerPixel(in.uv), in.cellLocal, kUnitAtlasTexels.x * in.cell.z, in.params.z, u)
+        float4 rim = unitRim(1.0 - data.y, unitTexelsPerPixel(in.uv), in.cellLocal, kUnitAtlasTexels.x * in.cell.z, in.params.z, u)
                    * smoothstep(kUnitGroundLine + 0.005, kUnitGroundLine + 0.05, in.cellLocal.y);
         c = unitOver(rim * in.tint.a, c);
     } else if (kind == 1) {
@@ -938,7 +948,7 @@ fragment float4 unit_fragment(UnitOut in [[stage_in]],
     // A figure's quad is mostly empty: texels with no paint and beyond the rim's reach are
     // dropped before any shading.
     if (int(in.params.x + 0.5) == 0 && atlas.sample(smp, in.uv).a < 1.0 / 255.0
-        && (1.0 - atlas.sample(smp, in.maskUV).g) * kUnitRimRange > in.reach) discard_fragment();
+        && (1.0 - unitData(in, atlas, smp).y) * kUnitRimRange > in.reach) discard_fragment();
     float4 c = unitColor(in, u, atlas, town, smp);
     // Figures write their rank into the stencil wherever a fragment survives, so the empty
     // parts of their quads must not (`MapRenderer+Layering.swift`); nothing empty pays for the

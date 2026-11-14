@@ -79,6 +79,8 @@ enum PersistenceFixture {
             u.activity = .fortified
             u.hp = 64
             u.xp = 8
+            u.promotions = ["battlecry"]
+            u.attacked = true
         }
         state.updateUnit(archer) { $0.activity = .fortifying }
         state.updateUnit(spearman) { u in
@@ -118,6 +120,10 @@ enum PersistenceFixture {
         state.players[0].researching = TechID("writing")
         state.players[0].researchTarget = TechID("currency")
         state.players[0].researchProgress = 11
+        // Insight credit and Insights fired (M2 §6.2, additive fields).
+        state.players[0].techCredit = Array(repeating: 0, count: state.rules.techs.count)
+        state.players[0].techCredit![state.rules.techIndex("writing")!] = 18
+        state.players[0].insights = ["writing"]
         state.players[1].knownTechs = ["mining"]
         state.players[1].researching = TechID("masonry")
         state.players[0].citiesNamed = 2

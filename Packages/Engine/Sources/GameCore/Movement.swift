@@ -40,6 +40,9 @@ struct MoveKnowledge {
     /// Zone of control (M1 §8.5): tiles next to a visible enemy military unit or a remembered
     /// enemy city. Entering one ends the unit's movement for the phase.
     let zoc: TileBitSet
+    /// Per elevation / feature raw value: no extra move cost for this unit (promotions).
+    let freeElevation: [Bool]
+    let freeFeature: [Bool]
 
     init(state: GameState, unit: Unit) {
         let me = state.players[unit.owner.rawValue]
@@ -55,6 +58,7 @@ struct MoveKnowledge {
         memoryOwner = me.memory.tileOwner
         closed = [false] + state.players.map { other in isMilitary && state.bordersClosed(to: unit.owner, by: other.id) }
         let atWar = state.players.map { state.isAtWar(unit.owner, $0.id) }
+        let ignoresZOC = state.ignoresZOC(unit)
         var blocked = TileBitSet(count: count)
         var occupied = TileBitSet(count: count)
         var ownCities = TileBitSet(count: count)
@@ -67,7 +71,7 @@ struct MoveKnowledge {
                     if !(isMilitary && atWar[other.owner.rawValue]) { blocked[t] = true }
                 } else {
                     blocked[t] = true
-                    if atWar[other.owner.rawValue] { map.forEachNeighbor(of: t) { n, _ in zoc[n] = true } }
+                    if atWar[other.owner.rawValue], !ignoresZOC || state.holdsZOC(other) { map.forEachNeighbor(of: t) { n, _ in zoc[n] = true } }
                 }
             } else if other.id != unit.id, other.type.isCivilian == unit.type.isCivilian {
                 occupied[t] = true
@@ -76,7 +80,7 @@ struct MoveKnowledge {
         for sighting in me.memory.cities where sighting.owner != unit.owner {
             let t = map.index(of: sighting.position)!
             blocked[t] = true
-            if atWar[sighting.owner.rawValue] { map.forEachNeighbor(of: t) { n, _ in zoc[n] = true } }
+            if atWar[sighting.owner.rawValue], !ignoresZOC { map.forEachNeighbor(of: t) { n, _ in zoc[n] = true } }
         }
         for city in state.cities where city.owner == unit.owner {
             ownCities[map.index(of: city.position)!] = true
@@ -85,6 +89,7 @@ struct MoveKnowledge {
         self.occupied = occupied
         self.ownCities = ownCities
         self.zoc = zoc
+        (freeElevation, freeFeature) = state.freeMove(unit)
     }
 
     /// The unit may enter (and pass through) tile `t`, as far as its player knows.
@@ -107,8 +112,8 @@ struct MoveKnowledge {
         var cost = 1
         if explored[to] {
             let tile = map.tiles[to]
-            cost += rules.elevation(tile.elevation).moveCost
-            if !(ownCities[to] && rules.feature(tile.feature).removedByCity) { cost += rules.feature(tile.feature).moveCost }
+            if !freeElevation[Int(tile.elevation.rawValue)] { cost += rules.elevation(tile.elevation).moveCost }
+            if !freeFeature[Int(tile.feature.rawValue)], !(ownCities[to] && rules.feature(tile.feature).removedByCity) { cost += rules.feature(tile.feature).moveCost }
         }
         let river: Bool
         if explored[from] {
@@ -127,10 +132,12 @@ extension GameState {
     // MARK: The real world
 
     /// Movement points for a land unit to step from tile `from` to its neighbor `to`.
-    func moveCost(from: Int, to: Int, _ direction: HexDirection) -> Int {
+    func moveCost(from: Int, to: Int, _ direction: HexDirection,
+                  free: (elevations: [Bool], features: [Bool])? = nil) -> Int {
         let tile = map.tiles[to]
-        var cost = 1 + rules.elevation(tile.elevation).moveCost
-        if !(rules.feature(tile.feature).removedByCity && city(atTile: to) != nil) { cost += rules.feature(tile.feature).moveCost }
+        var cost = 1
+        if free?.elevations[Int(tile.elevation.rawValue)] != true { cost += rules.elevation(tile.elevation).moveCost }
+        if free?.features[Int(tile.feature.rawValue)] != true, !(rules.feature(tile.feature).removedByCity && city(atTile: to) != nil) { cost += rules.feature(tile.feature).moveCost }
         if map.tiles[from].riverEdges & (1 << UInt8(direction.rawValue)) != 0 { cost += rules.river.crossingMoveCost }
         return cost
     }
@@ -179,14 +186,17 @@ extension GameState {
     /// Tiles next to a military unit or city of a player at war with `player` (M1 §8.5):
     /// entering one ends a unit's movement for the phase. Nil when `player` is at war with no
     /// one.
-    func zoneOfControl(against player: PlayerID) -> TileBitSet? {
+    /// A unit that ignores zones of control (promotions) is held only by units that hold it.
+    func zoneOfControl(for unit: Unit) -> TileBitSet? {
+        let player = unit.owner
+        let ignores = ignoresZOC(unit)
         guard relations.contains(where: { $0.stance == .war && $0.involves(player) }) else { return nil }
         var zoc = TileBitSet(count: map.tileCount)
         let map = self.map
-        for u in units where !u.type.isCivilian && isAtWar(player, u.owner) {
+        for u in units where !u.type.isCivilian && isAtWar(player, u.owner) && (!ignores || holdsZOC(u)) {
             map.forEachNeighbor(of: map.index(of: u.position)!) { n, _ in zoc[n] = true }
         }
-        for c in cities where isAtWar(player, c.owner) {
+        for c in cities where !ignores && isAtWar(player, c.owner) {
             map.forEachNeighbor(of: map.index(of: c.position)!) { n, _ in zoc[n] = true }
         }
         return zoc
@@ -205,7 +215,8 @@ extension GameState {
     /// on the tiles it entered, in path order (M1 §7.7; a move cut short takes only those).
     mutating func executeMove(_ id: UnitID, along path: Path, _ fx: inout Effects) {
         guard let start = unit(id), var here = map.index(of: start.position) else { return }
-        let zoc = zoneOfControl(against: start.owner)
+        let zoc = zoneOfControl(for: start)
+        let free = freeMove(start)
         var movesLeft = start.movesLeft
         var moved: [HexCoord] = []
         var stop = (steps: 0, moves: movesLeft) // the last tile it may stop on
@@ -219,7 +230,7 @@ extension GameState {
                 interrupted = true
                 break
             }
-            let after = movesLeft - min(movesLeft, moveCost(from: here, to: next, direction))
+            let after = movesLeft - min(movesLeft, moveCost(from: here, to: next, direction, free: free))
             let stoppable = mayStop(next, start)
             let inZOC = zoc?[next] ?? false
             if after == 0 || inZOC, !stoppable {

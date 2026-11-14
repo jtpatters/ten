@@ -45,6 +45,15 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     public let tribalVillages: TribalVillageRules?
     /// The building a player's capital has (free in the first city).
     public let palace: BuildingDef
+    /// In order (M2 §2); empty in rules without eras.
+    public let eras: [EraDef]
+    /// Per tech index: its era's index (0 without eras).
+    public let techEras: [Int]
+    /// Insights and the world era (M2 §2, §6.2); nil in rules without them.
+    public let progression: ProgressionRules?
+    /// Promotions and the XP each tier needs (M2 §8.3); empty without the sections.
+    public let promotions: [PromotionDef]
+    public let promotionXP: [Int]
 
     /// Per tech index: indices of its direct prerequisites.
     let techRequires: [[Int]]
@@ -92,6 +101,12 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         ai = data.ai
         tribalVillages = data.tribalVillages
         palace = data.buildings.first { $0.palace }!
+        let eras = data.eras ?? []
+        self.eras = eras
+        techEras = data.techs.map { tech in tech.era.flatMap { e in eras.firstIndex { $0.id == e } } ?? 0 }
+        progression = data.progression
+        promotions = data.promotions ?? []
+        promotionXP = data.promotionXP ?? []
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
 
         improvementSites = Improvement.allCases.map { improvement in
@@ -226,6 +241,15 @@ extension UnitType {
         case .warrior: 3
         case .archer: 4
         case .spearman: 5
+        case .horseman: 6
+        case .heavyChariot: 7
+        case .swordsman: 8
+        case .catapult: 9
+        case .manAtArms: 10
+        case .crossbowman: 11
+        case .pikeman: 12
+        case .knight: 13
+        case .trebuchet: 14
         }
     }
 }
@@ -268,6 +292,12 @@ struct RulesetData: Codable, Hashable, Sendable {
     /// Optional: absent (nil), the key is left out of the canonical encoding, so the content
     /// hash is the one the rules had before the section existed (the C0 kill switch).
     var tribalVillages: TribalVillageRules?
+    /// Optional (M2 §2): absent, techs have no eras and there is no world era.
+    var eras: [EraDef]?
+    /// Optional (M2 §2, §6.2): absent, no Insights fire and the world era never advances.
+    var progression: ProgressionRules?
+    var promotions: [PromotionDef]?
+    var promotionXP: [Int]?
 }
 
 /// Yields of one source (M1 §4). Integer only.
@@ -390,6 +420,8 @@ public struct ImprovementDef: Codable, Hashable, Sendable {
 /// A unit's class (M1 §7). Military = every class except civilian.
 public enum UnitClass: String, Codable, Hashable, Sendable, CaseIterable {
     case civilian, recon, melee, ranged, antiCavalry, cavalry
+    /// M2 §8.1.
+    case heavyCavalry, siege
 }
 
 public struct ClassBonus: Codable, Hashable, Sendable {
@@ -420,13 +452,20 @@ public struct UnitDef: Codable, Hashable, Sendable {
     public let capturedAs: UnitType?
     /// Charges of the captured unit; nil keeps the old unit's charges.
     public let capturedCharges: Int?
+    /// The unit it upgrades to (M2 §8.2), if any.
+    public let upgradesTo: UnitType?
+    /// False for siege units: no ranged attack after moving in the phase (M2 §8.1). Nil = true.
+    public let rangedAfterMove: Bool?
+    /// Percent of its damage that wall HP takes (M2 §9.2); nil = `combat.wallDamagePct`.
+    public let wallDamagePct: Int?
 
     public var isMilitary: Bool { unitClass != .civilian }
     public var isRanged: Bool { rangedStrength > 0 }
 
     enum CodingKeys: String, CodingKey {
         case type, unitClass = "class", cost, strength, rangedStrength, range, moves, sight, tech, charges, foundsCity,
-             minPopulation, populationCost, classBonuses, capturedAs, capturedCharges
+             minPopulation, populationCost, classBonuses, capturedAs, capturedCharges, upgradesTo, rangedAfterMove,
+             wallDamagePct
     }
 }
 
@@ -456,6 +495,94 @@ public struct TechDef: Codable, Hashable, Sendable {
     public let name: String
     public let cost: Int
     public let requires: [TechID]
+    /// The era it belongs to (an `EraDef.id`); nil in rules without eras.
+    public let era: String?
+    /// Its Insight (M2 §6.2), if any.
+    public let insight: InsightDef?
+}
+
+/// An era (M2 §2). The rules' `eras` are in order: index 0 is the first era.
+/// A promotion (M2 §8.3): offered to units of `classes` at `tier`. Strength applies in a fight
+/// matching every condition given (`when` "attack"/"defend", `ranged`, the other side's class in
+/// `against`, `vsCity`, the unit standing in an own city `inCity`); `moves` adds to its moves.
+public struct PromotionDef: Codable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+    public let classes: [UnitClass]
+    public let tier: Int
+    public let strength: Int?
+    public let when: String?
+    public let ranged: Bool?
+    public let against: [UnitClass]?
+    public let vsCity: Bool?
+    public let inCity: Bool?
+    public let moves: Int?
+    /// Percent of its damage that wall HP takes, replacing the unit's (M2 §9.2).
+    public let wallDamagePct: Int?
+    /// Added to its range and its sight.
+    public let range: Int?
+    public let sight: Int?
+    /// True lifts the siege rule: it may fire after moving.
+    public let rangedAfterMove: Bool?
+    /// Its strength applies only against a wounded unit (true).
+    public let vsWounded: Bool?
+    /// Elevation and feature names whose extra move cost it does not pay.
+    public let freeMoveOn: [String]?
+    /// It ignores zones of control, except those of units with a `holdsZOC` promotion.
+    public let ignoresZOC: Bool?
+    public let holdsZOC: Bool?
+    /// Attacking costs it one move instead of all; it still attacks once per phase.
+    public let moveAfterAttack: Bool?
+    /// No river penalty when it attacks.
+    public let noRiverPenalty: Bool?
+    public let text: String
+}
+
+public struct EraDef: Codable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+}
+
+/// Insights and the world era (M2 §2, §6.2).
+public struct ProgressionRules: Codable, Hashable, Sendable {
+    /// An Insight's credit toward its tech, % of the tech's cost.
+    public let insightPct: Int
+    /// Credit toward every unknown tech of the era the world leaves, % of cost.
+    public let catchUpInsightPct: Int
+    /// The world advances when the mean progress of living players reaches this %.
+    public let worldEraAdvancePct: Int
+    /// …or when a player knows this many techs of the era after the next one.
+    public let forceAheadCount: Int
+}
+
+/// What fires an Insight (M2 §6.2). Each kind reads `count`, `target` and `classes` as noted.
+public enum InsightKind: String, Codable, Hashable, Sendable, CaseIterable {
+    /// Own `count` cities next to Coast or Lake.
+    case ownCoastalCities
+    /// Have met `count` other players.
+    case meetPlayers
+    /// Own `count` cities.
+    case ownCities
+    /// Have `count` improvements of kind `target` (an `Improvement` case name) in own territory.
+    case buildImprovements
+    /// Own `count` buildings `target` (a building id) across own cities.
+    case ownBuildings
+    /// Own `count` units of type `target` (a `UnitType` case name).
+    case ownUnits
+    /// Kill a unit (of a class in `against`, if given) with a unit of a class in `classes`.
+    case killWith
+    /// An own city with wall HP left survives an attack.
+    case cityDefended
+}
+
+public struct InsightDef: Codable, Hashable, Sendable {
+    public let kind: InsightKind
+    public let count: Int?
+    public let target: String?
+    public let classes: [UnitClass]?
+    public let against: [UnitClass]?
+    /// Shown in the tech tree ("Build 2 Mines").
+    public let text: String
 }
 
 public struct CivDef: Codable, Hashable, Sendable {
@@ -609,6 +736,8 @@ public struct CombatRules: Codable, Hashable, Sendable {
     public let xpMeleeAttack: Int
     public let xpRangedAttack: Int
     public let xpDefend: Int
+    /// Percent of a unit's damage that wall HP takes (M2 §9.2); nil = 100 (M1).
+    public let wallDamagePct: Int?
 }
 
 public struct DiplomacyRules: Codable, Hashable, Sendable {
@@ -866,6 +995,33 @@ extension RulesetData {
             }
         }
         if let cycle = techCycle() { problems.append("techs: cycle through \(cycle)") }
+        // Eras (M2 §2): every tech names a known era when the rules have eras, none otherwise;
+        // eras never go back in tree order.
+        let eraIDs = (eras ?? []).map(\.id)
+        check(Set(eraIDs).count == eraIDs.count, "eras: duplicate ids")
+        var lastEra = 0
+        for tech in techs {
+            if eraIDs.isEmpty {
+                check(tech.era == nil, "tech \(tech.id): era \(tech.era ?? "") but the rules have no eras")
+            } else if let e = tech.era.flatMap({ eraIDs.firstIndex(of: $0) }) {
+                check(e >= lastEra, "tech \(tech.id): era \(tech.era!) comes before an earlier tech's era (tree order)")
+                lastEra = max(lastEra, e)
+            } else {
+                problems.append("tech \(tech.id): unknown or missing era \(tech.era ?? "nil")")
+            }
+            if let insight = tech.insight { problems += insightProblems(insight, "tech \(tech.id)") }
+        }
+        for p in promotions ?? [] {
+            try check(!p.classes.isEmpty && (1...max(1, (promotionXP ?? []).count)).contains(p.tier)
+                      && (p.when == nil || p.when == "attack" || p.when == "defend") && (p.wallDamagePct ?? 1) > 0,
+                      "promotion \(p.id): bad class, tier, when or wall damage")
+        }
+        try check(Set((promotions ?? []).map(\.id)).count == (promotions ?? []).count, "promotions: duplicate id")
+        try check(zip(promotionXP ?? [], (promotionXP ?? []).dropFirst()).allSatisfy { $0 < $1 }, "promotionXP must increase")
+        if let p = progression {
+            check((0...100).contains(p.insightPct) && (0...100).contains(p.catchUpInsightPct)
+                  && (1...100).contains(p.worldEraAdvancePct) && p.forceAheadCount > 0, "progression: numbers out of range")
+        }
         func knownTech(_ tech: TechID?, _ context: String) {
             if let tech { check(techIDs.contains(tech), "\(context): unknown tech \(tech)") }
         }
@@ -1014,6 +1170,31 @@ extension RulesetData {
             check(v.gifts.builderRadius >= 0 && v.gifts.builderRadius <= 3, "tribalVillages.gifts.builderRadius out of range (0-3)")
             check(v.seekTurns >= 0 && v.seekTurns <= 10, "tribalVillages.seekTurns out of range (0-10)")
         }
+        return problems
+    }
+
+    /// Problems with an Insight's arguments (M2 §6.2).
+    private func insightProblems(_ insight: InsightDef, _ context: String) -> [String] {
+        var problems: [String] = []
+        let needsCount: Set<InsightKind> = [.ownCoastalCities, .meetPlayers, .ownCities, .buildImprovements, .ownBuildings, .ownUnits]
+        if needsCount.contains(insight.kind), (insight.count ?? 0) < 1 { problems.append("\(context): insight needs a count ≥ 1") }
+        switch insight.kind {
+        case .buildImprovements:
+            if !Improvement.allCases.contains(where: { caseName($0) == insight.target }) {
+                problems.append("\(context): insight improvement \(insight.target ?? "nil") unknown")
+            }
+        case .ownBuildings:
+            if !buildings.contains(where: { $0.id.rawValue == insight.target }) {
+                problems.append("\(context): insight building \(insight.target ?? "nil") unknown")
+            }
+        case .ownUnits:
+            if UnitType(rawValue: insight.target ?? "") == nil { problems.append("\(context): insight unit \(insight.target ?? "nil") unknown") }
+        case .killWith:
+            if (insight.classes ?? []).isEmpty { problems.append("\(context): insight needs classes") }
+        case .ownCoastalCities, .meetPlayers, .ownCities, .cityDefended:
+            break
+        }
+        if insight.text.isEmpty { problems.append("\(context): insight text is empty") }
         return problems
     }
 

@@ -72,15 +72,15 @@ extension AITurn {
 
     /// Tiles a unit may attack `target` from this phase (keeping a move for the attack), its
     /// own tile first when in reach: within range for a ranged unit, adjacent for a melee unit.
-    /// A garrison attacks only from its city.
+    /// A garrison, or a unit that may not fire after moving, attacks only from where it is.
     mutating func attackSpots(_ unit: Unit, target t: Int, garrison: Bool) -> [Int] {
         let v = view
         guard let here = v.index(of: unit.position) else { return [] }
-        let reach = isRanged(unit.type) ? rules.unit(unit.type).range : 1
+        let reach = isRanged(unit.type) ? v.range(of: unit) : 1
         var spots: [Int] = []
         let d = v.aiDistance(here, t)
         if d <= reach, isRanged(unit.type) || d == 1 { spots.append(here) }
-        guard !garrison, !unit.zocStopped, unit.movesLeft > 1 else { return spots }
+        guard !garrison, !unit.zocStopped, unit.movesLeft > 1, v.firesAfterMoving(unit) else { return spots }
         let f = reachField(unit.id)
         for r in v.aiTiles(within: reach, of: t) where r != here && r != t && f[r] > 0 && Int(f[r]) <= unit.movesLeft - 1 {
             if !isRanged(unit.type), v.aiDistance(r, t) != 1 { continue }
@@ -578,7 +578,7 @@ extension AITurn {
                 if !plan.assault {
                     place(unit, around: t, band: stage, goal: field)
                 } else if isRanged(unit.type) {
-                    let range = rules.unit(unit.type).range
+                    let range = view.range(of: unit)
                     place(unit, around: t, band: min(2, range)...range, goal: field)
                 } else {
                     place(unit, around: t, band: low ? 1...1 : 1...2, goal: field)

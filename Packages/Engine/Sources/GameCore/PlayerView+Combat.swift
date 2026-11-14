@@ -70,8 +70,8 @@ extension PlayerView {
               let start = index(of: unit.position) else { return [] }
         let def = rules.unit(unit.type)
         let k = MoveKnowledge(state: state, unit: unit)
-        let field = Pathfinder.phaseField(k, from: start, movesLeft: unit.zocStopped ? 0 : unit.movesLeft)
-        let reach = def.isRanged ? def.range : 1
+        let field = Pathfinder.phaseField(k, from: start, movesLeft: unit.zocStopped || !state.firesAfterMoving(unit) ? 0 : unit.movesLeft)
+        let reach = def.isRanged ? state.range(of: unit) : 1
         var options: [AttackOption] = []
         for (t, defender) in visibleTargets(attackingCities: def.unitClass != .recon) {
             var best: (cost: Int, tile: Int)?
@@ -131,7 +131,7 @@ extension PlayerView {
         switch attacker {
         case let .unit(id):
             guard var unit = state.unit(id), unit.owner == player, rules.unit(unit.type).isMilitary,
-                  state.attackReachProblem(unit.type, from: f, at: t, against: defender) == nil else { return nil }
+                  state.attackReachProblem(unit, from: f, at: t, against: defender) == nil else { return nil }
             unit.position = coord(at: f)
             side = .unit(unit)
             ranged = rules.unit(unit.type).isRanged
@@ -153,7 +153,11 @@ extension PlayerView {
         let clash = state.clash(attacker: side, defender: defender, from: f, target: t, ranged: ranged, sees: sees)
         let range = rules.constants.combat.rollRange
         let rolls = -range...range
-        let dealt = rolls.map { CombatMath.damage(base: clash.baseDealt, roll: $0) }
+        var dealt = rolls.map { CombatMath.damage(base: clash.baseDealt, roll: $0) }
+        if case let .city(c) = defender {
+            let pct = state.wallDamagePct(of: side)
+            dealt = dealt.map { let split = CombatMath.cityDamage($0, wallHP: c.wallHP, wallPct: pct); return split.walls + split.rest }
+        }
         let taken = ranged ? rolls.map { _ in 0 } : rolls.map { CombatMath.damage(base: clash.baseTaken, roll: $0) }
 
         // Exactly over every pair of rolls (the attacker's, then the retaliation's).
@@ -206,7 +210,7 @@ extension PlayerView {
         guard let unit = state.unit(id), unit.owner == player, let start = index(of: unit.position) else { return [] }
         let k = MoveKnowledge(state: state, unit: unit)
         return Pathfinder.movementField(k, from: start, movesLeft: unit.zocStopped ? 0 : unit.movesLeft,
-                                        maxMoves: rules.unit(unit.type).moves, limit: limit)
+                                        maxMoves: state.maxMoves(of: unit), limit: limit)
     }
 
     /// Steps from the nearest of `sources` to each tile over land as this player knows it
@@ -256,14 +260,15 @@ extension PlayerView {
             guard let start = index(of: enemy.position), me.visible[start] else { continue }
             let def = rules.unit(enemy.type)
             let power = Int32(power(of: enemy))
-            let reach = def.isRanged ? def.range : 1
+            let reach = def.isRanged ? state.range(of: enemy) : 1
+            let maxMoves = state.maxMoves(of: enemy), free = state.freeMove(enemy)
             stamp += 1
             // Where it can stand with a move left next phase (most moves left first).
             var touched = [start]
-            left[start] = Int8(def.moves)
-            var buckets = [[Int]](repeating: [], count: def.moves + 1)
-            buckets[def.moves] = [start]
-            for moves in stride(from: def.moves, through: 1, by: -1) {
+            left[start] = Int8(maxMoves)
+            var buckets = [[Int]](repeating: [], count: maxMoves + 1)
+            buckets[maxMoves] = [start]
+            for moves in stride(from: maxMoves, through: 1, by: -1) {
                 var i = 0
                 while i < buckets[moves].count {
                     let t = buckets[moves][i]
@@ -277,7 +282,7 @@ extension PlayerView {
                     }
                     state.map.forEachNeighbor(of: t) { n, direction in
                         if me.explored[n], !rules.isPassable(state.map.tiles[n]) { return }
-                        let after = moves - min(moves, knownCost(from: t, to: n, direction))
+                        let after = moves - min(moves, knownCost(from: t, to: n, direction, free))
                         guard after > Int(left[n]) else { return }
                         if left[n] < 0 { touched.append(n) }
                         left[n] = Int8(after)
@@ -291,12 +296,12 @@ extension PlayerView {
     }
 
     /// Movement cost of a step over terrain as this player knows it (unexplored: 1).
-    private func knownCost(from: Int, to: Int, _ direction: HexDirection) -> Int {
+    private func knownCost(from: Int, to: Int, _ direction: HexDirection, _ free: (elevations: [Bool], features: [Bool])) -> Int {
         var cost = 1
         if me.explored[to] {
             let tile = state.map.tiles[to]
-            cost += rules.elevation(tile.elevation).moveCost
-            if !(rules.feature(tile.feature).removedByCity && knownCity(at: coord(at: to)) != nil) {
+            if !free.elevations[Int(tile.elevation.rawValue)] { cost += rules.elevation(tile.elevation).moveCost }
+            if !free.features[Int(tile.feature.rawValue)], !(rules.feature(tile.feature).removedByCity && knownCity(at: coord(at: to)) != nil) {
                 cost += rules.feature(tile.feature).moveCost
             }
         }

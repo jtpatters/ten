@@ -66,6 +66,14 @@ public struct ResearchOption: Hashable, Sendable {
     public var turns: Int?
     /// What it unlocks, by name.
     public var unlocks: [String]
+    /// Its era's index (M2 §2; 0 without eras).
+    public var era: Int = 0
+    /// Credit toward it from Insights and the world era (M2 §6.2).
+    public var credit: Int = 0
+    /// Its Insight's text, if it has one.
+    public var insight: String?
+    /// Its Insight has fired for the viewer.
+    public var insightGained: Bool = false
 }
 
 public enum UnitActionKind: String, Hashable, Sendable, CaseIterable {
@@ -165,6 +173,24 @@ public struct PlayerView: Sendable {
     }
 
     /// An own unit, or a foreign unit on a visible tile.
+    /// The promotions an own unit may take now (M2 §8.3).
+    public func promotionsOffered(_ id: UnitID) -> [PromotionDef] {
+        guard let u = state.unit(id), u.owner == player else { return [] }
+        return state.promotionsOffered(to: u)
+    }
+
+    /// Gold to upgrade an own unit now, nil when it may not (M2 §8.2).
+    /// `unit`'s range, promotions included (0 for non-ranged units).
+    public func range(of unit: Unit) -> Int { state.range(of: unit) }
+
+    /// Whether it may fire after moving in the phase (siege may not, M2 §8.1, unless promoted).
+    public func firesAfterMoving(_ unit: Unit) -> Bool { state.firesAfterMoving(unit) }
+
+    public func upgradeCost(_ id: UnitID) -> Int? {
+        guard isMyPhase, let u = state.unit(id), u.owner == player, state.upgradeProblem(u) == nil else { return nil }
+        return state.upgradeCost(of: u.type)
+    }
+
     public func unit(_ id: UnitID) -> Unit? {
         guard let unit = state.unit(id) else { return nil }
         return unit.owner == player || isVisible(unit.position) ? unit : nil
@@ -297,14 +323,19 @@ public struct PlayerView: Sendable {
                 for i in stride(from: goal, through: 0, by: -1) where needed[i] {
                     for r in rules.techRequires[i] { needed[r] = true }
                 }
-                for i in rules.techs.indices where needed[i] && !me.knows(rules.techs[i].id) { cost += rules.techs[i].cost }
+                for i in rules.techs.indices where needed[i] && !me.knows(rules.techs[i].id) {
+                    cost += max(0, rules.techs[i].cost - me.credit(techIndex: i))
+                }
                 let remaining = max(0, cost - me.researchProgress)
                 turns = max(1, (remaining + science - 1) / science)
             }
+            let index = rules.techIndex(tech.id)!
             return ResearchOption(tech: tech.id, name: tech.name, cost: tech.cost, requires: tech.requires, known: known,
                                   researching: me.researching == tech.id, isTarget: me.researchTarget == tech.id,
                                   available: !known && tech.requires.allSatisfy(me.knows),
-                                  turns: turns, unlocks: unlocks(of: tech.id))
+                                  turns: turns, unlocks: unlocks(of: tech.id), era: rules.techEras[index],
+                                  credit: me.credit(techIndex: index), insight: tech.insight?.text,
+                                  insightGained: me.hasInsight(tech.id))
         }
     }
 

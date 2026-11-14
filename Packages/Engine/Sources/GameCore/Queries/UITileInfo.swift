@@ -322,7 +322,7 @@ extension PlayerView {
         guard !known.isEmpty else { return [] }
         let movesLeft = unit.zocStopped ? 0 : unit.movesLeft
         let field = Pathfinder.movementField(MoveKnowledge(state: state, unit: unit), from: start, movesLeft: movesLeft,
-                                             maxMoves: rules.unit(unit.type).moves)
+                                             maxMoves: state.maxMoves(of: unit))
         var jobs: [BuilderJob] = []
         for t in 0..<tileCount where field[t] >= 0 {
             guard state.owningCity(ofTile: t)?.owner == player, me.explored[t], me.memory.tileImprovement[t] == 0,

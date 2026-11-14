@@ -64,7 +64,11 @@ enum UnitSprite: SpriteSet {
     static var all: [UnitSprite] {
         var keys: [UnitSprite] = []
         for type in UnitType.allCases {
-            keys += [.body(type, east: false), .body(type, east: true), .teamMask(type)]
+            if sharesWestBody(type) {
+                keys += [.body(type, east: false)] + (dataCell(type).key == type ? [.teamMask(type)] : [])
+            } else {
+                keys += [.body(type, east: false), .body(type, east: true), .teamMask(type)]
+            }
         }
         keys += [.escortedBody(east: false), .escortedBody(east: true), .escortedMask]
         let players = Palette.playerStyles.indices
@@ -78,10 +82,31 @@ enum UnitSprite: SpriteSet {
         keys.append(.standardField)
         // After every older cell, so none of theirs moves.
         for kind in Improvement.allCases { keys.append(.job(kind)) }
-        // In one of the free cells the atlas already has: it stays 2048 x 1024 (no new page,
-        // the same texture memory).
         keys.append(.tribalVillage)
         return keys
+    }
+
+    /// The M2 types have no east-facing body cell: facing east they show the west-facing body
+    /// mirrored (lit from the upper right), which keeps the atlas within its budget (ART.md §10).
+    static func sharesWestBody(_ type: UnitType) -> Bool {
+        switch type {
+        case .settler, .builder, .scout, .warrior, .archer, .spearman: false
+        case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: true
+        }
+    }
+
+    /// The M2 types' data cells hold two types each: the first in red and green, the second
+    /// in blue and alpha (the same budget, ART.md §10).
+    static let pairedData: [(UnitType, UnitType?)] = [(.horseman, .heavyChariot), (.swordsman, .catapult),
+                                                      (.manAtArms, .crossbowman), (.pikeman, .knight), (.trebuchet, nil)]
+
+    /// The type whose `teamMask` cell holds `type`'s data, and whether in blue and alpha.
+    static func dataCell(_ type: UnitType) -> (key: UnitType, high: Bool) {
+        for (first, second) in pairedData {
+            if first == type { return (first, false) }
+            if second == type { return (first, true) }
+        }
+        return (type, false)
     }
 
     /// Body cell edge in pixels (every other cell is 128).
@@ -126,7 +151,9 @@ enum UnitSprite: SpriteSet {
         case let .body(type, east):
             canvas.paint(Self.recorded(type, east: east).steps, pass: .body)
         case let .teamMask(type):
-            Self.paintData(Self.recorded(type, east: false).steps, team: true, cell: cell, ctx: ctx)
+            let partner = Self.pairedData.first { $0.0 == type }?.1
+            Self.paintData(Self.recorded(type, east: false).steps, team: true, cell: cell, ctx: ctx,
+                           high: partner.map { Self.recorded($0, east: false).steps })
         case let .escortedBody(east):
             canvas.paint(Self.recorded(.settler, east: east, pole: false).steps, pass: .body)
         case .escortedMask:
@@ -175,8 +202,9 @@ enum UnitSprite: SpriteSet {
         let x: Float = switch type {
         case .settler: 0.5
         case .builder: 0.684 // the surveyor's rod
-        case .warrior, .archer, .spearman: 0.596
-        case .scout: 0.612
+        case .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 0.596
+        case .scout, .horseman, .knight, .heavyChariot: 0.612
+        case .catapult, .trebuchet: siegeBearer.x - 0.09 * siegeBearer.k
         }
         let k = bodyFit(type), fx = 0.5 + (x - 0.5) * k
         return [east ? 1 - fx : fx, groundLine + (standardMountY - groundLine) * k]
@@ -188,10 +216,14 @@ enum UnitSprite: SpriteSet {
     static func bodyFit(_ type: UnitType) -> Float {
         switch type {
         case .settler: 0.93
-        case .builder, .warrior, .archer, .spearman: 1
-        case .scout: 0.97
+        case .builder, .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 1
+        case .scout, .horseman, .knight, .heavyChariot: 0.97
+        case .catapult, .trebuchet: 0.95
         }
     }
+
+    /// Where a siege engine's standard-bearer stands (feet x, build), beside the engine.
+    private static let siegeBearer: (x: Float, k: Float) = (0.2, 0.86)
 
     /// The standard is painted in a frame of its own (`standard`, fractions, y up) and fitted
     /// into the middle of its cell by this scale about this point, so its rim has room all
@@ -320,6 +352,15 @@ enum UnitSprite: SpriteSet {
             case .archer: archer(&figure)
             case .spearman: spearman(&figure)
             case .scout: scout(&figure)
+            case .horseman: scout(&figure, coat: Tone(0.38, 0.27, 0.2), kit: .lance)
+            case .knight: scout(&figure, coat: Tone(0.82, 0.8, 0.76), kit: .armored)
+            case .heavyChariot: scout(&figure, coat: Tone(0.5, 0.32, 0.2), kit: .chariot)
+            case .swordsman: swordsman(&figure)
+            case .manAtArms: manAtArms(&figure)
+            case .crossbowman: crossbowman(&figure)
+            case .pikeman: pikeman(&figure)
+            case .catapult: siege(&figure, trebuchet: false)
+            case .trebuchet: siege(&figure, trebuchet: true)
             }
             let recorded = RecordedFigure(steps: figure.steps, emblems: figure.emblems, size: figure.size)
             done.withLock { $0[key] = recorded }
@@ -525,6 +566,80 @@ enum UnitSprite: SpriteSet {
                           gear: .rod, stride: 0.75, sleeves: true))
         person(&f, Person(x: 0.6, y: 0.1, k: 1.0, skin: 0.9, head: .strawHat, torso: .tunic, lower: .tunic, legs: .wraps,
                           gear: .barrow, stride: 1.35, sleeves: true))
+    }
+
+    /// Three swordsmen in iron caps and leather cuirasses (M2 §8.1): the blade cocked over the
+    /// shoulder, the standard-bearer, and a front-rank fighter behind his round shield.
+    private static func swordsman(_ f: inout Figure) {
+        person(&f, Person(x: 0.285, y: 0.205, k: 0.86, skin: 0.94, head: .helmet(.ridge), torso: .cuirass(leather), lower: .skirt,
+                          legs: .greaves, gear: .club, shield: .turned, stride: 1.1))
+        person(&f, Person(x: 0.672, y: 0.215, k: 0.84, skin: 1.02, head: .helmet(.ridge), torso: .cuirass(leather.scaled(0.9)),
+                          lower: .skirt, legs: .greaves, gear: .standard, shield: .slung, stride: 0.8))
+        person(&f, Person(x: 0.47, y: 0.1, k: 1.0, skin: 0.96, head: .helmet(.ridge), torso: .cuirass(leather.scaled(0.95)),
+                          lower: .skirt, legs: .greaves, gear: .club, shield: .front, stride: 1.25))
+    }
+
+    /// Three men-at-arms in iron, plumed: long axes raised, the standard-bearer, a front rank
+    /// behind his shield.
+    private static func manAtArms(_ f: inout Figure) {
+        person(&f, Person(x: 0.285, y: 0.205, k: 0.86, skin: 0.9, head: .helmet(.plume), torso: .cuirass(iron), lower: .skirt,
+                          legs: .greaves, gear: .axeRaised, stride: 1.1))
+        person(&f, Person(x: 0.672, y: 0.215, k: 0.84, skin: 1.0, head: .helmet(.plume), torso: .cuirass(iron.scaled(0.9)),
+                          lower: .skirt, legs: .greaves, gear: .standard, shield: .slung, stride: 0.8))
+        person(&f, Person(x: 0.47, y: 0.1, k: 1.0, skin: 0.95, head: .helmet(.tall), torso: .cuirass(iron.scaled(0.95)),
+                          lower: .skirt, legs: .greaves, gear: .axeRaised, shield: .front, stride: 1.25))
+    }
+
+    /// Three crossbowmen in iron caps and quilted jerkins, weapons leveled.
+    private static func crossbowman(_ f: inout Figure) {
+        person(&f, Person(x: 0.27, y: 0.205, k: 0.86, skin: 0.95, head: .helmet(.ridge), torso: .jerkin(Tone(0.5, 0.44, 0.34)), lower: .tunic,
+                          legs: .wraps, gear: .bowReady, quiver: true, stride: 1.1, sleeves: true))
+        person(&f, Person(x: 0.672, y: 0.215, k: 0.84, skin: 1.02, head: .helmet(.ridge), torso: .tunic, lower: .tunic, legs: .wraps,
+                          gear: .standard, shield: .slung, quiver: true, stride: 0.8, sleeves: true))
+        person(&f, Person(x: 0.462, y: 0.1, k: 1.0, skin: 0.9, head: .helmet(.ridge), torso: .jerkin(Tone(0.46, 0.4, 0.3)), lower: .tunic,
+                          legs: .wraps, gear: .bowReady, quiver: true, stride: 1.15, sleeves: true))
+    }
+
+    /// Three pikemen in tall helmets, pikes up and leveled, no shields.
+    private static func pikeman(_ f: inout Figure) {
+        person(&f, Person(x: 0.29, y: 0.205, k: 0.86, skin: 0.92, head: .helmet(.tall), torso: .cuirass(iron), lower: .skirt,
+                          legs: .greaves, gear: .spearUp))
+        person(&f, Person(x: 0.672, y: 0.215, k: 0.84, skin: 1.03, head: .helmet(.tall), torso: .cuirass(iron.scaled(0.9)),
+                          lower: .skirt, legs: .greaves, gear: .standard, stride: 0.8))
+        person(&f, Person(x: 0.462, y: 0.1, k: 1.0, skin: 0.97, head: .helmet(.tall), torso: .cuirass(iron.scaled(0.95)),
+                          lower: .skirt, legs: .greaves, gear: .spearLevel, stride: 1.25))
+    }
+
+    /// A siege engine on its wheels, its timbers draped in the team color, with a crewman
+    /// carrying the standard in front: a catapult (a throwing arm with its bucket) or a
+    /// trebuchet (a tall A-frame, a long arm with its sling and a counterweight).
+    private static func siege(_ f: inout Figure, trebuchet: Bool) {
+        let grey = Tone(0.62, 0.6, 0.56)
+        if trebuchet {
+            f.add(f.limb([(0.5, 0.2), (0.64, 0.7)], 0.04, 0.032), Material(darkWood, grain: .wood))
+            f.add(f.poly([(0.36, 0.17), (0.92, 0.17), (0.92, 0.24), (0.36, 0.24)]), Material(wood, grain: .planks))
+            f.add(f.limb([(0.79, 0.22), (0.64, 0.7)], 0.04, 0.032), Material(wood, grain: .wood))
+            f.add(f.limb([(0.4, 0.86), (0.86, 0.5)], 0.032, 0.026), Material(wood, grain: .wood))
+            f.add(f.ellipse(0.64, 0.7, 0.024, 0.024), Material(iron, grain: .metal, gloss: 0.5), outline: 0.008)
+            f.add(f.poly([(0.8, 0.5), (0.92, 0.5), (0.9, 0.35), (0.82, 0.35)]), Material(team: 1, grain: .cloth))
+            f.decal(f.limb([(0.4, 0.86), (0.35, 0.72)], 0.007, 0.006), ink, alpha: 0.6)
+            f.add(f.ellipse(0.35, 0.71, 0.028, 0.026), Material(grey), outline: 0.008)
+            f.wheel(0.44, 0.15, 0.055)
+            f.wheel(0.84, 0.15, 0.055)
+        } else {
+            f.add(f.limb([(0.52, 0.25), (0.54, 0.47)], 0.036, 0.03), Material(darkWood, grain: .wood))
+            f.add(f.poly([(0.33, 0.2), (0.9, 0.2), (0.9, 0.28), (0.33, 0.28)]), Material(wood, grain: .planks))
+            f.add(f.rectPath(0.56, 0.205, 0.18, 0.07), Material(team: 1, grain: .cloth))
+            f.add(f.limb([(0.64, 0.27), (0.58, 0.47)], 0.036, 0.03), Material(wood, grain: .wood))
+            f.add(f.limb([(0.5, 0.46), (0.62, 0.46)], 0.03, 0.03), Material(wood, grain: .wood))
+            f.add(f.limb([(0.84, 0.29), (0.44, 0.62)], 0.032, 0.024), Material(wood, grain: .wood))
+            f.add(f.ellipse(0.43, 0.63, 0.05, 0.032), Material(darkWood, grain: .wood))
+            f.add(f.ellipse(0.43, 0.665, 0.03, 0.027), Material(grey), outline: 0.008)
+            f.wheel(0.42, 0.18, 0.08)
+            f.wheel(0.8, 0.18, 0.08)
+        }
+        person(&f, Person(x: CGFloat(siegeBearer.x), y: 0.1, k: CGFloat(siegeBearer.k), skin: 0.96, head: .cap, torso: .tunic, lower: .tunic,
+                          legs: .wraps, gear: .standard, beard: false, stride: 0.9, sleeves: true))
     }
 
     private static func person(_ f: inout Figure, _ s: Person) {
@@ -944,9 +1059,13 @@ enum UnitSprite: SpriteSet {
         f.wheel(p(-0.42, 0.07).0, p(-0.42, 0.07).1, 0.07 * k)
     }
 
+    /// What a mounted body carries besides its rider (M2 §8.1): nothing (the scout), a lance
+    /// (horseman), an iron helm and a caparison in the team color (knight), or a chariot.
+    private enum Mount { case scout, lance, armored, chariot }
+
     /// A rider on a cantering horse, cloaked and hooded in the team color, carrying the standard.
-    private static func scout(_ f: inout Figure) {
-        let coat = Tone(0.6, 0.36, 0.2), points = Tone(0.21, 0.14, 0.1), mane = Tone(0.18, 0.11, 0.07)
+    private static func scout(_ f: inout Figure, coat: Tone = Tone(0.6, 0.36, 0.2), kit: Mount = .scout) {
+        let points = Tone(0.21, 0.14, 0.1), mane = Tone(0.18, 0.11, 0.07)
         let hoof = Tone(0.15, 0.11, 0.08), farCoat = coat.scaled(0.72)
         func hoofAt(_ x: CGFloat, _ y: CGFloat, _ k: CGFloat = 1, tilt: CGFloat = 0) {
             f.add(f.blob([(x - 0.023, y + tilt), (x + 0.02, y - tilt), (x + 0.016, y + 0.026 - tilt), (x - 0.016, y + 0.026 + tilt)]),
@@ -1019,6 +1138,25 @@ enum UnitSprite: SpriteSet {
         f.add(f.ellipse(0.469, 0.814, 0.008, 0.009), Material(ink, shade: 0, light: 0), outline: 0)
         f.add(f.blob([(0.464, 0.83), (0.478, 0.866), (0.518, 0.882), (0.55, 0.858), (0.566, 0.818), (0.562, 0.758), (0.53, 0.778), (0.502, 0.822)]),
               Material(team: 0.84, grain: .cloth))
+        switch kit {
+        case .scout:
+            break
+        case .lance:
+            let butt: (CGFloat, CGFloat) = (0.58, 0.6), tip: (CGFloat, CGFloat) = (0.1, 0.8)
+            f.add(f.limb([butt, tip], 0.018, 0.015), Material(wood, grain: .wood), outline: 0.01)
+            spearhead(&f, at: tip, angle: atan2(tip.1 - butt.1, tip.0 - butt.0), k: 1)
+        case .armored:
+            let caparison = f.blob([(0.3, 0.46), (0.42, 0.42), (0.66, 0.43), (0.76, 0.45), (0.75, 0.36), (0.6, 0.33), (0.34, 0.34)])
+            f.add(caparison, Material(team: 1, grain: .cloth))
+            f.decalStroke(caparison, gold, width: 0.008, clip: caparison)
+            f.add(f.blob([(0.456, 0.79), (0.47, 0.87), (0.52, 0.895), (0.565, 0.86), (0.57, 0.79), (0.512, 0.77)]),
+                  Material(iron, grain: .metal, gloss: 0.6))
+            f.decal(f.rectPath(0.455, 0.815, 0.06, 0.01), ink, alpha: 0.8)
+        case .chariot:
+            f.add(f.poly([(0.64, 0.3), (0.93, 0.3), (0.91, 0.5), (0.67, 0.47)]), Material(team: 1, grain: .cloth))
+            f.decal(f.poly([(0.64, 0.3), (0.93, 0.3), (0.93, 0.33), (0.64, 0.33)]), darkWood, alpha: 0.8)
+            f.wheel(0.8, 0.2, 0.1)
+        }
     }
 
     // MARK: Standards
@@ -1255,9 +1393,21 @@ extension UnitSprite {
     /// far out), blue and alpha zero. Its outermost texels stay empty, so filtering at a
     /// neighbor's edge picks up nothing. The values are written into the context's memory as
     /// they are: compositing would drop color where alpha is zero.
-    fileprivate static func paintData(_ steps: [Step], team: Bool, cell: CGRect, ctx: CGContext) {
+    fileprivate static func paintData(_ steps: [Step], team: Bool, cell: CGRect, ctx: CGContext, high: [Step]? = nil) {
         let n = Int(cell.width.rounded())
-        guard let shape = bitmap(n) else { return }
+        guard var pixels = dataPixels(steps, team: team, size: n) else { return }
+        if let high, let more = dataPixels(high, team: team, size: n) {
+            for i in 0..<(n * n) {
+                pixels[4 * i + 2] = more[4 * i]
+                pixels[4 * i + 3] = more[4 * i + 1]
+            }
+        }
+        write(Data(pixels), rowBytes: n * 4, size: n, into: ctx, at: cell)
+    }
+
+    /// A data cell's pixels (red: team paint, green: nearness to the silhouette).
+    private static func dataPixels(_ steps: [Step], team: Bool, size n: Int) -> [UInt8]? {
+        guard let shape = bitmap(n) else { return nil }
         Canvas(ctx: shape, origin: .zero, size: CGFloat(n)).silhouette(steps)
         let field = rimField(alpha(of: shape, size: n), size: n)
         var teamCover = [UInt8](repeating: 0, count: n * n)
@@ -1274,7 +1424,7 @@ extension UnitSprite {
                 pixels[4 * i + 1] = UInt8((255 * max(1 - field[i] / rimRange, 0)).rounded())
             }
         }
-        write(Data(pixels), rowBytes: n * 4, size: n, into: ctx, at: cell)
+        return pixels
     }
 
     /// Texels left empty around a data cell's edge.

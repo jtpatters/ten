@@ -30,7 +30,9 @@ import Testing
     /// Per format version: the key paths of its additive optional fields (see above), left out
     /// of the fingerprint and required in the fixture.
     static let additivePaths: [UInt16: [String]] = [
-        1: ["players[].memory.tribalVillages", "tribalVillages", "tribalVillages.gifts", "tribalVillages.sites"],
+        // M2 2.1a: the world era and Insight credit (M2 §2, §6.2).
+        1: ["players[].insights", "players[].memory.tribalVillages", "players[].techCredit", "tribalVillages", "tribalVillages.gifts",
+            "tribalVillages.sites", "units[].attacked", "units[].promotions", "worldEra"],
     ]
 
     /// The sorted key paths of a value's JSON encoding: object keys joined with ".", array

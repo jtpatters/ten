@@ -37,8 +37,10 @@ func validationProblems(_ change: (inout [String: Any]) -> Void) throws -> [Stri
         #expect(rules.contentHash != 0)
         #expect(makeTestState().rules == rules)
         #expect(rules.units.map(\.type) == UnitType.allCases)
-        #expect(rules.techs.map(\.id) == ["pottery", "mining", "animalHusbandry", "sailing", "writing", "irrigation",
-                                          "archery", "bronzeWorking", "masonry", "currency"])
+        // M2 §6.1: the M1 techs come first, in M1's order.
+        #expect(rules.techs.prefix(10).map(\.id) == ["pottery", "mining", "animalHusbandry", "sailing", "writing", "irrigation",
+                                                    "archery", "bronzeWorking", "masonry", "currency"])
+        #expect(rules.techs.count == 30 && rules.eras.map(\.id) == ["ancient", "classical", "medieval"])
         #expect(rules.civs.map(\.name) == ["Rome", "Mongols", "Mali", "China", "Inca", "Khmer", "Norse", "Abbasid Caliphate"])
         #expect(rules.civs.map(\.leader) == ["Trajan", "Genghis Khan", "Mansa Musa", "Wu Zetian", "Pachacuti",
                                              "Jayavarman VII", "Harald Hardrada", "Harun al-Rashid"])
@@ -49,13 +51,13 @@ func validationProblems(_ change: (inout [String: Any]) -> Void) throws -> [Stri
     @Test func rulesMatchTheM1Tables() throws {
         let rules = Ruleset.standard
         func unit(_ t: UnitType) -> UnitDef { rules.unit(t) }
-        #expect(UnitType.allCases.map { unit($0).cost } == [60, 40, 30, 40, 60, 65])
-        #expect(UnitType.allCases.map { unit($0).strength } == [0, 0, 10, 20, 15, 25])
-        #expect(UnitType.allCases.map { unit($0).moves } == [2, 2, 3, 2, 2, 2])
-        #expect(UnitType.allCases.map { unit($0).sight } == [2, 2, 3, 2, 2, 2])
-        #expect(UnitType.allCases.map { unit($0).unitClass } == [.civilian, .civilian, .recon, .melee, .ranged, .antiCavalry])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).cost } == [60, 40, 30, 40, 60, 65])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).strength } == [0, 0, 10, 20, 15, 25])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).moves } == [2, 2, 3, 2, 2, 2])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).sight } == [2, 2, 3, 2, 2, 2])
+        #expect(UnitType.allCases.prefix(6).map { unit($0).unitClass } == [.civilian, .civilian, .recon, .melee, .ranged, .antiCavalry])
         #expect(unit(.archer).rangedStrength == 25 && unit(.archer).range == 2 && unit(.archer).tech == "archery")
-        #expect(unit(.spearman).tech == "bronzeWorking" && unit(.spearman).classBonuses == [ClassBonus(against: .cavalry, strength: 10)])
+        #expect(unit(.spearman).tech == "bronzeWorking" && unit(.spearman).classBonuses == [ClassBonus(against: .cavalry, strength: 10), ClassBonus(against: .heavyCavalry, strength: 10)])
         #expect(unit(.builder).charges == 3)
         #expect(unit(.settler).foundsCity && unit(.settler).minPopulation == 2 && unit(.settler).populationCost == 1)
         for type in UnitType.allCases { #expect(unit(type).isMilitary == !type.isCivilian) }
@@ -67,9 +69,9 @@ func validationProblems(_ change: (inout [String: Any]) -> Void) throws -> [Stri
         #expect(buildings[3].wallHP == 100 && buildings[3].cityStrength == 5)
         #expect(rules.palace.yields == Yields(production: 2, gold: 3, science: 3, culture: 1) && !rules.palace.buildable)
 
-        #expect(rules.techs.map(\.cost) == [25, 25, 25, 40, 45, 45, 45, 45, 45, 70])
-        #expect(rules.techs.map(\.requires) == [[], [], [], ["pottery"], ["pottery"], ["pottery"], ["animalHusbandry"],
-                                                ["mining"], ["mining"], ["writing"]])
+        #expect(rules.techs.prefix(10).map(\.cost) == [25, 25, 25, 40, 45, 45, 45, 45, 45, 70])
+        #expect(rules.techs.prefix(10).map(\.requires) == [[], [], [], ["pottery"], ["pottery"], ["pottery"], ["animalHusbandry"],
+                                                          ["mining"], ["mining"], ["writing"]])
 
         #expect((1...6).map { rules.growthThreshold(population: $0) } == [11, 20, 29, 40, 51, 62]) // p3f: base 11
         #expect((0...2).map { rules.borderThreshold(tilesGained: $0) } == [10, 16, 22])
