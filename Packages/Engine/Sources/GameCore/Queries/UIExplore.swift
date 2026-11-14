@@ -304,7 +304,7 @@ extension PlayerView {
     /// unit.
     public func enemiesInSight(of id: UnitID) -> [UnitID] {
         guard let unit = state.unit(id), unit.owner == player else { return [] }
-        let sight = rules.unit(unit.type).sight
+        let sight = state.sight(of: unit)
         var near: [(id: UnitID, distance: Int)] = []
         for other in visibleForeignUnits where !other.type.isCivilian && isAtWar(with: other.owner) {
             let d = distance(other.position, unit.position)

@@ -238,6 +238,7 @@ extension GameState {
             u.activity = .none
             u.destination = nil
         }
+        if rules.promotions.first(where: { $0.id == promotion })?.sight != nil { fx.touchPlayer(unit.owner) }
         let t = map.index(of: unit.position)!
         fx.emit(.unitPromoted(unit: id, promotion: promotion, owner: unit.owner, at: unit.position), .ownerAndTiles(unit.owner, [t]))
     }

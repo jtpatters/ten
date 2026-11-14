@@ -42,6 +42,23 @@ import Testing
         #expect(state.sight(of: state.unit(scout)!) == sight + 1 && state.range(of: state.unit(scout)!) == 0)
     }
 
+    @Test func sentryRefreshesVisibilityAndEnemiesInSight() throws {
+        var state = makeTestState()
+        let scout = state.addUnit(.scout, owner: PlayerID(0), at: hex(3, 3))
+        state.updateUnit(scout) { u in
+            u.promotions = ["ranger"]
+            u.xp = 45
+        }
+        let sight = state.sight(of: state.unit(scout)!)
+        setWar(&state, PlayerID(0), PlayerID(1))
+        let enemy = state.addUnit(.warrior, owner: PlayerID(1), at: hex(3 + sight + 1, 3))
+        refreshKnowledge(&state)
+        #expect(state.checkInvariants().isEmpty)
+        try apply(.promote(unit: scout, promotion: "sentry"), &state)
+        #expect(state.checkInvariants().isEmpty)
+        #expect(PlayerView(state: state, player: PlayerID(0)).enemiesInSight(of: scout) == [enemy])
+    }
+
     @Test func alpineCrossesHillsFreely() {
         var map = openMap(width: 8, height: 6)
         let a = map.index(of: hex(1, 1))!, b = map.index(of: hex(2, 1))!
