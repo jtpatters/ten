@@ -80,7 +80,7 @@ extension GameState {
                 break
             }
         }
-        for p in players.indices where players[p].isAlive && !dirty[p].isEmpty {
+        for p in players.indices where players[p].isAlive && players[p].isMajor && !dirty[p].isEmpty {
             for (i, tech) in rules.techs.enumerated() {
                 guard let insight = tech.insight, dirty[p].contains(insight.kind), !players[p].knows(tech.id),
                       !players[p].hasInsight(tech.id) else { continue }
