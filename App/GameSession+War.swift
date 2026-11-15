@@ -271,8 +271,9 @@ extension GameSession {
             if targeting.fromWarRoom { openPanel = .war }
         case let .rally(cities):
             guard let tile = targeting.rallyTile else { return }
+            let before = war
             for city in cities { war.setRally(tile, for: city) }
-            noteHeaderChange()
+            if !war.savesSame(as: before) { noteHeaderChange() }
             warTargeting = nil
             refreshSelection()
             show("Rally point set: new military units from \(cities.count == 1 ? (view.city(cities[0])?.name ?? "the city") : "\(cities.count) cities") march \(placeName(tile) == "the open field" ? "there" : "to " + placeName(tile))")
