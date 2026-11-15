@@ -40,12 +40,13 @@ extension GameSession {
     }
 
     /// The own city whose panel is open: the selected city, unless its panel has stepped aside
-    /// for bombard targeting. `compact`: on a phone (upright, where the panel is a sheet, or on
-    /// its side, where card and side panel would leave the map a sliver between them) the panel
-    /// also steps aside for a card (attention such as Keep/Raze, combat preview, tile, game over).
+    /// for a choice on the map (bombard target, quarter, tile, a war order's goal). `compact`: on
+    /// a phone (upright, where the panel is a sheet, or on its side, where card and side panel
+    /// would leave the map a sliver between them) the panel also steps aside for a card
+    /// (attention such as Keep/Raze, combat preview, tile, game over).
     func panelCity(compact: Bool) -> City? {
         guard let city = selectedCity, city.owner == viewer, bombardTargeting == nil, quarterPlacing == nil,
-              tileBuying == nil, tileWorking == nil else { return nil }
+              tileBuying == nil, tileWorking == nil, warTargeting == nil else { return nil }
         if compact, attentionCard != nil || pendingAttack != nil || inspectedHex != nil || state.outcome != nil { return nil }
         return city
     }

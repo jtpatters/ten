@@ -239,6 +239,21 @@ import Testing
         #expect(state.view(for: me).siegeOutlook(of: [warrior], at: city) == nil)
     }
 
+    /// A visible foreign unit among the ids is left out too: it takes no place, even standing
+    /// on one, and is not unreachable.
+    @Test func leavesOutVisibleForeignUnits() throws {
+        var state = makeTestState(map: openMap(width: 20, height: 12))
+        let goal = hex(10, 6)
+        let theirs = state.addUnit(.warrior, owner: them, at: goal)
+        let mine = state.addUnit(.warrior, owner: me, at: hex(8, 6))
+        refreshKnowledge(&state)
+        let view = state.view(for: me)
+        #expect(view.unit(theirs) != nil)
+        let plan = view.formation(of: [theirs, mine], around: goal)
+        #expect(plan.slots[theirs] == nil && !plan.unreachable.contains(theirs))
+        #expect(plan.slots[mine] != nil && plan.placed == 1)
+    }
+
     /// One production order for many cities: first, last or in place of the queue, with each
     /// city's reason when it cannot take the item.
     @Test func bulkQueues() throws {

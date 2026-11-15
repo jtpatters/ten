@@ -127,6 +127,9 @@ final class GameSession {
     /// Saves being written.
     var pendingSaves = 0
     var hasUnsavedCommands: Bool { commandCount > savedCommandCount }
+    /// An order kept only in the save header changed (a rally point, a march no command
+    /// started): counted as a command, so the next save, or quitting, keeps it.
+    func noteHeaderChange() { commandCount += 1 }
     /// The default name the Save prompt opened with (`save(named:)` renames it after the
     /// snapshot).
     @ObservationIgnored var saveNameDefault = ""

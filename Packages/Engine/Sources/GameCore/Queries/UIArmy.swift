@@ -69,7 +69,7 @@ extension PlayerView {
             return plan
         }
         plan.target = goal
-        let units = ids.compactMap { unit($0) }.filter { !$0.type.isCivilian }
+        let units = ids.compactMap { unit($0) }.filter { $0.owner == player && !$0.type.isCivilian }
             .sorted { (distance($0.position, goal), $0.id) < (distance($1.position, goal), $1.id) }
         guard let vanguard = units.first else { return plan }
         let siege = knownCity(at: goal).map { isAtWar(with: $0.owner) } ?? false
@@ -172,7 +172,7 @@ extension PlayerView {
         var steps: [UnitID: MarchStep] = [:]
         var turns: [UnitID: Int] = [:]
         for leg in marches {
-            guard let unit = unit(leg.unit), !unit.type.isCivilian else {
+            guard let unit = unit(leg.unit), unit.owner == player, !unit.type.isCivilian else {
                 steps[leg.unit] = .gone
                 continue
             }

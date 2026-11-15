@@ -50,6 +50,10 @@ struct AITurn {
     /// Settlers in `escortWanted` no free fighter could come to this phase, in the same order,
     /// with their escort city, which builds one (p3b ai-settler-escort).
     var unescorted: [(settler: UnitID, city: CityID)] = []
+    /// Civilians move without the player's military (the App's automated Builders,
+    /// `AIPlayer.builderCommands`): no escort travels along (`hasEscort` finds none) and no
+    /// guard fortifies (`holdGuard`), so each choice weighs only the army where it stands.
+    var civiliansAlone = false
     /// Cities a unit was sent to garrison this phase (lookups only).
     var garrisonSent: [CityID: UnitID] = [:]
     /// The danger map, computed once per phase on first use.

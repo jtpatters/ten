@@ -129,7 +129,7 @@ extension AITurn {
     /// Safety): that unit stays with it, fortified, for the rest of the phase.
     mutating func holdGuard(of id: UnitID) {
         let v = view
-        guard let unit = v.unit(id), unit.type.isCivilian, let t = v.index(of: unit.position), civilianDanger(v)[t],
+        guard !civiliansAlone, let unit = v.unit(id), unit.type.isCivilian, let t = v.index(of: unit.position), civilianDanger(v)[t],
               !v.cities.contains(where: { $0.position == unit.position }),
               let guardian = v.units(at: unit.position).first(where: { $0.owner == player && isGuard($0.type) }) else { return }
         acted.insert(guardian.id)

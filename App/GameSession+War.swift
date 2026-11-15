@@ -133,6 +133,16 @@ struct WarOrders: Equatable {
     func places(excluding ids: [UnitID]) -> Set<HexCoord> {
         Set(marches.filter { !ids.contains($0.key) }.map(\.value.slot))
     }
+
+    /// Whether a save would keep the same orders as `other`: rally points, each march's goal and
+    /// place, each siege's city and members (recruits, a march's HP mark and a siege's last
+    /// volley are not saved).
+    func savesSame(as other: WarOrders) -> Bool {
+        rallies == other.rallies
+            && marches.mapValues { [$0.target, $0.slot] } == other.marches.mapValues { [$0.target, $0.slot] }
+            && sieges.mapValues(\.city) == other.sieges.mapValues(\.city)
+            && sieges.mapValues(\.members) == other.sieges.mapValues(\.members)
+    }
 }
 
 /// Choosing a war order's goal on the map.
@@ -324,7 +334,9 @@ extension GameSession {
             if targeting.fromWarRoom { openPanel = .war }
         case let .rally(cities):
             guard let tile = targeting.rallyTile else { return }
+            let before = war
             for city in cities { war.setRally(tile, for: city) }
+            if !war.savesSame(as: before) { noteHeaderChange() }
             warTargeting = nil
             refreshSelection()
             show("Rally point set: new military units from \(cities.count == 1 ? (view.city(cities[0])?.name ?? "the city") : "\(cities.count) cities") march \(placeName(tile) == "the open field" ? "there" : "to " + placeName(tile))")
@@ -363,10 +375,13 @@ extension GameSession {
     @discardableResult
     func sendArmy(_ plan: FormationPlan) -> String {
         guard isInputEnabled else { return waitingFor.map { "Waiting for \($0.civName)" } ?? "Not your turn" }
+        let before = war
+        defer { if !war.savesSame(as: before) { noteHeaderChange() } }
         for (id, slot) in plan.slots.sorted(by: { $0.key < $1.key }) {
             guard let unit = view.unit(id) else { continue }
-            // An older standing order would carry the unit on by itself at the next phase.
-            if unit.destination != nil { perform(.cancelOrders(unit: id), quiet: true) }
+            // An older destination or Explore order would carry the unit off by itself: the App
+            // moves marches each phase, and holds back units that wait for their group.
+            if unit.destination != nil || isExploring(id) { perform(.cancelOrders(unit: id), quiet: true) }
             war.setMarch(WarOrders.March(target: plan.target, slot: slot, hp: unit.hp), for: id)
         }
         // An order just given may start next to the enemy on purpose: contact where a unit
@@ -504,6 +519,8 @@ extension GameSession {
 
     /// Stops the marches of own units `ids`: they wait for orders where they are.
     func haltAll(_ ids: [UnitID]) {
+        let before = war
+        defer { if !war.savesSame(as: before) { noteHeaderChange() } }
         var done = 0
         for id in ids {
             guard let unit = view.unit(id) else { continue }
@@ -521,7 +538,9 @@ extension GameSession {
 
     /// Removes the rally points of cities `ids`.
     func clearRally(_ ids: [CityID]) {
+        let before = war
         for id in ids { war.setRally(nil, for: id) }
+        if !war.savesSame(as: before) { noteHeaderChange() }
         refreshSelection()
     }
 
@@ -757,6 +776,7 @@ extension GameSession {
     func liftSiege(city id: CityID) {
         guard let tile = war.siegeTile(ofCity: id), let siege = war.sieges[tile] else { return }
         war.endSiege(at: tile)
+        noteHeaderChange()
         closeAttentionCard()
         var awake = 0
         for id in siege.members.sorted() {
