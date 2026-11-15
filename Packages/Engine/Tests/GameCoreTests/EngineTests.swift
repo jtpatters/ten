@@ -204,7 +204,8 @@ import Testing
     }
 
     /// Moves execute step by step against the real world (M1 §8.6): a tile that turns out to be
-    /// impassable or occupied stops the move, clears the order and reports `moveInterrupted`.
+    /// impassable stops the move, clears the order and reports `moveInterrupted`; a unit that
+    /// turns out to be in the way does not end the order: the mover goes round it.
     @Test func movesStopAtTilesThatTurnOutBlocked() throws {
         var state = makeTestState()
         let id = state.addUnit(.warrior, owner: PlayerID(0), at: hex(4, 3))
@@ -222,9 +223,34 @@ import Testing
         other.addUnit(.warrior, owner: PlayerID(1), at: hex(2, 0))
         other.players[0].visible = TileBitSet(count: other.map.tileCount)
         let stopped = try apply(.moveUnit(unit: mover, to: hex(3, 0)), &other)
-        #expect(other.unit(mover)!.position == hex(1, 0))
-        #expect(other.unit(mover)!.destination == nil)
-        #expect(events(stopped).contains(.moveInterrupted(unit: mover, at: hex(1, 0))))
+        #expect(events(stopped) == [.unitMoved(unit: mover, from: hex(0, 0), path: [hex(1, 0)]),
+                                    .unitMoved(unit: mover, from: hex(1, 0), path: [hex(1, 1)])],
+                "stopped at the unit, then round it with the move left")
+        #expect(other.unit(mover)!.position == hex(1, 1) && other.unit(mover)!.destination == hex(3, 0))
+        // Next phase it goes on and arrives.
+        try GameEngine.apply(.endTurn, by: PlayerID(0), to: &other)
+        try GameEngine.apply(.endTurn, by: PlayerID(1), to: &other)
+        #expect(other.unit(mover)!.position == hex(3, 0) && other.unit(mover)!.destination == nil)
+    }
+
+    /// An own unit on the tile a standing order goes to does not end the order (M1 §8.6): the
+    /// mover comes as near as it can and waits, then goes on once the tile is free.
+    @Test func ordersWaitForAnOwnUnitOnTheGoal() throws {
+        var state = makeTestState()
+        let mover = state.addUnit(.warrior, owner: PlayerID(0), at: hex(0, 0))
+        _ = try apply(.moveUnit(unit: mover, to: hex(4, 0)), &state)
+        #expect(state.unit(mover)!.position == hex(2, 0) && state.unit(mover)!.destination == hex(4, 0))
+        let blocker = state.addUnit(.warrior, owner: PlayerID(0), at: hex(4, 0))
+        try GameEngine.apply(.endTurn, by: PlayerID(0), to: &state)
+        let waited = try GameEngine.apply(.endTurn, by: PlayerID(1), to: &state)
+        #expect(state.unit(mover)!.position == hex(3, 0) && state.unit(mover)!.destination == hex(4, 0),
+                "next to the goal, still ordered there")
+        #expect(!events(waited).contains(.moveInterrupted(unit: mover, at: hex(3, 0))))
+        state.removeUnit(blocker)
+        try GameEngine.apply(.endTurn, by: PlayerID(0), to: &state)
+        try GameEngine.apply(.endTurn, by: PlayerID(1), to: &state)
+        #expect(state.unit(mover)!.position == hex(4, 0) && state.unit(mover)!.destination == nil)
+        expectSound(state)
     }
 
     /// Only the current player may issue commands (M1 §3).

@@ -19,10 +19,13 @@ public struct Path: Hashable, Sendable {
 /// arrives in may only end the turn (it keeps its points, which an attack can use). A unit
 /// already stopped by a zone of control this phase plans from next turn.
 public enum Pathfinder {
-    public static func findPath(for unit: Unit, to goal: HexCoord, in state: GameState) -> Path? {
+    /// `pastUnits`: as if no unit stood anywhere (only remembered foreign cities block), for a
+    /// standing order that waits for the units in its way.
+    public static func findPath(for unit: Unit, to goal: HexCoord, in state: GameState, pastUnits: Bool = false) -> Path? {
         guard let goal = state.map.index(of: goal), let start = state.map.index(of: unit.position), goal != start,
               state.players.indices.contains(unit.owner.rawValue) else { return nil }
-        let knowledge = MoveKnowledge(state: state, unit: unit)
+        var knowledge = MoveKnowledge(state: state, unit: unit)
+        if pastUnits { knowledge = MoveKnowledge(knowledge, withoutUnitsIn: state, ownToo: true) }
         guard knowledge.canEnd(goal) else { return nil }
         return search(knowledge, from: start, movesLeft: unit.zocStopped ? 0 : unit.movesLeft,
                       maxMoves: state.maxMoves(of: unit), to: goal)

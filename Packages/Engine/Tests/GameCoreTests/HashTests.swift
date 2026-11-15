@@ -216,7 +216,7 @@ import MapGen
         // At pinning: 6 taken, all by units (none by a city); 3 Gold, 2 Science, 1 Builder; 2 left.
         #expect(byUnit > 0 && gold > 0 && science > 0 && builders > 0)
         #expect(byUnit + byCity == gold + science + builders && state.tribalVillages?.gifts.reduce(0, +) == byUnit + byCity)
-        #expect(state.stateHash() == 0xF1D0_7B51_6B30_D0F9, // M2 2.4c trade (2.4b 0x9E79_9C88_FF92_8E49) M2 2.4b minors (2.4a 0xEFEE_329F_6E32_6C73) M2 2.4a raiders (2.3 0x397B_4870_04E3_8A5F) M2 2.3a civics (2.2d 0x9FA8_6DD6_217E_A9A3) (2.2c 0xAE64_D7B7_AA3D_C3DF) (2.2b 0x5512_D9E6_C312_CED3) (2.2a 0x544E_BF1B_74C8_8C61) (city attack 0xFE0E_4F21_AC3F_2A67) (naval 0x3BCA_9015_D530_6474) (roads 0x9AE0_D946_36E8_6017) (resources 0xAD3C_557E_A36E_4FD9) (2.1b 0xCFA3_9056_772E_7BA6) (0x21E2_F500_2BB9_D548) (2.1a: 0x184E_3AA6_7A01_0E95) (0x1346_6444_C3B0_D609 before)
+        #expect(state.stateHash() == 0x080B_D685_BF33_8DA2, // standing orders wait for units in the way (2.4c 0xF1D0_7B51_6B30_D0F9) M2 2.4c trade (2.4b 0x9E79_9C88_FF92_8E49) M2 2.4b minors (2.4a 0xEFEE_329F_6E32_6C73) M2 2.4a raiders (2.3 0x397B_4870_04E3_8A5F) M2 2.3a civics (2.2d 0x9FA8_6DD6_217E_A9A3) (2.2c 0xAE64_D7B7_AA3D_C3DF) (2.2b 0x5512_D9E6_C312_CED3) (2.2a 0x544E_BF1B_74C8_8C61) (city attack 0xFE0E_4F21_AC3F_2A67) (naval 0x3BCA_9015_D530_6474) (roads 0x9AE0_D946_36E8_6017) (resources 0xAD3C_557E_A36E_4FD9) (2.1b 0xCFA3_9056_772E_7BA6) (0x21E2_F500_2BB9_D548) (2.1a: 0x184E_3AA6_7A01_0E95) (0x1346_6444_C3B0_D609 before)
                 "golden hash with tribal villages: 0x\(String(state.stateHash(), radix: 16))")
     }
 

@@ -12,9 +12,11 @@
 // Zone of control (M1 §8.5): a unit that enters a tile next to a military unit or city of a
 // player it is at war with stops there for the phase (`zocStopped`; it keeps its moves for an
 // attack). Paths are planned with the moving player's knowledge (`MoveKnowledge`), where such
-// tiles end the turn; moves execute step by step against the real world and stop (clearing the
-// order, `moveInterrupted`) at the first tile that turns out to be impassable or occupied, or
-// at a zone of control the plan did not expect. Tribal villages (M1 §7.7) neither block nor
+// tiles end the turn; moves execute step by step against the real world and stop at the first
+// tile that turns out to be impassable or occupied, or at a zone of control the plan did not
+// expect. A unit in the way does not end the order: the unit re-plans round it with the moves it
+// has left and otherwise waits as near as it gets, going on next phase. Anything else (terrain,
+// a city, closed borders, a zone of control) clears it (`moveInterrupted`). Tribal villages (M1 §7.7) neither block nor
 // stop a move: a unit takes the ones on the tiles it enters, passing through included.
 
 /// What a player knows that matters for moving one of its units (M1 §8.6): explored terrain,
@@ -185,12 +187,12 @@ extension GameState {
 
     /// Whether `unit` may enter (or pass through) tile `t`: passable, no foreign unit (except
     /// civilians alone of a player a military unit is at war with: it captures them), no
-    /// foreign city, and not territory closed to it.
-    func mayEnter(_ t: Int, _ unit: Unit) -> Bool {
+    /// foreign city, and not territory closed to it. `pastUnits`: as if no unit stood there.
+    func mayEnter(_ t: Int, _ unit: Unit, pastUnits: Bool = false) -> Bool {
         guard terrainAllows(t, unit.type, owner: unit.owner) else { return false }
         let hex = map.coord(at: t)
         let military = !unit.type.isCivilian
-        for other in units where other.position == hex && other.owner != unit.owner {
+        for other in units where !pastUnits && other.position == hex && other.owner != unit.owner {
             guard military, other.type.isCivilian, isAtWar(unit.owner, other.owner) else { return false }
         }
         if let city = owningCity(ofTile: t) {
@@ -208,6 +210,13 @@ extension GameState {
         guard mayEnter(t, unit) else { return false }
         let hex = map.coord(at: t)
         return !units.contains { $0.position == hex && $0.id != unit.id && $0.type.isCivilian == unit.type.isCivilian }
+    }
+
+    /// Whether only another unit keeps `unit` off tile `t` (or from stopping there): the move
+    /// waits for it rather than ending.
+    func heldByUnit(_ t: Int, _ unit: Unit) -> Bool {
+        let hex = map.coord(at: t)
+        return units.contains { $0.position == hex && $0.id != unit.id } && mayEnter(t, unit, pastUnits: true)
     }
 
     /// Whether `unit` may be put on tile `t` (spawning, eviction): it may stop there and no
@@ -247,16 +256,18 @@ extension GameState {
     // MARK: Executing moves
 
     /// Moves `unit` along the steps of `path` it can take this phase, checking the real world
-    /// at each step. Stops, clearing the order (`moveInterrupted`), at the first tile it may not
-    /// enter, or where it would run out of moves on a tile it may not stop on; a unit never
-    /// stops on a tile it may only pass through. Entering a zone of control ends the move for
+    /// at each step. Stops at the first tile it may not enter, or where it would run out of
+    /// moves on a tile it may not stop on; a unit never stops on a tile it may only pass
+    /// through. Where only another unit is in the way the order stands (returns true: the
+    /// caller may re-plan); otherwise it is cleared (`moveInterrupted`). Entering a zone of control ends the move for
     /// the phase (`zocStopped`, moves kept for an attack); the order is cleared (with
     /// `moveInterrupted`) only if the plan meant to go further this phase. The rest of the
     /// path stays as a standing order. A military unit captures the enemy civilians on the
     /// tiles it enters (M1 §7.3), after its `unitMoved`; then any unit takes the tribal villages
     /// on the tiles it entered, in path order (M1 §7.7; a move cut short takes only those).
-    mutating func executeMove(_ id: UnitID, along path: Path, _ fx: inout Effects) {
-        guard let start = unit(id), var here = map.index(of: start.position) else { return }
+    @discardableResult
+    mutating func executeMove(_ id: UnitID, along path: Path, _ fx: inout Effects) -> Bool {
+        guard let start = unit(id), var here = map.index(of: start.position) else { return false }
         let zoc = zoneOfControl(for: start)
         let free = freeMove(start)
         let full = maxMoves(of: start)
@@ -264,6 +275,7 @@ extension GameState {
         var moved: [HexCoord] = []
         var stop = (steps: 0, moves: movesLeft) // the last tile it may stop on
         var interrupted = false
+        var heldUp = false // only by another unit
         var zocStop = false
         let steps = path.steps.prefix { $0.turn == 1 }
         for (i, step) in steps.enumerated() {
@@ -271,6 +283,7 @@ extension GameState {
             guard let next = map.index(of: step.hex), let direction = map.direction(from: here, to: next),
                   mayEnter(next, start) else {
                 interrupted = true
+                heldUp = map.index(of: step.hex).map { heldByUnit($0, start) } ?? false
                 break
             }
             let cost = Self.embarkStep(naval: start.type.isNaval, fromWater: map.tiles[here].terrain.isWater,
@@ -281,6 +294,7 @@ extension GameState {
             let inZOC = zoc?[next] ?? false
             if after == 0 || inZOC, !stoppable {
                 interrupted = true
+                heldUp = !inZOC // another own unit stands where it would stop
                 break
             }
             here = next
@@ -298,6 +312,7 @@ extension GameState {
             // this never undoes a capture.
             moved.removeLast(moved.count - stop.steps)
             movesLeft = stop.moves
+            if !interrupted { heldUp = true } // the tile it meant to stop on is taken
             interrupted = true
         }
         let final = moved.last ?? start.position
@@ -306,7 +321,7 @@ extension GameState {
         updateUnit(id) { unit in
             unit.position = final
             unit.movesLeft = movesLeft
-            unit.destination = reached || interrupted ? nil : path.destination
+            unit.destination = reached || (interrupted && !heldUp) ? nil : path.destination
             if zocStop { unit.zocStopped = true }
             if !moved.isEmpty {
                 unit.activity = .none
@@ -329,21 +344,40 @@ extension GameState {
                 for t in tiles.dropFirst() where holdsRaiderCamp(t) { clearRaiderCamp(at: t, by: start.owner, &fx) }
             }
         }
-        if interrupted {
+        if interrupted, !heldUp {
             fx.emit(.moveInterrupted(unit: id, at: final), .tiles([map.index(of: final)!]))
         }
+        return interrupted && heldUp && !reached
     }
 
-    /// Continues a unit's standing order (phase start): re-plans with its player's knowledge;
-    /// with no path left the order is cleared (`moveInterrupted`).
+    /// Continues a unit's standing order (phase start): re-plans with its player's knowledge
+    /// (`advanceOrder`), and once more if a unit got in the way.
     mutating func continueOrders(_ id: UnitID, _ fx: inout Effects) {
-        guard let unit = unit(id), let destination = unit.destination else { return }
-        guard let path = Pathfinder.findPath(for: unit, to: destination, in: self) else {
+        if advanceOrder(id, &fx) { retryOrder(id, &fx) }
+    }
+
+    /// After a unit got in the way of `id`'s move: with moves left, what its player now sees
+    /// (the unit in the way included) is brought up to date and the order goes on round it.
+    mutating func retryOrder(_ id: UnitID, _ fx: inout Effects) {
+        guard let unit = unit(id), unit.destination != nil, unit.movesLeft > 0, !unit.zocStopped else { return }
+        updateKnowledge(&fx)
+        advanceOrder(id, &fx)
+    }
+
+    /// One step of a standing order: the path by its player's knowledge, or, where only units
+    /// bar every way (one standing on the goal included), the path as if they were not there,
+    /// so the unit comes as near as it can and waits. With neither, the order is cleared
+    /// (`moveInterrupted`). Returns whether a unit got in the way.
+    @discardableResult
+    mutating func advanceOrder(_ id: UnitID, _ fx: inout Effects) -> Bool {
+        guard let unit = unit(id), let destination = unit.destination else { return false }
+        guard let path = Pathfinder.findPath(for: unit, to: destination, in: self)
+            ?? Pathfinder.findPath(for: unit, to: destination, in: self, pastUnits: true) else {
             updateUnit(id) { $0.destination = nil }
             fx.emit(.moveInterrupted(unit: id, at: unit.position), .tiles([map.index(of: unit.position)!]))
-            return
+            return false
         }
-        executeMove(id, along: path, &fx)
+        return executeMove(id, along: path, &fx)
     }
 
     /// Moves a military unit standing in territory closed to it to the nearest tile it may

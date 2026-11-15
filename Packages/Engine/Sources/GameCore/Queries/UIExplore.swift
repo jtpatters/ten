@@ -445,7 +445,8 @@ extension PlayerView {
 extension MoveKnowledge {
     /// `base` with no foreign unit in the way (`PlayerView.movementFieldPastUnits(of:)`): only
     /// the foreign cities its player remembers still block; everything else is `base`'s.
-    init(_ base: MoveKnowledge, withoutUnitsIn state: GameState) {
+    /// `ownToo`: nor own units where it would stop.
+    init(_ base: MoveKnowledge, withoutUnitsIn state: GameState, ownToo: Bool = false) {
         map = base.map
         rules = base.rules
         player = base.player
@@ -461,7 +462,7 @@ extension MoveKnowledge {
             }
         }
         self.blocked = blocked
-        occupied = base.occupied
+        occupied = ownToo ? TileBitSet(count: base.map.tileCount) : base.occupied
         ownCities = base.ownCities
         zoc = base.zoc
         freeElevation = base.freeElevation

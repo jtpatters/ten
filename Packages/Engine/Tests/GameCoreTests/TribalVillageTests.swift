@@ -123,8 +123,9 @@ private func villageRules(_ change: (inout [String: Any]) -> Void) throws -> Rul
         #expect(DebugTools.placeTribalVillage(at: hex(3, 0), in: &state))
         state.players[0].visible = TileBitSet(count: state.map.tileCount)
         let records = try apply(.moveUnit(unit: mover, to: hex(3, 0)), &state)
-        #expect(state.unit(mover)?.position == hex(1, 0) && state.unit(mover)?.destination == nil)
-        #expect(events(records).contains(.moveInterrupted(unit: mover, at: hex(1, 0))))
+        // Stopped at the unit (the order stands; it goes round with the move left).
+        #expect(events(records).first == .unitMoved(unit: mover, from: hex(0, 0), path: [hex(1, 0)]))
+        #expect(state.unit(mover)?.destination == hex(3, 0))
         #expect(villageEvents(records).first == .tribalVillageTaken(at: hex(1, 0), player: PlayerID(0), unit: mover, city: nil))
         #expect(liveVillages(state) == [hex(3, 0)])
 

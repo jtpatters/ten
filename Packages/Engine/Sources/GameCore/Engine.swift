@@ -233,7 +233,7 @@ public enum GameEngine {
             if unit.zocStopped { throw .zoneOfControl }
             guard let path = Pathfinder.findPath(for: unit, to: destination, in: state) else { throw .noPath }
             state.updateUnit(id) { $0.activity = .none }
-            state.executeMove(id, along: path, &fx)
+            if state.executeMove(id, along: path, &fx) { state.retryOrder(id, &fx) }
 
         case let .cancelOrders(id):
             _ = try ownedUnit(id, by: player, in: state)
