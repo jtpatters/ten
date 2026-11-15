@@ -65,7 +65,7 @@ extension PlayerView {
             return plan
         }
         plan.target = goal
-        let units = ids.compactMap { unit($0) }.filter { !$0.type.isCivilian }
+        let units = ids.compactMap { unit($0) }.filter { $0.owner == player && !$0.type.isCivilian }
             .sorted { (distance($0.position, goal), $0.id) < (distance($1.position, goal), $1.id) }
         guard let vanguard = units.first else { return plan }
         // The tiles, by ring, then nearest the group's side: out to the ring that holds a place

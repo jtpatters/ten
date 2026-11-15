@@ -84,6 +84,9 @@ struct WarOrders: Equatable {
     func places(excluding ids: [UnitID]) -> Set<HexCoord> {
         Set(marches.filter { !ids.contains($0.key) }.map(\.value.slot))
     }
+
+    /// Whether a save would keep the same orders as `other` (recruits are not saved).
+    func savesSame(as other: WarOrders) -> Bool { rallies == other.rallies && marches == other.marches }
 }
 
 /// Choosing a war order's goal on the map.
@@ -269,6 +272,7 @@ extension GameSession {
         case let .rally(cities):
             guard let tile = targeting.rallyTile else { return }
             for city in cities { war.setRally(tile, for: city) }
+            noteHeaderChange()
             warTargeting = nil
             refreshSelection()
             show("Rally point set: new military units from \(cities.count == 1 ? (view.city(cities[0])?.name ?? "the city") : "\(cities.count) cities") march \(placeName(tile) == "the open field" ? "there" : "to " + placeName(tile))")
@@ -306,10 +310,17 @@ extension GameSession {
     @discardableResult
     func sendArmy(_ plan: FormationPlan) -> String {
         guard isInputEnabled else { return waitingFor.map { "Waiting for \($0.civName)" } ?? "Not your turn" }
+        let before = war
+        defer { if !war.savesSame(as: before) { noteHeaderChange() } }
         var marching = 0, arrived = 0, refused = 0
         for (id, slot) in plan.slots.sorted(by: { $0.key < $1.key }) {
             guard let unit = view.unit(id) else { continue }
             war.setMarch(nil, for: id)
+            // A unit not setting out now drops its earlier destination or Explore order, which
+            // would take it from its place (a `moveUnit` replaces them for the others).
+            if unit.position == slot || unit.zocStopped, unit.destination != nil || isExploring(id) {
+                perform(.cancelOrders(unit: id), quiet: true)
+            }
             if unit.position == slot {
                 holdPlace(id)
                 arrived += 1
@@ -388,6 +399,8 @@ extension GameSession {
 
     /// Stops the marches of own units `ids`: they wait for orders where they are.
     func haltAll(_ ids: [UnitID]) {
+        let before = war
+        defer { if !war.savesSame(as: before) { noteHeaderChange() } }
         var done = 0
         for id in ids {
             guard let unit = view.unit(id) else { continue }
@@ -405,7 +418,9 @@ extension GameSession {
 
     /// Removes the rally points of cities `ids`.
     func clearRally(_ ids: [CityID]) {
+        let before = war
         for id in ids { war.setRally(nil, for: id) }
+        if !war.savesSame(as: before) { noteHeaderChange() }
         refreshSelection()
     }
 

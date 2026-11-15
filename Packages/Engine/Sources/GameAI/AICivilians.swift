@@ -308,7 +308,7 @@ extension AITurn {
     /// The own military unit travelling with a civilian: a non-recon military unit on its tile
     /// that is not a city's garrison, with moves left and free this phase.
     func hasEscort(_ unit: Unit, _ v: PlayerView) -> UnitID? {
-        if v.cities.contains(where: { $0.position == unit.position }) { return nil }
+        if civiliansAlone || v.cities.contains(where: { $0.position == unit.position }) { return nil }
         return v.units(at: unit.position).first { u in
             u.owner == player && isFighter(u.type) && u.movesLeft > 0 && !acted.contains(u.id)
         }?.id
