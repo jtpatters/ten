@@ -75,7 +75,7 @@ struct ActionBar<Content: View>: View {
 }
 
 /// Which ends of a scrolling row have more beyond them.
-private struct ScrollEdges: Equatable, Sendable {
+struct ScrollEdges: Equatable, Sendable {
     var leading = false
     var trailing = false
 }

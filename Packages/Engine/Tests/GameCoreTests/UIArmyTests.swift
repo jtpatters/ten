@@ -97,6 +97,148 @@ import Testing
         #expect(plan.arrivals == nil)
     }
 
+    /// At an enemy city places go by role: the melee units close around it, the Archers stand
+    /// at their range behind them, not in the line.
+    @Test func siegePutsTheLineCloseAndArchersAtRange() throws {
+        var state = makeWarState(width: 20, height: 12)
+        let city = hex(12, 6)
+        addCity(&state, them, at: city)
+        let warriors = [hex(9, 5), hex(9, 6), hex(9, 7)].map { state.addUnit(.warrior, owner: me, at: $0) }
+        // The Archers stand nearer the city than the Warriors: role, not distance, decides.
+        let archers = [hex(10, 5), hex(10, 7)].map { state.addUnit(.archer, owner: me, at: $0) }
+        refreshKnowledge(&state)
+        let view = state.view(for: me)
+        let plan = view.formation(of: warriors + archers, around: city)
+        #expect(plan.placed == 5 && plan.unreachable.isEmpty)
+        #expect(!plan.slots.values.contains(city))
+        for id in warriors { #expect(plan.slots[id].map { view.distance($0, city) } == 1) }
+        for id in archers { #expect(plan.slots[id].map { view.distance($0, city) } == 2) }
+        #expect(Set(plan.slots.values).count == 5)
+
+        // An Archer already at its range keeps its tile.
+        let set = try #require(plan.slots[archers[0]])
+        var there = state
+        there.updateUnit(archers[0]) { $0.position = set }
+        refreshKnowledge(&there)
+        let again = there.view(for: me).formation(of: archers, around: city)
+        #expect(again.slots[archers[0]] == set && again.turns[archers[0]] == 0)
+    }
+
+    /// Away from the enemy, Archers in a group pack around the goal like everyone else.
+    @Test func archersPackAroundAMusterPoint() throws {
+        var state = makeTestState(map: openMap(width: 20, height: 12))
+        let ids = [state.addUnit(.warrior, owner: me, at: hex(2, 6)), state.addUnit(.archer, owner: me, at: hex(2, 7))]
+        let view = state.view(for: me)
+        let plan = view.formation(of: ids, around: hex(10, 6))
+        #expect(plan.placed == 2)
+        #expect(plan.slots.values.allSatisfy { view.distance($0, hex(10, 6)) <= 1 })
+    }
+
+    /// A group keeps together: a unit more than a phase ahead of the slowest waits; the
+    /// slowest and those near it march.
+    @Test func marchStepsKeepTheGroupTogether() throws {
+        var state = makeTestState(map: openMap(width: 24, height: 12))
+        let goal = hex(18, 6)
+        let slow = state.addUnit(.warrior, owner: me, at: hex(2, 6))
+        let fast = state.addUnit(.horseman, owner: me, at: hex(2, 5))
+        let ahead = state.addUnit(.warrior, owner: me, at: hex(12, 6))
+        let view = state.view(for: me)
+        let legs = [MarchLeg(unit: slow, target: goal, slot: goal),
+                    MarchLeg(unit: fast, target: goal, slot: hex(17, 5)),
+                    MarchLeg(unit: ahead, target: goal, slot: hex(17, 6))]
+        let turns = legs.map { try? #require(view.path(for: $0.unit, to: $0.slot)).turns }
+        let slowest = try #require(turns[0])
+        #expect(try #require(turns[1]) < slowest - 1 && (try #require(turns[2])) < slowest - 1)
+        let steps = view.marchSteps(legs)
+        #expect(steps[slow] == .move)
+        #expect(steps[fast] == .wait)
+        #expect(steps[ahead] == .wait)
+        // Alone, the fast unit marches.
+        #expect(view.marchSteps([legs[1]])[fast] == .move)
+    }
+
+    /// Arrived, gone, out of reach; and contact: an enemy unit or city within 2 tiles stops a
+    /// march, but not the goal itself (a city under siege, its garrison), and not an order
+    /// given just now (`stopOnContact: false`).
+    @Test func marchStepsStopOnContact() throws {
+        var map = openMap(width: 20, height: 12)
+        map[hex(18, 10)] = Tile(terrain: .ocean)
+        var state = makeTestState(map: map)
+        setWar(&state, me, them)
+        let walker = state.addUnit(.warrior, owner: me, at: hex(5, 6))
+        let enemy = state.addUnit(.warrior, owner: them, at: hex(7, 6))
+        let home = state.addUnit(.warrior, owner: me, at: hex(3, 2))
+        let builder = state.addUnit(.builder, owner: me, at: hex(2, 9))
+        refreshKnowledge(&state)
+        var view = state.view(for: me)
+        #expect(view.marchContact(at: hex(5, 6), target: hex(15, 6)))
+        #expect(!view.marchContact(at: hex(5, 6), target: hex(7, 6)))
+        #expect(!view.marchContact(at: hex(3, 2), target: hex(15, 6)))
+        let legs = [MarchLeg(unit: walker, target: hex(15, 6), slot: hex(15, 6)),
+                    MarchLeg(unit: home, target: hex(3, 2), slot: hex(3, 2)),
+                    MarchLeg(unit: builder, target: hex(15, 6), slot: hex(14, 6)),
+                    MarchLeg(unit: UnitID(999), target: hex(15, 6), slot: hex(14, 7))]
+        var steps = view.marchSteps(legs)
+        #expect(steps[walker] == .contact)
+        #expect(steps[home] == .arrived)
+        #expect(steps[builder] == .gone && steps[UnitID(999)] == .gone)
+        #expect(view.marchSteps(legs, stopOnContact: false)[walker] == .move)
+        // Marching on the enemy unit itself: no contact, it goes on.
+        #expect(view.marchSteps([MarchLeg(unit: walker, target: hex(7, 6), slot: hex(6, 6))])[walker] == .move)
+        #expect(view.marchSteps([MarchLeg(unit: walker, target: hex(15, 6), slot: hex(18, 10))], stopOnContact: false)[walker] == .noRoute)
+
+        // An enemy city that is not the goal counts too; the city marched on does not.
+        state.removeUnit(enemy)
+        addCity(&state, them, at: hex(8, 6))
+        state.addUnit(.warrior, owner: me, at: hex(6, 6)) // in sight of the city
+        refreshKnowledge(&state)
+        view = state.view(for: me)
+        #expect(view.marchContact(at: hex(6, 6), target: hex(15, 6)))
+        #expect(!view.marchContact(at: hex(6, 6), target: hex(8, 6)))
+        steps = view.marchSteps([MarchLeg(unit: walker, target: hex(15, 6), slot: hex(15, 6))])
+        #expect(steps[walker] == .move) // (5, 6) is 3 from the city
+    }
+
+    /// A siege's outlook: the Archers in range shoot (out of range: not), the Warrior beside the
+    /// city may storm it, enemies near are counted; at 0 HP the storm is a capture and no one
+    /// shoots; no war, no siege.
+    @Test func siegeOutlookShootsAndStorms() throws {
+        var state = makeWarState(width: 20, height: 12)
+        let city = hex(12, 6)
+        let cityID = addCity(&state, them, at: city)
+        let archer = state.addUnit(.archer, owner: me, at: hex(10, 6))
+        let far = state.addUnit(.archer, owner: me, at: hex(7, 6))
+        let warrior = state.addUnit(.warrior, owner: me, at: hex(11, 6))
+        let builder = state.addUnit(.builder, owner: me, at: hex(10, 7))
+        state.addUnit(.warrior, owner: them, at: hex(13, 6)) // beside the city, in sight
+        refreshKnowledge(&state)
+        var view = state.view(for: me)
+        let outlook = try #require(view.siegeOutlook(of: [archer, far, warrior, builder], at: city))
+        #expect(outlook.city.id == cityID)
+        #expect(outlook.shots == [archer])
+        #expect(outlook.assault?.unit == warrior && outlook.assault?.preview.capturesCity == false)
+        #expect(outlook.enemiesNear == 1)
+        #expect(outlook.maxHP == state.rules.constants.city.maxHP && outlook.maxWallHP == 0)
+        // The shot is accepted as planned.
+        try apply(.attack(unit: archer, target: city), &state)
+        refreshKnowledge(&state)
+        view = state.view(for: me)
+        #expect(try #require(view.knownCity(at: city)).hp < outlook.city.hp)
+
+        // Its defences down: the Warrior takes it, and shooting is pointless.
+        updateCity(&state, cityID) { $0.hp = 0 }
+        refreshKnowledge(&state)
+        view = state.view(for: me)
+        let fallen = try #require(view.siegeOutlook(of: [archer, warrior], at: city))
+        #expect(fallen.shots.isEmpty)
+        #expect(fallen.assault?.unit == warrior && fallen.assault?.preview.capturesCity == true)
+
+        // At peace (or no city there): no siege.
+        #expect(view.siegeOutlook(of: [warrior], at: hex(5, 5)) == nil)
+        state.updateRelation(me, them) { $0.stance = .peace }
+        #expect(state.view(for: me).siegeOutlook(of: [warrior], at: city) == nil)
+    }
+
     /// One production order for many cities: first, last or in place of the queue, with each
     /// city's reason when it cannot take the item.
     @Test func bulkQueues() throws {

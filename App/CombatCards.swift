@@ -206,7 +206,7 @@ struct CombatSideView: View {
 
 /// A city's walls as a thin stone-grey bar over its health bar; with `after`, the part the fight
 /// may knock down is paler.
-private struct WallBar: View {
+struct WallBar: View {
     var fraction: Double
     var after: Double?
 

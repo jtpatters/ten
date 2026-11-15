@@ -18,7 +18,99 @@ struct AttentionCardView: View {
         case let .war(player): WarCard(session: session, player: player)
         case .upkeep: UpkeepCard(session: session)
         case let .news(id): NewsCard(session: session, id: id)
+        case let .siege(id): SiegeCard(session: session, city: id)
         }
+    }
+}
+
+/// A siege under way (docs/M2.md §10.4): the city's walls and HP, what this phase's volley did,
+/// who holds the line, enemies near; storm it with the best melee unit, or lift the siege.
+private struct SiegeCard: View {
+    let session: GameSession
+    let city: CityID
+
+    var body: some View {
+        if let outlook = session.siegeOutlook(ofCity: city), let tile = session.war.siegeTile(ofCity: city),
+           let siege = session.war.sieges[tile] {
+            let view = session.view
+            let c = outlook.city
+            let members = siege.members.sorted().compactMap { view.unit($0) }
+            let ranged = members.filter { view.rules.unit($0.type).isRanged }.count
+            VStack(alignment: .leading, spacing: HUD.Space.s) {
+                CardHeader(title: "Siege of \(c.name)", player: c.owner, onClose: { session.closeAttentionCard() })
+                VStack(alignment: .leading, spacing: 3) {
+                    if outlook.maxWallHP > 0 {
+                        WallBar(fraction: Double(c.wallHP) / Double(outlook.maxWallHP))
+                    }
+                    HealthBar(fraction: Double(c.hp) / Double(max(outlook.maxHP, 1)), height: 7)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Walls \(c.wallHP) of \(outlook.maxWallHP), city \(c.hp) of \(outlook.maxHP) HP")
+                HStack(spacing: HUD.Space.l) {
+                    if outlook.maxWallHP > 0 { Stat(systemImage: "building.columns", value: "\(c.wallHP)", label: "walls") }
+                    Stat(systemImage: "heart.fill", value: "\(c.hp)", label: "city HP", tint: HUD.health(Double(c.hp) / Double(max(outlook.maxHP, 1))))
+                    Stat(systemImage: "scope", value: "\(ranged)", label: "shooting")
+                    Stat(systemImage: "shield.fill", value: "\(members.count - ranged)", label: "holding")
+                    if outlook.enemiesNear > 0 {
+                        Stat(systemImage: "exclamationmark.triangle.fill", value: "\(outlook.enemiesNear)", label: "enemies near", tint: HUD.danger)
+                    }
+                }
+                Text(detail(siege.report, outlook, view))
+                    .font(HUD.body(.subheadline))
+                    .foregroundStyle(HUD.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+                CardButtonRow {
+                    if let assault = Self.storm(outlook) {
+                        let p = assault.preview
+                        let name = view.unit(assault.unit)?.type.displayName ?? "unit"
+                        let good = p.capturesCity || (p.killChance(atLeast: 50) && !p.deathChance(atLeast: 20))
+                        let storm = Button {
+                            session.assault(city: city)
+                        } label: {
+                            Label(p.capturesCity ? "Take it with \(name)" : "Storm with \(name)", systemImage: "flag.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        if good { storm.buttonStyle(BronzeButtonStyle()) } else { storm.buttonStyle(ParchmentButtonStyle()) }
+                    }
+                    Button {
+                        session.liftSiege(city: city)
+                    } label: {
+                        Label("Lift Siege", systemImage: "flag.slash").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(ParchmentButtonStyle())
+                }
+                if let assault = Self.storm(outlook), !assault.preview.capturesCity {
+                    let p = assault.preview
+                    Hint(systemImage: "dice", text: "Storming: \(p.killChancePercent)% to take it · \(p.deathChancePercent)% to lose the unit")
+                }
+            }
+            .hudCard()
+        }
+    }
+
+    private func detail(_ report: WarOrders.SiegeReport?, _ outlook: SiegeOutlook, _ view: PlayerView) -> String {
+        var parts: [String] = []
+        if let report, report.phase == view.phaseCount {
+            var text = "This turn \(report.shots) shot\(report.shots == 1 ? "" : "s") hit it"
+            if report.walls.before > 0 || report.walls.after > 0 { text += ": walls \(report.walls.before)→\(report.walls.after)" }
+            if report.hp.before != report.hp.after { text += (text.contains(":") ? ", " : ": ") + "city \(report.hp.before)→\(report.hp.after)" }
+            parts.append(text + ".")
+        } else if outlook.shots.isEmpty, outlook.city.hp > 0 {
+            parts.append("No one can shoot it from where they stand.")
+        }
+        if outlook.city.hp == 0 {
+            parts.append(outlook.assault == nil ? "Its defences are down: move a melee unit beside it to take it."
+                : "Its defences are down: a melee unit beside it takes it.")
+        } else if Self.storm(outlook) == nil {
+            parts.append("Too strong to storm yet: ranged units shoot it every turn while melee units hold the line.")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    /// The assault worth offering: a capture, or a storm with some chance to take the city.
+    static func storm(_ outlook: SiegeOutlook) -> SiegeAssault? {
+        guard let assault = outlook.assault, assault.preview.capturesCity || assault.preview.killPairs > 0 else { return nil }
+        return assault
     }
 }
 

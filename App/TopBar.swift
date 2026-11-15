@@ -4,7 +4,8 @@ import SwiftUI
 /// The top bar (M1 §16): the turn, Gold (treasury and net per turn), Science (per turn, the
 /// research and its turns left, with its progress), Culture (per turn), then the game menu.
 /// Gold and Science open small panels: where the gold comes from and goes, and the research
-/// choice. In compact width the chips are icon and number only and research takes a second row.
+/// choice. In compact width the chips are icon and number only and research takes a second row;
+/// in regular width research moves to a second row too when one row would not fit the window.
 struct TopBar<MenuContent: View>: View {
     let session: GameSession
     var compact: Bool
@@ -19,19 +20,60 @@ struct TopBar<MenuContent: View>: View {
     var body: some View {
         let view = session.view
         let income = view.income()
-        VStack(alignment: .leading, spacing: HUD.Space.s) {
-            HStack(spacing: HUD.Space.s) {
-                turnChip(view)
-                goldChip(view, income)
-                if !compact { researchChip(view, income) }
-                cultureChip(view, income)
-                if view.government != nil { InfluenceChip(view: view, compact: compact) }
-                StrategicChip(view: view, compact: compact)
-                warChip
-                Spacer(minLength: 0)
-                menu()
+        if compact {
+            // A phone's width: the chips scroll when they do not all fit (more strategic
+            // resources, larger text), so the bar never grows past the screen and pushes the
+            // whole HUD out with it; the menu stays put, and the War Room shares research's row.
+            VStack(alignment: .leading, spacing: HUD.Space.s) {
+                HStack(spacing: HUD.Space.s) {
+                    ChipStrip {
+                        turnChip(view)
+                        goldChip(view, income)
+                        cultureChip(view, income)
+                        if view.government != nil { InfluenceChip(view: view, compact: compact) }
+                        StrategicChip(view: view, compact: compact)
+                    }
+                    menu()
+                }
+                HStack(spacing: HUD.Space.s) {
+                    researchChip(view, income)
+                    warChip
+                }
             }
-            if compact { researchChip(view, income) }
+        } else {
+            // One row while it fits. Mid-game (a long research and civic, Influence, strategic
+            // resources, the War Room) it can outgrow a portrait iPad or a narrow window: then
+            // research and the War Room take a second row and the rest scroll, as on a phone, so
+            // the bar never grows past the window and pushes the whole HUD out with it.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: HUD.Space.s) {
+                    turnChip(view)
+                    goldChip(view, income)
+                    researchChip(view, income)
+                    cultureChip(view, income)
+                    if view.government != nil { InfluenceChip(view: view, compact: compact) }
+                    StrategicChip(view: view, compact: compact)
+                    warChip
+                    Spacer(minLength: 0)
+                    menu()
+                }
+                VStack(alignment: .leading, spacing: HUD.Space.s) {
+                    HStack(spacing: HUD.Space.s) {
+                        ChipStrip {
+                            turnChip(view)
+                            goldChip(view, income)
+                            cultureChip(view, income)
+                            if view.government != nil { InfluenceChip(view: view, compact: compact) }
+                            StrategicChip(view: view, compact: compact)
+                        }
+                        menu()
+                    }
+                    HStack(spacing: HUD.Space.s) {
+                        researchChip(view, income)
+                        warChip
+                    }
+                }
+            }
         }
     }
 
@@ -367,5 +409,38 @@ struct InfoPopover: View {
         .frame(width: 280, alignment: .leading)
         .foregroundStyle(HUD.ink)
         .background(LinearGradient(colors: [HUD.parchmentTop, HUD.parchmentBottom], startPoint: .top, endPoint: .bottom))
+    }
+}
+
+/// The phone top bar's chips in a row that scrolls sideways when they do not all fit, its edges
+/// fading where more lies beyond (as the unit card's ActionBar).
+private struct ChipStrip<Content: View>: View {
+    @ViewBuilder var content: Content
+    @State private var more = ScrollEdges()
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: HUD.Space.s) { content }
+                // Room for the chips' shadows inside the scroll view's clip.
+                .padding(.vertical, 3)
+        }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .onScrollGeometryChange(for: ScrollEdges.self) { @Sendable geometry in
+            let x = geometry.contentOffset.x + geometry.contentInsets.leading
+            return ScrollEdges(leading: x > 1, trailing: x + geometry.containerSize.width < geometry.contentSize.width - 1)
+        } action: { _, edges in
+            more = edges
+        }
+        .mask {
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: more.leading ? 24 : 0)
+                Rectangle()
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: more.trailing ? 24 : 0)
+            }
+        }
+        .padding(.vertical, -3)
+        .animation(.easeOut(duration: 0.15), value: more)
     }
 }

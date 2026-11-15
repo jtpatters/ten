@@ -54,6 +54,8 @@ enum AttentionItem: Hashable, Sendable {
     case upkeep
     case cityUnderAttack(CityID)
     case bombard(CityID)
+    /// A siege under way (the enemy city's id): what the volley did, storm or lift.
+    case siege(CityID)
     case peaceProposal(PlayerID)
     case warDeclared(PlayerID)
     /// A city captured this phase: keep or raze.
@@ -81,19 +83,20 @@ enum AttentionItem: Hashable, Sendable {
         case let .emptyQueue(id): Key(rank: 1, subject: id.rawValue)
         case .research: Key(rank: 2, subject: 0)
         case .civic: Key(rank: 2, subject: 1)
-        case let .policyChange(turn): Key(rank: 15, subject: turn)
+        case let .policyChange(turn): Key(rank: 16, subject: turn)
         case let .settlerWaiting(id): Key(rank: 3, subject: id.rawValue)
         case let .productionBlocked(id): Key(rank: 4, subject: id.rawValue)
         case .upkeep: Key(rank: 5, subject: 0)
         case let .cityUnderAttack(id): Key(rank: 6, subject: id.rawValue)
         case let .bombard(id): Key(rank: 7, subject: id.rawValue)
-        case let .peaceProposal(id): Key(rank: 8, subject: id.rawValue)
-        case let .warDeclared(id): Key(rank: 9, subject: id.rawValue)
-        case let .capturedCity(id): Key(rank: 10, subject: id.rawValue)
-        case let .news(id): Key(rank: 11, subject: id)
-        case let .promotion(id): Key(rank: 12, subject: id.rawValue)
-        case let .unstable(id): Key(rank: 13, subject: id.rawValue)
-        case let .loyaltyFalling(id): Key(rank: 14, subject: id.rawValue)
+        case let .siege(id): Key(rank: 8, subject: id.rawValue)
+        case let .peaceProposal(id): Key(rank: 9, subject: id.rawValue)
+        case let .warDeclared(id): Key(rank: 10, subject: id.rawValue)
+        case let .capturedCity(id): Key(rank: 11, subject: id.rawValue)
+        case let .news(id): Key(rank: 12, subject: id)
+        case let .promotion(id): Key(rank: 13, subject: id.rawValue)
+        case let .unstable(id): Key(rank: 14, subject: id.rawValue)
+        case let .loyaltyFalling(id): Key(rank: 15, subject: id.rawValue)
         }
     }
 
@@ -110,6 +113,7 @@ enum AttentionItem: Hashable, Sendable {
         case .upkeep: "Upkeep Warning"
         case .cityUnderAttack: "City Under Attack"
         case .bombard: "Bombard"
+        case .siege: "Siege"
         case .peaceProposal: "Peace Proposal"
         case .warDeclared: "War Declared"
         case .capturedCity: "Keep or Raze"
@@ -132,6 +136,7 @@ enum AttentionItem: Hashable, Sendable {
         case .upkeep: "circle.slash"
         case .cityUnderAttack: "shield.lefthalf.filled"
         case .bombard: "scope"
+        case .siege: "flag.2.crossed"
         case .peaceProposal: "envelope"
         case .warDeclared: "flame"
         case .capturedCity: "flag"
@@ -145,7 +150,8 @@ enum AttentionItem: Hashable, Sendable {
     /// Items that only inform: they leave the queue once shown.
     var isInformational: Bool {
         switch self {
-        case .settlerWaiting, .productionBlocked, .upkeep, .cityUnderAttack, .bombard, .warDeclared, .news, .promotion, .unstable, .loyaltyFalling, .policyChange: true
+        case .settlerWaiting, .productionBlocked, .upkeep, .cityUnderAttack, .bombard, .siege, .warDeclared, .news, .promotion, .unstable,
+             .loyaltyFalling, .policyChange: true
         case .unit, .emptyQueue, .research, .civic, .peaceProposal, .capturedCity: false
         }
     }
@@ -163,6 +169,7 @@ enum AttentionItem: Hashable, Sendable {
         case .upkeep: "upkeep"
         case let .cityUnderAttack(id): "cityUnderAttack \(id.rawValue)"
         case let .bombard(id): "bombard \(id.rawValue)"
+        case let .siege(id): "siege \(id.rawValue)"
         case let .peaceProposal(id): "peaceProposal \(id.rawValue)"
         case let .warDeclared(id): "warDeclared \(id.rawValue)"
         case let .capturedCity(id): "capturedCity \(id.rawValue)"
@@ -186,6 +193,8 @@ enum AttentionCard: Hashable, Sendable {
     case upkeep
     /// An important notice, by id.
     case news(Int)
+    /// A siege under way, by the enemy city's id.
+    case siege(CityID)
 
     var name: String {
         switch self {
@@ -194,6 +203,7 @@ enum AttentionCard: Hashable, Sendable {
         case .war: "warDeclared"
         case .upkeep: "upkeep"
         case .news: "news"
+        case .siege: "siege"
         }
     }
 }
@@ -228,6 +238,7 @@ extension GameSession {
         let threatened = citiesAttacked.union(view.threatenedCities())
         items += cities.filter { threatened.contains($0.id) }.map { .cityUnderAttack($0.id) }
         items += cities.filter { !view.cityAttackOptions(for: $0.id).isEmpty }.map { .bombard($0.id) }
+        items += war.sieges.values.map(\.city).sorted().map { .siege($0) }
         items += view.peaceProposals.map { .peaceProposal($0) }
         items += warDeclaredBy.filter { view.isAtWar(with: $0) }.map { .warDeclared($0) }
         items += cities.filter { $0.capturedTurn == view.turn && !keptCities.contains($0.id) }.map { .capturedCity($0.id) }
@@ -251,9 +262,12 @@ extension GameSession {
         return items.first { $0.key > position.key } ?? first
     }
 
-    /// Where the walk stands: a unit selected by hand, else the item Next visited last.
+    /// Where the walk stands: a unit selected by hand since Next's last visit, else the item
+    /// Next visited last. A selection the visit itself made, or one it left in place (Choose
+    /// Civic opens a panel over a selected unit), does not count: Next would come back to the
+    /// same item after that unit for ever.
     private var walkPosition: AttentionItem? {
-        if case let .unit(id)? = selection, attentionPosition != .unit(id) { return .unit(id) }
+        if case let .unit(id)? = selection, selection != selectionAtVisit, attentionPosition != .unit(id) { return .unit(id) }
         return attentionPosition
     }
 
@@ -274,6 +288,8 @@ extension GameSession {
     /// Shows an item: selects and centres what it is about, opens its panel or card.
     func visit(_ item: AttentionItem) {
         attentionPosition = item
+        // After the visit's own selecting (a unit, a city, a hurt unit's news).
+        defer { selectionAtVisit = selection }
         if item.isInformational { attentionSeen.insert(item) }
         let view = self.view
         switch item {
@@ -296,6 +312,10 @@ extension GameSession {
         case let .bombard(id):
             showCity(id)
             beginBombard(id)
+        case let .siege(id):
+            deselect()
+            if let tile = war.siegeTile(ofCity: id) { lookAt(tile) }
+            attentionCard = .siege(id)
         case .research:
             openPanel = .research
         case .civic:
@@ -442,6 +462,7 @@ extension GameSession {
         if isViewerPhase { notices.troopWatch.remember(view.foreignMilitaryNear(radius: TroopWatch.radius)) }
         attentionSeen = []
         attentionPosition = nil
+        selectionAtVisit = nil
         citiesAttacked = []
         warDeclaredBy = []
         news = []
@@ -466,6 +487,7 @@ extension GameSession {
         case let .war(player): attentionSeen.insert(.warDeclared(player))
         case .upkeep: attentionSeen.insert(.upkeep)
         case let .news(id): attentionSeen.insert(.news(id))
+        case let .siege(id): attentionSeen.insert(.siege(id))
         case .capture: break
         }
         attentionCard = nil

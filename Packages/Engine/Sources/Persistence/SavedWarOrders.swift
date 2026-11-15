@@ -2,31 +2,49 @@ import GameCore
 
 /// The App's war orders when its game was saved (docs/M2.md §4.3): the cities' rally points,
 /// where the military units they produce march, and the marches under way, each unit with the
-/// goal its group was sent to and its own place there. Like the Explore order they are the
+/// goal its group was sent to and its own place there, and the sieges under way. Like the Explore order they are the
 /// App's, not rules, so they live in the save's header (`SaveSummary.war`) beside the game.
 public struct SavedWarOrders: Codable, Hashable, Sendable {
     public var rallies: [SavedRally]
     public var marches: [SavedMarch]
+    /// Sieges under way (absent from saves made before sieges: none).
+    public var sieges: [SavedSiege]
 
-    public init(rallies: [SavedRally] = [], marches: [SavedMarch] = []) {
+    public init(rallies: [SavedRally] = [], marches: [SavedMarch] = [], sieges: [SavedSiege] = []) {
         self.rallies = rallies
         self.marches = marches
+        self.sieges = sieges
     }
 
-    public var isEmpty: Bool { rallies.isEmpty && marches.isEmpty }
+    public var isEmpty: Bool { rallies.isEmpty && marches.isEmpty && sieges.isEmpty }
 
-    private enum CodingKeys: String, CodingKey { case rallies, marches }
+    private enum CodingKeys: String, CodingKey { case rallies, marches, sieges }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         rallies = try c.decodeIfPresent([SavedRally].self, forKey: .rallies) ?? []
         marches = try c.decodeIfPresent([SavedMarch].self, forKey: .marches) ?? []
+        sieges = try c.decodeIfPresent([SavedSiege].self, forKey: .sieges) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         if !rallies.isEmpty { try c.encode(rallies, forKey: .rallies) }
         if !marches.isEmpty { try c.encode(marches, forKey: .marches) }
+        if !sieges.isEmpty { try c.encode(sieges, forKey: .sieges) }
+    }
+}
+
+/// A siege: the enemy city (by id and tile) and the own units holding it.
+public struct SavedSiege: Codable, Hashable, Sendable {
+    public var city: CityID
+    public var tile: HexCoord
+    public var units: [UnitID]
+
+    public init(city: CityID, tile: HexCoord, units: [UnitID]) {
+        self.city = city
+        self.tile = tile
+        self.units = units
     }
 }
 
