@@ -346,6 +346,24 @@ final class AutomationInbox {
             guard let placing = session.quarterPlacing else { return session.message ?? "placing none" }
             let sites = session.quarterSites().map { "\($0.tile.q) \($0.tile.r) +\($0.adjacency)" }
             return "placing \(placing.kind.rawValue): " + sites.joined(separator: ", ")
+        case "worktiles":
+            // worktiles [done]: the selected city's Work tiles (its tiles on the map: `tap q r` takes a
+            // citizen off a worked tile or puts one back), or leaving it; the result lists the tiles.
+            guard let city = session.selectedCity else { throw Failure(description: "no city selected") }
+            if args.first == "done" { session.endWorkTiles() } else { session.beginWorkTiles(in: city.id) }
+            try await Task.sleep(for: .milliseconds(300))
+            let tiles = session.view.cityTiles(of: city.id).map { tile in
+                let mark = switch tile.status {
+                case .worked: "W"
+                case .unworked: "E"
+                case .free: "-"
+                case .blocked: "x"
+                }
+                return "\(mark) \(tile.hex.q) \(tile.hex.r)"
+            }
+            let c = session.view.city(city.id)
+            return (session.tileWorking == nil ? "done; " : "working tiles; ")
+                + "stability \(c?.stability ?? 0), entertainers \(c?.entertainers ?? 0): " + tiles.joined(separator: ", ")
         case "buytile":
             // buytile [cancel]: the selected city's Buy tile (its tile choice on the map), or
             // leaving it; the result gives the price and the marked tiles.
@@ -519,6 +537,83 @@ final class AutomationInbox {
             // After Stop, the card's line (none: "not exploring"), never an older message.
             if arg == "off" { return session.exploreHint(of: now)?.text ?? "not exploring" }
             return session.exploreHint(of: now)?.text ?? session.message ?? (session.isExploring(unit.id) ? "exploring" : "not exploring")
+        case "automate":
+            // automate [on|off|list]: the selected Builder's Automate tile, or the automated Builders.
+            let arg = args.first ?? "on"
+            if arg == "list" {
+                let units = session.automation.units.map { "\($0.rawValue)" }
+                return units.isEmpty ? "none" : units.joined(separator: " ")
+            }
+            guard let unit = session.selectedUnit, session.canAutomate(unit) else { throw Failure(description: "automate with an own Builder selected") }
+            switch arg {
+            case "on": if !session.isAutomated(unit.id) { session.toggleAutomate(unit.id) }
+            case "off": if session.isAutomated(unit.id) { session.toggleAutomate(unit.id) }
+            default: throw Failure(description: "automate [on|off|list]")
+            }
+            let now = session.view.unit(unit.id) ?? unit
+            return session.automateHint(of: now) ?? "not automated"
+        case "group":
+            // group: the selected military unit's Group tile (then `tap q r` twice sends the group).
+            guard let unit = session.selectedUnit else { throw Failure(description: "group with an own military unit selected") }
+            session.beginGroup(around: unit.id)
+            return warText(session)
+        case "warpick":
+            // warpick units all|idle|none|<ids> · warpick cities all|idle|none|<ids>: the War Room's picks.
+            guard args.count >= 2 else { throw Failure(description: "warpick units|cities all|idle|none|<ids>") }
+            let rest = Array(args.dropFirst())
+            if args[0] == "units" {
+                let army = session.armyUnits
+                switch rest[0] {
+                case "all": session.warRoom.units = Set(army.map(\.id))
+                case "idle": session.warRoom.units = Set(army.filter { session.isIdle($0) }.map(\.id))
+                case "none": session.warRoom.units = []
+                default: session.warRoom.units = Set(rest.compactMap { Int($0) }.map { UnitID($0) })
+                }
+            } else {
+                let cities = session.view.cities
+                switch rest[0] {
+                case "all": session.warRoom.cities = Set(cities.map(\.id))
+                case "idle": session.warRoom.cities = Set(cities.filter { $0.queue.isEmpty }.map(\.id))
+                case "none": session.warRoom.cities = []
+                default: session.warRoom.cities = Set(rest.compactMap { Int($0) }.map { CityID($0) })
+                }
+            }
+            return warText(session)
+        case "sendto":
+            // sendto q r: the War Room's Send To with the picked units: the goal is tapped next
+            // (this taps it once: the preview; `tap q r` again or `warconfirm` gives the order).
+            // sendto q r now: the order at once (the Goals list).
+            let target = try hex(args, session)
+            let ids = session.warRoom.units.sorted()
+            guard !ids.isEmpty else { throw Failure(description: "pick units first (warpick units …)") }
+            if args.count > 2, args[2] == "now" { return session.sendArmy(ids, to: target) }
+            session.beginMarch(ids)
+            session.warTap(at: target)
+            return warText(session)
+        case "warconfirm":
+            session.confirmWarTarget()
+            return warText(session)
+        case "rally":
+            // rally q r [now] · rally clear: the picked cities' rally point (chosen on the map
+            // like Set on the map…, or at once).
+            let cities = session.warRoom.cities.sorted()
+            guard !cities.isEmpty else { throw Failure(description: "pick cities first (warpick cities …)") }
+            if args.first == "clear" {
+                session.clearRally(cities)
+                return warText(session)
+            }
+            let tile = try hex(args, session)
+            session.beginRally(cities)
+            session.warTap(at: tile)
+            if args.count > 2, args[2] == "now" { session.confirmWarTarget() }
+            return warText(session)
+        case "bulk":
+            // bulk <item> [first|last|only]: the War Room's order for the picked cities.
+            guard let word = args.first else { throw Failure(description: "bulk <item> [first|last|only]") }
+            let placement = args.count > 1 ? BulkPlacement(rawValue: args[1]) ?? .first : .first
+            return session.bulkQueue(try item(word, session), in: session.warRoom.cities.sorted(), placement: placement)
+        case "war":
+            return warText(session)
         case "confirmpath":
             guard session.pendingPath != nil else { throw Failure(description: "no route previewed") }
             session.confirmPath()
@@ -602,6 +697,9 @@ final class AutomationInbox {
             case "diplomacy": session.openPanel = .diplomacy
             case "minors", "minor": session.openPanel = .minors
             case "notices", "log": session.openPanel = .notices
+            case "war":
+                if args.count > 1 { session.warRoom.tab = args[1] == "army" ? .army : .production }
+                session.openPanel = .war
             case "city":
                 guard args.count > 1, let id = Int(args[1]) else { throw Failure(description: "panel city <id>") }
                 session.select(.city(CityID(id)))
@@ -689,6 +787,19 @@ final class AutomationInbox {
             throw Failure(description: "expected axial coordinates q r")
         }
         return hex
+    }
+
+    /// The war orders: marches, rally points, the goal being chosen.
+    private func warText(_ session: GameSession) -> String {
+        let marches = session.war.marches.sorted { $0.key < $1.key }.map { "\($0.key.rawValue)->\($0.value.slot)" }
+        let rallies = session.war.rallies.sorted { $0.key < $1.key }.map { "c\($0.key.rawValue)@\($0.value)" }
+        var text = "marches [\(marches.joined(separator: " "))] rallies [\(rallies.joined(separator: " "))]"
+        if let t = session.warTargeting {
+            text += t.cities.isEmpty ? "; group \(t.units.map(\.rawValue))" : "; rally for \(t.cities.map(\.rawValue))"
+            if let plan = t.plan { text += " plan \(plan.slots.sorted { $0.key < $1.key }.map { "\($0.key.rawValue)->\($0.value)" })" }
+            if let tile = t.rallyTile { text += " at \(tile)" }
+        }
+        return text + "; picked \(session.warRoom.units.count) units, \(session.warRoom.cities.count) cities"
     }
 
     private func selectionText(_ session: GameSession) -> String {

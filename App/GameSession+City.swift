@@ -40,12 +40,13 @@ extension GameSession {
     }
 
     /// The own city whose panel is open: the selected city, unless its panel has stepped aside
-    /// for bombard targeting. `compact`: on a phone (upright, where the panel is a sheet, or on
-    /// its side, where card and side panel would leave the map a sliver between them) the panel
-    /// also steps aside for a card (attention such as Keep/Raze, combat preview, tile, game over).
+    /// for a choice on the map (bombard target, quarter, tile, a war order's goal). `compact`: on
+    /// a phone (upright, where the panel is a sheet, or on its side, where card and side panel
+    /// would leave the map a sliver between them) the panel also steps aside for a card
+    /// (attention such as Keep/Raze, combat preview, tile, game over).
     func panelCity(compact: Bool) -> City? {
         guard let city = selectedCity, city.owner == viewer, bombardTargeting == nil, quarterPlacing == nil,
-              tileBuying == nil else { return nil }
+              tileBuying == nil, tileWorking == nil, warTargeting == nil else { return nil }
         if compact, attentionCard != nil || pendingAttack != nil || inspectedHex != nil || state.outcome != nil { return nil }
         return city
     }
@@ -227,6 +228,77 @@ extension GameSession {
         tileBuying = nil
         if perform(.purchaseTile(city: id, tile: hex)) { show("Bought a tile for \(purchase.price) Gold") }
         refreshSelection()
+    }
+}
+
+// MARK: Worked tiles
+
+extension GameSession {
+    /// Work tiles: the panel steps aside and the map shows each of the city's tiles with its
+    /// yields and who works it; a tap on a worked tile takes its citizen off (an Entertainer, for
+    /// Stability), a tap on an Entertainer's tile puts a citizen back.
+    func beginWorkTiles(in id: CityID) {
+        guard let city = view.city(id), city.owner == viewer else { return }
+        guard isInputEnabled else {
+            show(waitingFor.map { "Waiting for \($0.civName)" } ?? "Not your turn")
+            return
+        }
+        if selection != .city(id) { select(.city(id)) }
+        quarterPlacing = nil
+        tileBuying = nil
+        tileWorking = id
+        refreshSelection()
+    }
+
+    /// Leaves the tile choice; the panel returns.
+    func endWorkTiles() {
+        tileWorking = nil
+        refreshSelection()
+    }
+
+    /// A tap while choosing worked tiles.
+    func toggleWorked(at hex: HexCoord) {
+        guard let id = tileWorking, view.city(id) != nil else {
+            endWorkTiles()
+            return
+        }
+        guard let tile = view.cityTiles(of: id).first(where: { $0.hex == hex }) else {
+            show("Tap one of the city's marked tiles, or Done")
+            return
+        }
+        let bonus = view.entertainerStability ?? 1
+        switch tile.status {
+        case .worked:
+            if perform(.setTileWorked(city: id, tile: hex, worked: false)) {
+                show("Citizen taken off the tile: an Entertainer, +\(bonus) Stability")
+            }
+        case .unworked:
+            if perform(.setTileWorked(city: id, tile: hex, worked: true)) { show("A citizen works again") }
+        case .free:
+            show("No citizen works this tile: the city's focus places its citizens. Take one off a worked tile to make an Entertainer.", for: 4)
+        case .blocked:
+            show("An enemy unit stands on this tile: no citizen may work it")
+        }
+        refreshSelection()
+    }
+
+    /// The selected own city's tile tokens for the map (`MapOverlay.citizenMarks`), with their
+    /// yields while tiles are chosen.
+    func citizenMarks() -> [MapOverlay.CitizenMark] {
+        guard case let .city(id)? = selection, let city = view.city(id), city.owner == viewer,
+              quarterPlacing == nil, tileBuying == nil else { return [] }
+        let choosing = tileWorking == id
+        return view.cityTiles(of: id).compactMap { tile in
+            let kind: MapOverlay.CitizenMark.Kind = switch tile.status {
+            case .worked: .worked
+            case .unworked: .unworked
+            case .free: .free
+            case .blocked: .blocked
+            }
+            // Outside the tile choice, free tiles stay plain: the tokens say who works where.
+            if !choosing, kind == .free { return nil }
+            return MapOverlay.CitizenMark(hex: tile.hex, kind: kind, yields: choosing ? tile.yields : nil)
+        }
     }
 }
 

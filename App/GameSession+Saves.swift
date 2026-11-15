@@ -28,13 +28,13 @@ extension GameSession {
     func autosave() {
         guard savesAutomatically else { return }
         let snapshot = state, count = commandCount, logged = notices.savedThrough(phaseStart: false), explorers = explorersToSave
-        let game = gameID
+        let game = gameID, war = warToSave
         Self.logInvariantProblems(of: snapshot, before: "autosave")
         pendingSaves += 1
         Task {
             defer { pendingSaves -= 1 }
             do {
-                let summary = try await store.autosave(snapshot, explorers: explorers, game: game)
+                let summary = try await store.autosave(snapshot, explorers: explorers, game: game, war: war)
                 savedCommandCount = count
                 await keepNoticeLog(for: summary, through: logged)
             } catch {
@@ -59,7 +59,7 @@ extension GameSession {
         pendingSaves += 1
         defer { pendingSaves -= 1 }
         do {
-            let summary = try await store.save(snapshot, name: named, kind: .manual, explorers: explorersToSave, game: gameID)
+            let summary = try await store.save(snapshot, name: named, kind: .manual, explorers: explorersToSave, game: gameID, war: warToSave)
             savedCommandCount = count
             await keepNoticeLog(for: summary, through: logged)
             show("Saved “\(summary.name)”")
@@ -91,7 +91,7 @@ extension GameSession {
         pendingSaves += 1
         defer { pendingSaves -= 1 }
         do {
-            let summary = try await store.saveBackground(snapshot, explorers: explorersToSave, game: gameID)
+            let summary = try await store.saveBackground(snapshot, explorers: explorersToSave, game: gameID, war: warToSave)
             savedCommandCount = count
             // Awaited: the app's background task ends after it, so iOS's extra time covers the log.
             await keepNoticeLog(for: summary, through: logged)

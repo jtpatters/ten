@@ -96,13 +96,13 @@ extension MapRenderer {
     /// How much of a figure plants in front may cover, as a fraction of its body cell above
     /// the feet (`UnitSprite.groundLine`): legs, hooves and wheels, never the body, shield,
     /// wagon or standard. Measured on the body art: the front-rank infantryman's skirt, kilt
-    /// or tunic hem (and the wheelbarrow's tray) starts 0.13 above the feet, the horse's belly
-    /// 0.19 and the ox's body and the wagon bed 0.14.
+    /// or tunic hem (and the wheelbarrow's tray, and the Trader's merchant's hem) starts 0.13
+    /// above the feet, the horse's belly 0.19 and the ox's body and the wagon bed 0.14.
     static func legHeight(_ type: UnitType) -> Float {
         switch type {
-        case .warrior, .archer, .spearman, .builder, .swordsman, .manAtArms, .crossbowman, .pikeman: 0.10
+        case .warrior, .archer, .spearman, .builder, .swordsman, .manAtArms, .crossbowman, .pikeman, .trader: 0.10
         case .scout, .horseman, .knight: 0.17
-        case .settler, .trader, .heavyChariot, .catapult, .trebuchet: 0.12
+        case .settler, .heavyChariot, .catapult, .trebuchet: 0.12
         case .galley, .quadrireme, .cog, .dromon: 0.12
         }
     }

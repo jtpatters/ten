@@ -12,6 +12,7 @@
 		11629AF6D59FC9255CAAEB95 /* GameSession+AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508534273B541E85CEC678DB /* GameSession+AI.swift */; };
 		11DAAC0EB970777C67BE880D /* MapGen in Frameworks */ = {isa = PBXBuildFile; productRef = DDF49680E85700F0605BE215 /* MapGen */; };
 		17339E7E442CF864348D4B3C /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F9493B735011962D9D2CF5A /* AppModel.swift */; };
+		1ADB29C6E2B33A45A433F1BE /* GameSession+War.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FACB0A7C537D7F369D6B5C5 /* GameSession+War.swift */; };
 		1DF0189109AE6CC4AA0FF688 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA7F2D13E4FAE8823F699E94 /* Assets.xcassets */; };
 		21FF9A7168994BA71A9E98DC /* GameSession+Explore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB6575C95D9B75F5D527A56 /* GameSession+Explore.swift */; };
 		24054EE79EE8CE43EA963D66 /* GameSession+Saves.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD34B273FF5B1255E42ED047 /* GameSession+Saves.swift */; };
@@ -19,11 +20,13 @@
 		2EC4F11A81B3FAE9C89A4218 /* StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17D439C26CCBFA79D489511 /* StartView.swift */; };
 		369E3CC35C0DF61C93A55C9D /* HUDPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8D7A0B199809BD0D95F68C5 /* HUDPanels.swift */; };
 		39C12CBEB987089C2D18C858 /* MapAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D82193FD515AACC1013D7F07 /* MapAdapter.swift */; };
+		3DEB7595EF37DE252C9249B5 /* GameSession+Automate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D77A6A10F81CE0676151E0 /* GameSession+Automate.swift */; };
 		3EE504D386AB04F0C4DF2457 /* UnitCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41D24CA03B1EEDE4321A740B /* UnitCard.swift */; };
 		4AEBDC5E50AF06F97421A53D /* TenThousandYearsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FA6EEE83288E96DAED4F1D /* TenThousandYearsApp.swift */; };
 		4C3242056B237F7A863B73D8 /* TechPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6AA4D1648ED449D10726ECC /* TechPanel.swift */; };
 		58DB702990F2F7A178DFBE80 /* GameSession+Taps.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0370CBE839AAFDF6669C389 /* GameSession+Taps.swift */; };
 		599888279998D6BA733EF577 /* CityPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD72E4DA2D06A176A3F3701 /* CityPanel.swift */; };
+		5DFFAAFC3FAD2C5ADEC2AF96 /* WarRoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E173D74A264A2C745C41B20 /* WarRoom.swift */; };
 		6B28825D0A4E27F31158F127 /* BuilderNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FC662727EC3F524818CE7B /* BuilderNotes.swift */; };
 		767AE793E22AA102481567DA /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E8C102B177419B00B3C82C1 /* Automation.swift */; };
 		78F5A16AA6009694AFDB0B91 /* MapOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982A99DEC2E71641374046A0 /* MapOverlay.swift */; };
@@ -51,6 +54,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		03D77A6A10F81CE0676151E0 /* GameSession+Automate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameSession+Automate.swift"; sourceTree = "<group>"; };
 		060BD8973132B97E02DE82CC /* Scenarios.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scenarios.swift; sourceTree = "<group>"; };
 		1234590B1CB12849835DEDC8 /* BuilderGuidance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuilderGuidance.swift; sourceTree = "<group>"; };
 		1D28210964683409B2EA0DDE /* DebugLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLog.swift; sourceTree = "<group>"; };
@@ -61,8 +65,10 @@
 		33EC5DD5738D10C4C45B3DD1 /* GameSession+Attention.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameSession+Attention.swift"; sourceTree = "<group>"; };
 		36FC662727EC3F524818CE7B /* BuilderNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuilderNotes.swift; sourceTree = "<group>"; };
 		3E3FD38F6F97901224EF310E /* InfoCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoCards.swift; sourceTree = "<group>"; };
+		3FACB0A7C537D7F369D6B5C5 /* GameSession+War.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameSession+War.swift"; sourceTree = "<group>"; };
 		41D24CA03B1EEDE4321A740B /* UnitCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitCard.swift; sourceTree = "<group>"; };
 		508534273B541E85CEC678DB /* GameSession+AI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameSession+AI.swift"; sourceTree = "<group>"; };
+		5E173D74A264A2C745C41B20 /* WarRoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarRoom.swift; sourceTree = "<group>"; };
 		5EB6575C95D9B75F5D527A56 /* GameSession+Explore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameSession+Explore.swift"; sourceTree = "<group>"; };
 		68CFB2CBD15CDE1A09023396 /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
 		6F405C112B2A3BEB16DD2FDE /* Notices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notices.swift; sourceTree = "<group>"; };
@@ -70,7 +76,7 @@
 		7B7300140008BAED2CB9C6AF /* TopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopBar.swift; sourceTree = "<group>"; };
 		7DCEE15A1F84825399B530B0 /* NoticeLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoticeLog.swift; sourceTree = "<group>"; };
 		7F9493B735011962D9D2CF5A /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
-		803C42750052AA616F967AAC /* TenThousandYears.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TenThousandYears.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		803C42750052AA616F967AAC /* TenThousandYears.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TenThousandYears.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		982A99DEC2E71641374046A0 /* MapOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapOverlay.swift; sourceTree = "<group>"; };
 		A0370CBE839AAFDF6669C389 /* GameSession+Taps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameSession+Taps.swift"; sourceTree = "<group>"; };
 		A6C883D7DD7E6BA90B65908D /* GameSession+City.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameSession+City.swift"; sourceTree = "<group>"; };
@@ -141,10 +147,12 @@
 				2214EED9C46B8246AF47717D /* GameSession.swift */,
 				508534273B541E85CEC678DB /* GameSession+AI.swift */,
 				33EC5DD5738D10C4C45B3DD1 /* GameSession+Attention.swift */,
+				03D77A6A10F81CE0676151E0 /* GameSession+Automate.swift */,
 				A6C883D7DD7E6BA90B65908D /* GameSession+City.swift */,
 				5EB6575C95D9B75F5D527A56 /* GameSession+Explore.swift */,
 				AD34B273FF5B1255E42ED047 /* GameSession+Saves.swift */,
 				A0370CBE839AAFDF6669C389 /* GameSession+Taps.swift */,
+				3FACB0A7C537D7F369D6B5C5 /* GameSession+War.swift */,
 				68CFB2CBD15CDE1A09023396 /* GameView.swift */,
 				A8D7A0B199809BD0D95F68C5 /* HUDPanels.swift */,
 				B19290D71EE411CC94A7A564 /* HUDStyle.swift */,
@@ -162,6 +170,7 @@
 				D4FA6EEE83288E96DAED4F1D /* TenThousandYearsApp.swift */,
 				7B7300140008BAED2CB9C6AF /* TopBar.swift */,
 				41D24CA03B1EEDE4321A740B /* UnitCard.swift */,
+				5E173D74A264A2C745C41B20 /* WarRoom.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -268,10 +277,12 @@
 				BB8BD57180CD18BC885A4DD2 /* DiplomacySheet.swift in Sources */,
 				11629AF6D59FC9255CAAEB95 /* GameSession+AI.swift in Sources */,
 				FE8F47C311088513AF0435D4 /* GameSession+Attention.swift in Sources */,
+				3DEB7595EF37DE252C9249B5 /* GameSession+Automate.swift in Sources */,
 				9ACA91642FB0AD462A90B581 /* GameSession+City.swift in Sources */,
 				21FF9A7168994BA71A9E98DC /* GameSession+Explore.swift in Sources */,
 				24054EE79EE8CE43EA963D66 /* GameSession+Saves.swift in Sources */,
 				58DB702990F2F7A178DFBE80 /* GameSession+Taps.swift in Sources */,
+				1ADB29C6E2B33A45A433F1BE /* GameSession+War.swift in Sources */,
 				B456B61FC6CF16B45D506BE4 /* GameSession.swift in Sources */,
 				8B6F7FC9846776BE90809DC8 /* GameView.swift in Sources */,
 				369E3CC35C0DF61C93A55C9D /* HUDPanels.swift in Sources */,
@@ -290,6 +301,7 @@
 				4AEBDC5E50AF06F97421A53D /* TenThousandYearsApp.swift in Sources */,
 				DED0A28302C0F093A7EF3B4F /* TopBar.swift in Sources */,
 				3EE504D386AB04F0C4DF2457 /* UnitCard.swift in Sources */,
+				5DFFAAFC3FAD2C5ADEC2AF96 /* WarRoom.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -310,7 +322,6 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -336,7 +347,6 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

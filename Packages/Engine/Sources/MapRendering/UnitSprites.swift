@@ -26,8 +26,8 @@ private typealias Canvas = FigurePaint.Canvas
 ///   the figure. Data has no light in it, so only the west-facing body's is painted and the
 ///   east-facing body reads it mirrored (the figure instance says where it is, `maskCode`).
 ///   Its alpha is zero and its border empty, so nothing sampling a neighboring cell picks it up.
-/// - `escortedBody`, `escortedMask`: the settler without its banner pole, for when the unit
-///   escorting it carries the standard.
+/// - `escortedBody`: the settler without its banner pole, for when the unit escorting it carries
+///   the standard (its data shares the Settler's `teamMask`).
 /// - `emblem`: each player's emblem in its ink, laid onto shields as its own instance, and into
 ///   the badges of strategic medallions and city tokens.
 /// - `standard`: each player's banner hanging from a crossbar, with its emblem. It stands on the
@@ -49,9 +49,9 @@ enum UnitSprite: SpriteSet {
     case body(UnitType, east: Bool)
     /// The data of a type's west-facing body (east-facing bodies read it mirrored).
     case teamMask(UnitType)
-    /// A settler without its banner pole, for when its escort carries the standard.
+    /// A settler without its banner pole, for when its escort carries the standard. Its data is
+    /// in the blue and alpha of the Settler's `teamMask`.
     case escortedBody(east: Bool)
-    case escortedMask
     case standard(player: Int)
     case standardField
     case emblem(player: Int)
@@ -67,16 +67,19 @@ enum UnitSprite: SpriteSet {
 
     static var all: [UnitSprite] {
         var keys: [UnitSprite] = []
-        // The four ships share the Galley's body and the Trader the Settler's (placeholder art,
-        // ART.md §10's budget).
-        for type in UnitType.allCases where hasOwnBody(type) {
+        // The four ships share the Galley's body (placeholder art, ART.md §10's budget).
+        for type in UnitType.allCases where hasOwnBody(type) && !lateBodies.contains(type) {
             if sharesWestBody(type) {
                 keys += [.body(type, east: false)] + (dataCell(type).key == type ? [.teamMask(type)] : [])
             } else {
                 keys += [.body(type, east: false), .body(type, east: true), .teamMask(type)]
             }
         }
-        keys += [.escortedBody(east: false), .escortedBody(east: true), .escortedMask]
+        keys += [.escortedBody(east: false), .escortedBody(east: true)]
+        // The Trader's body takes the cell the escorted settler's data had (that data is now in
+        // the Settler's data cell, `teamMask`), so no other cell moves; its data is in the
+        // Builder's (`pairedData`).
+        for type in lateBodies { keys.append(.body(type, east: false)) }
         let players = Palette.playerStyles.indices
         for p in players { keys.append(.standard(player: p)) }
         for p in players { keys.append(.emblem(player: p)) }
@@ -101,26 +104,30 @@ enum UnitSprite: SpriteSet {
         case .settler, .builder, .scout, .warrior, .archer, .spearman: false
         case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: true
         case .galley, .quadrireme, .cog, .dromon: true
-        case .trader: false
+        case .trader: true
         }
     }
+
+    /// Types whose body cell was added after every older cell (`all`), so none of those moved.
+    static let lateBodies: [UnitType] = [.trader]
 
     /// The type whose body every ship is drawn with (M2 §8.4, placeholder art).
     static let shipBody = UnitType.galley
 
-    /// The type whose body cells `type` is drawn with: its own, the shared ship body, or the
-    /// Settler's wagon for the Trader (M2 §13, placeholder art).
+    /// The type whose body cells `type` is drawn with: its own or the shared ship body.
     static func bodyType(_ type: UnitType) -> UnitType {
-        type.isNaval ? shipBody : type == .trader ? .settler : type
+        type.isNaval ? shipBody : type
     }
 
     /// Whether `type` has body cells of its own.
     static func hasOwnBody(_ type: UnitType) -> Bool { bodyType(type) == type }
 
     /// The M2 types' data cells hold two types each: the first in red and green, the second
-    /// in blue and alpha (the same budget, ART.md §10).
+    /// in blue and alpha (the same budget, ART.md §10). The Trader's data is in the Builder's
+    /// cell, and the escorted settler's (its body without the banner pole) in the Settler's.
     static let pairedData: [(UnitType, UnitType?)] = [(.horseman, .heavyChariot), (.swordsman, .catapult),
-                                                      (.manAtArms, .crossbowman), (.pikeman, .knight), (.trebuchet, .galley)]
+                                                      (.manAtArms, .crossbowman), (.pikeman, .knight), (.trebuchet, .galley),
+                                                      (.builder, .trader)]
 
     /// The type whose `teamMask` cell holds `type`'s data, and whether in blue and alpha.
     static func dataCell(_ type: UnitType) -> (key: UnitType, high: Bool) {
@@ -136,7 +143,7 @@ enum UnitSprite: SpriteSet {
 
     var cellSize: Int {
         switch self {
-        case .body, .teamMask, .escortedBody, .escortedMask: Self.bodyCell
+        case .body, .teamMask, .escortedBody: Self.bodyCell
         // Half-size cells keep the atlas within its budget (ART.md §10): job glyphs, ship
         // badges, the Trader's badge, the tribal village token, the pillaged and embark marks.
         case .job, .tribalVillage, .pillaged, .embark: 64
@@ -165,7 +172,7 @@ enum UnitSprite: SpriteSet {
     /// Data cells (read as numbers, not drawn as color).
     var isData: Bool {
         switch self {
-        case .teamMask, .escortedMask, .standardField: true
+        case .teamMask, .standardField: true
         default: false
         }
     }
@@ -177,13 +184,11 @@ enum UnitSprite: SpriteSet {
         case let .body(type, east):
             canvas.paint(Self.recorded(type, east: east).steps, pass: .body)
         case let .teamMask(type):
-            let partner = Self.pairedData.first { $0.0 == type }?.1
-            Self.paintData(Self.recorded(type, east: false).steps, team: true, cell: cell, ctx: ctx,
-                           high: partner.map { Self.recorded($0, east: false).steps })
+            let high = type == .settler ? Self.recorded(.settler, east: false, pole: false).steps
+                : Self.pairedData.first { $0.0 == type }?.1.map { Self.recorded($0, east: false).steps }
+            Self.paintData(Self.recorded(type, east: false).steps, team: true, cell: cell, ctx: ctx, high: high)
         case let .escortedBody(east):
             canvas.paint(Self.recorded(.settler, east: east, pole: false).steps, pass: .body)
-        case .escortedMask:
-            Self.paintData(Self.recorded(.settler, east: false, pole: false).steps, team: true, cell: cell, ctx: ctx)
         case let .standard(player):
             canvas.paint(Self.standardFigure(size: cell.width).steps, pass: .player(Palette.playerStyle(player)))
         case .standardField:
@@ -235,7 +240,8 @@ enum UnitSprite: SpriteSet {
     /// foot, `standardFoot` in its own cell, goes here.
     static func standardMount(_ type: UnitType, east: Bool) -> SIMD2<Float> {
         let x: Float = switch type {
-        case .settler, .trader: 0.5
+        case .settler: 0.5
+        case .trader: traderPole // stuck upright in the pack
         case .builder: 0.684 // the surveyor's rod
         case .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 0.596
         case .scout, .horseman, .knight, .heavyChariot: 0.612
@@ -251,7 +257,8 @@ enum UnitSprite: SpriteSet {
     /// tail barrel, the horse's tail) stay inside the cell's margin.
     static func bodyFit(_ type: UnitType) -> Float {
         switch type {
-        case .settler, .trader: 0.93
+        case .settler: 0.93
+        case .trader: 0.95
         case .builder, .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 1
         case .scout, .horseman, .knight, .heavyChariot: 0.97
         case .catapult, .trebuchet: 0.95
@@ -383,7 +390,8 @@ enum UnitSprite: SpriteSet {
             let key = keys[i]
             var figure = Figure(size: 256, mirrored: key.east, fit: CGFloat(bodyFit(key.type)))
             switch key.type {
-            case .settler, .trader: settler(&figure, pole: key.pole)
+            case .settler: settler(&figure, pole: key.pole)
+            case .trader: trader(&figure)
             case .builder: builder(&figure)
             case .warrior: warrior(&figure)
             case .archer: archer(&figure)
@@ -523,6 +531,110 @@ enum UnitSprite: SpriteSet {
         f.wheel(0.814, 0.19, 0.09)
     }
 
+    /// Where the Trader's banner pole stands in its pack (body cell fraction, before `bodyFit`).
+    private static let traderPole: Float = 0.655
+
+    /// A merchant on foot with a walking staff, leading a laden donkey by its halter (M2 §13):
+    /// a narrow upright figure ahead of a long-eared animal under a lumpy pack, where the
+    /// Settler is a low ox before a big round wagon hood. The pack is a canvas pannier corded
+    /// over a striped saddle blanket, a bundle wrapped in the team color with a rolled carpet
+    /// across it, and an amphora slung behind; the banner pole is stuck upright in the load. The
+    /// team color is the merchant's tunic and cap and the bundle's wrap.
+    private static func trader(_ f: inout Figure) {
+        let coat = Tone(0.56, 0.49, 0.43), farCoat = coat.scaled(0.74), points = Tone(0.24, 0.2, 0.17)
+        let pale = Tone(0.86, 0.81, 0.72), hoof = Tone(0.17, 0.13, 0.1)
+        let canvasTone = Tone(0.84, 0.76, 0.58), cord = Tone(0.42, 0.3, 0.18)
+        func hoofAt(_ x: CGFloat, _ k: CGFloat = 1) {
+            f.add(f.blob([(x - 0.019, 0.098), (x + 0.017, 0.098), (x + 0.014, 0.124), (x - 0.015, 0.124)]), Material(hoof.scaled(k)),
+                  outline: 0.01)
+        }
+
+        // Far legs in shade, the far ear and the tail first.
+        f.add(f.limb([(0.52, 0.31), (0.512, 0.21), (0.508, 0.12)], 0.048, 0.03), Material(farCoat, grain: .hide))
+        hoofAt(0.507, 0.85)
+        f.add(f.limb([(0.775, 0.33), (0.762, 0.22), (0.768, 0.12)], 0.056, 0.03), Material(farCoat, grain: .hide))
+        hoofAt(0.768, 0.85)
+        f.add(f.limb([(0.405, 0.55), (0.388, 0.6), (0.384, 0.652)], 0.03, 0.012), Material(farCoat, grain: .hide), outline: 0.01)
+        f.add(f.limb([(0.852, 0.42), (0.874, 0.36), (0.878, 0.27)], 0.022, 0.014), Material(coat.scaled(0.9), grain: .hide), outline: 0.01)
+        f.add(f.blob([(0.866, 0.29), (0.892, 0.29), (0.894, 0.25), (0.878, 0.226), (0.862, 0.25)]), Material(points), outline: 0.009)
+        // The banner pole, its foot buried in the load.
+        pole(&f, x: CGFloat(traderPole), from: 0.46)
+
+        // Barrel, neck and upper legs as one silhouette; a pale belly and muzzle, a dark crest.
+        let barrel = f.blob([(0.49, 0.3), (0.462, 0.36), (0.48, 0.42), (0.54, 0.448), (0.64, 0.44), (0.74, 0.446), (0.82, 0.44),
+                             (0.866, 0.41), (0.874, 0.35), (0.846, 0.3), (0.77, 0.28), (0.64, 0.274), (0.54, 0.284)])
+        let neck = f.blob([(0.52, 0.43), (0.48, 0.48), (0.44, 0.53), (0.415, 0.556), (0.39, 0.53), (0.402, 0.47), (0.45, 0.39),
+                           (0.49, 0.34)])
+        let foreArm = f.limb([(0.49, 0.36), (0.474, 0.28), (0.468, 0.22)], 0.062, 0.04)
+        let gaskin = f.limb([(0.82, 0.4), (0.832, 0.3), (0.822, 0.23)], 0.08, 0.04)
+        let donkey = barrel.union(neck).union(foreArm).union(gaskin)
+        f.add(donkey, Material(coat, grain: .hide))
+        f.decal(f.blob([(0.5, 0.3), (0.6, 0.282), (0.76, 0.286), (0.7, 0.31), (0.56, 0.316)]), pale, alpha: 0.5, clip: donkey)
+        f.decal(f.limb([(0.418, 0.552), (0.45, 0.515), (0.485, 0.47), (0.52, 0.43)], 0.022, 0.016), points, alpha: 0.85, clip: donkey)
+        // Near lower legs and small hooves.
+        f.add(f.limb([(0.468, 0.23), (0.466, 0.17), (0.464, 0.122)], 0.034, 0.027), Material(coat.scaled(0.95), grain: .hide))
+        f.add(f.limb([(0.822, 0.24), (0.832, 0.17), (0.83, 0.122)], 0.036, 0.027), Material(coat.scaled(0.95), grain: .hide))
+        hoofAt(0.464)
+        hoofAt(0.83)
+        // The big head carried low: pale muzzle, nostril, eye, and the long near ear.
+        let head = f.blob([(0.43, 0.55), (0.4, 0.566), (0.37, 0.552), (0.345, 0.5), (0.322, 0.45), (0.316, 0.42), (0.33, 0.398),
+                           (0.362, 0.404), (0.39, 0.44), (0.425, 0.49), (0.44, 0.52)])
+        f.add(head, Material(coat, grain: .hide))
+        f.add(f.ellipse(0.336, 0.42, 0.028, 0.024), Material(pale), outline: 0)
+        f.add(f.ellipse(0.326, 0.426, 0.006, 0.005), Material(ink, shade: 0, light: 0), outline: 0)
+        f.add(f.ellipse(0.386, 0.506, 0.01, 0.011), Material(ink, shade: 0, light: 0), outline: 0)
+        f.decal(f.ellipse(0.383, 0.51, 0.0035, 0.0035), Tone(1, 0.95, 0.85), alpha: 0.9)
+        f.add(f.limb([(0.418, 0.55), (0.43, 0.6), (0.444, 0.662)], 0.032, 0.012), Material(coat, grain: .hide), outline: 0.01)
+        f.decal(f.limb([(0.432, 0.6), (0.442, 0.645)], 0.012, 0.006), points, alpha: 0.6)
+        // Halter.
+        f.decal(f.limb([(0.41, 0.53), (0.384, 0.474), (0.35, 0.43)], 0.009, 0.009), darkLeather, alpha: 0.9)
+        f.decal(f.limb([(0.33, 0.448), (0.364, 0.432)], 0.009, 0.009), darkLeather, alpha: 0.9)
+
+        // The pack: a striped blanket, the near pannier corded on, an amphora slung behind, the
+        // bundle on top in the team color and a rolled carpet across it.
+        let blanket = f.blob([(0.53, 0.45), (0.548, 0.37), (0.79, 0.37), (0.818, 0.45), (0.68, 0.462)])
+        f.add(blanket, Material(Tone(0.5, 0.37, 0.25), grain: .cloth))
+        for x in [0.6, 0.75] as [CGFloat] {
+            f.decal(f.rectPath(x, 0.36, 0.016, 0.11), cream, alpha: 0.55, clip: blanket)
+        }
+        let amphora = f.blob([(0.84, 0.44), (0.83, 0.4), (0.832, 0.34), (0.848, 0.3), (0.866, 0.29), (0.884, 0.31), (0.892, 0.35),
+                              (0.888, 0.4), (0.872, 0.44)])
+        f.add(f.limb([(0.856, 0.47), (0.858, 0.43)], 0.022, 0.026), Material(Tone(0.66, 0.43, 0.3)), outline: 0.009)
+        f.add(amphora, Material(Tone(0.7, 0.46, 0.32), grain: .hide))
+        f.decal(f.limb([(0.834, 0.4), (0.89, 0.4)], 0.01, 0.01), Tone(0.42, 0.26, 0.17), alpha: 0.6, clip: amphora)
+        let pannier = f.blob([(0.56, 0.47), (0.538, 0.39), (0.552, 0.31), (0.61, 0.276), (0.72, 0.276), (0.78, 0.31), (0.8, 0.39),
+                              (0.784, 0.47)])
+        f.add(pannier, Material(canvasTone, grain: .cloth))
+        f.decal(f.blob([(0.56, 0.31), (0.62, 0.282), (0.72, 0.282), (0.778, 0.31), (0.68, 0.33)]), canvasTone.shadow, alpha: 0.35, clip: pannier)
+        for x in [0.615, 0.725] as [CGFloat] {
+            f.decal(f.limb([(x - 0.006, 0.47), (x + 0.004, 0.37), (x - 0.004, 0.28)], 0.011, 0.011), cord, alpha: 0.85, clip: pannier)
+        }
+        f.decal(f.limb([(0.54, 0.4), (0.67, 0.392), (0.8, 0.4)], 0.01, 0.01), cord, alpha: 0.75, clip: pannier)
+        let bundle = f.blob([(0.548, 0.46), (0.556, 0.53), (0.6, 0.566), (0.7, 0.572), (0.772, 0.55), (0.794, 0.46)])
+        f.add(bundle, Material(team: 1, grain: .cloth))
+        f.decal(f.limb([(0.556, 0.47), (0.67, 0.5), (0.79, 0.47)], 0.014, 0.014), teamShade: 0.55, alpha: 0.6, clip: bundle)
+        f.decal(f.limb([(0.6, 0.462), (0.63, 0.566)], 0.01, 0.01), cord, alpha: 0.8, clip: bundle)
+        f.decal(f.limb([(0.73, 0.462), (0.71, 0.57)], 0.01, 0.01), cord, alpha: 0.8, clip: bundle)
+        let roll = f.limb([(0.53, 0.59), (0.81, 0.594)], 0.066, 0.066)
+        f.add(roll, Material(Tone(0.7, 0.55, 0.32), grain: .cloth))
+        for x in [0.59, 0.66, 0.73] as [CGFloat] {
+            f.decal(f.rectPath(x, 0.55, 0.018, 0.09), Tone(0.42, 0.3, 0.2), alpha: 0.7, clip: roll)
+        }
+        f.decal(f.limb([(0.54, 0.612), (0.8, 0.616)], 0.014, 0.014), cream, alpha: 0.35, clip: roll)
+        f.add(f.ellipse(0.81, 0.594, 0.02, 0.033), Material(Tone(0.62, 0.48, 0.28)), outline: 0.01)
+        f.decalStroke(f.ellipse(0.81, 0.594, 0.01, 0.017), Tone(0.42, 0.3, 0.2), width: 0.006)
+
+        // The merchant ahead, in a cap, his staff planted before him, the halter rope in hand.
+        let merchant = Person(x: 0.18, y: 0.1, k: 0.9, skin: 0.95, head: .cap, torso: .tunic, lower: .tunic, legs: .wraps,
+                              gear: .lead, stride: 1.15, sleeves: true)
+        person(&f, merchant)
+        let hand = (merchant.x + 0.12 * merchant.k, merchant.y + 0.35 * merchant.k)
+        f.decal(f.limb([hand, (0.31, 0.4), (0.345, 0.432)], 0.007, 0.006), darkLeather, alpha: 0.85)
+        // A purse at his belt.
+        f.add(f.ellipse(merchant.x + 0.07 * merchant.k, merchant.y + 0.215 * merchant.k, 0.022, 0.026), Material(leather, grain: .hide),
+              outline: 0.009)
+    }
+
     /// One figure of an infantry group (warriors, archers, spearmen, builders): where its feet
     /// stand (`x`, `y`, cell fractions), its build (`k`, `skin`) and its kit. Each group poses
     /// its three figures differently, so a squad never looks stamped (ART.md §6); kit and
@@ -538,8 +650,8 @@ enum UnitSprite: SpriteSet {
         /// What the hands hold: a spear upright or leveled, the standard's pole, a long axe
         /// raised in both hands, a club cocked over the shoulder, a bow drawn or held ready,
         /// a pick raised overhead, a wheelbarrow's handles, a surveyor's rod (which carries the
-        /// standard).
-        enum Gear { case spearUp, spearLevel, standard, axeRaised, club, bowDrawn, bowReady, pickRaised, barrow, rod }
+        /// standard), a walking staff ahead and a pack animal's halter rope behind (a merchant).
+        enum Gear { case spearUp, spearLevel, standard, axeRaised, club, bowDrawn, bowReady, pickRaised, barrow, rod, lead }
         enum Shield { case none, front, turned, slung, buckler }
         var x: CGFloat, y: CGFloat, k: CGFloat
         var skin: CGFloat = 1
@@ -786,6 +898,11 @@ enum UnitSprite: SpriteSet {
             arm([(0.03, 0.43), (0.104, 0.52), (0.084, 0.652)], far: true, sleeve: sleeve, hand: false)
             pick(&f, haft: [p(0.03, 0.55), p(0.08, 0.66), p(0.13, 0.78)], k: k)
             f.add(oval(0.084, 0.652, 0.021, 0.021), Material(farSkin), outline: 0.008)
+        case .lead:
+            // A walking staff planted ahead.
+            f.add(limb([(-0.16, 0.0), (-0.128, 0.64)], 0.02, 0.016), Material(darkWood, grain: .wood), outline: 0.01)
+            arm([(0.03, 0.43), (-0.05, 0.41), (-0.13, 0.44)], far: true, sleeve: sleeve, hand: false)
+            f.add(oval(-0.132, 0.44, 0.022, 0.022), Material(farSkin), outline: 0.008)
         case .barrow:
             arm([(0.03, 0.42), (-0.03, 0.34), (-0.1, 0.28)], far: true, sleeve: sleeve, hand: false)
             f.add(limb([(-0.07, 0.29), (-0.2, 0.25)], 0.02, 0.02), Material(wood.scaled(0.8), grain: .wood), outline: 0.008)
@@ -942,6 +1059,9 @@ enum UnitSprite: SpriteSet {
         case .barrow:
             wheelbarrow(&f, at: p(0, 0), k: k)
             arm([(-0.004, 0.42), (-0.06, 0.33), (-0.12, 0.27)], far: false, sleeve: sleeve)
+        case .lead:
+            // Back past the hip to the halter rope.
+            arm([(-0.004, 0.43), (0.05, 0.37), (0.12, 0.35)], far: false, sleeve: sleeve)
         }
         switch s.shield {
         case .front:
@@ -1508,10 +1628,10 @@ extension UnitSprite {
                   space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
     }
 
-    /// Paints the data cell of the figure the steps record (`teamMask`, `escortedMask`,
-    /// `standardField`): red is how much of each pixel is team paint (when `team`), green how
-    /// near the painted silhouette it is, 1 - `rimField` / `rimRange` (so it fades to nothing
-    /// far out), blue and alpha zero. Its outermost texels stay empty, so filtering at a
+    /// Paints the data cell of the figure the steps record (`teamMask`, `standardField`): red is
+    /// how much of each pixel is team paint (when `team`), green how near the painted silhouette
+    /// it is, 1 - `rimField` / `rimRange` (so it fades to nothing far out); blue and alpha the
+    /// same for a second figure (`high`), else zero. Its outermost texels stay empty, so filtering at a
     /// neighbor's edge picks up nothing. The values are written into the context's memory as
     /// they are: compositing would drop color where alpha is zero.
     fileprivate static func paintData(_ steps: [Step], team: Bool, cell: CGRect, ctx: CGContext, high: [Step]? = nil) {

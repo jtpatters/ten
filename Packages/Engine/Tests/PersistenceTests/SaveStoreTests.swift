@@ -102,6 +102,8 @@ func rules(changing change: (inout [String: Any]) -> Void) throws -> Ruleset {
         #expect(state.cities.contains { $0.tilesBought != nil } && state.cities.contains { $0.specialists?.isEmpty == false })
         #expect(loaded.state.cities.map(\.tilesBought) == state.cities.map(\.tilesBought))
         #expect(loaded.state.cities.map(\.specialists) == state.cities.map(\.specialists))
+        #expect(state.cities.contains { $0.unworked != nil })
+        #expect(loaded.state.cities.map(\.unworked) == state.cities.map(\.unworked))
         #expect(loaded.state.cities.map(\.freeCityLeader) == state.cities.map(\.freeCityLeader))
         #expect(loaded.state.cities.map(\.freeCityTurns) == state.cities.map(\.freeCityTurns))
         // Civics, government, policies and Influence (M2 §7, §4.3).

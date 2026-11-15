@@ -497,6 +497,10 @@ public struct StabilityRules: Codable, Hashable, Sendable {
     public let unrest: Int
     public let unrestPct: Int
     public let revolt: Int
+    /// Stability from each Entertainer, a citizen the owner took off a tile (`City.unworked`);
+    /// nil = 1.
+    public var entertainerStability: Int?
+    public var entertainer: Int { entertainerStability ?? 1 }
 }
 
 /// Quarters (M2 §5.3).

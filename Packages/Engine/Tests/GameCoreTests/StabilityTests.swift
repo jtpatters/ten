@@ -123,3 +123,61 @@ import Testing
         #expect(state.itemProblem(.building("waterMill"), in: state.city(id)!) == "needs a river")
     }
 }
+
+/// Taking citizens off tiles (`setTileWorked`): each becomes an Entertainer for +1 Stability.
+@Suite struct EntertainerTests {
+    func capital(population: Int) -> (GameState, CityID) {
+        var state = makeTestState(map: openMap())
+        let id = addCity(&state, PlayerID(0), at: hex(3, 3))
+        updateCity(&state, id) { $0.population = population }
+        state.assignCitizens(state.cityIndex(id)!)
+        return (state, id)
+    }
+
+    @Test func aCitizenTakenOffATileEntertains() throws {
+        var (state, id) = capital(population: 5)
+        let i = state.cityIndex(id)!
+        let before = state.stabilityBreakdowns(for: PlayerID(0))[i]!.total
+        let tile = state.city(id)!.workedTiles[0]
+        #expect(state.city(id)!.workedTiles.count == 5)
+        try apply(.setTileWorked(city: id, tile: tile, worked: false), &state)
+        let city = state.city(id)!
+        #expect(city.unworked == [tile] && city.entertainers == 1)
+        #expect(city.workedTiles.count == 4 && !city.workedTiles.contains(tile), "the citizen does not move to another tile")
+        #expect(city.stability == before + 1, "Stability is recomputed at once")
+        #expect(state.stabilityBreakdowns(for: PlayerID(0))[i]!.entertainers == 1)
+        #expect(state.cityViews(id).contains { $0.hex == tile && $0.status == .unworked })
+        let yields = state.cityYields(city)
+        #expect(!yields.breakdown.contains { $0.source == .unemployed }, "an Entertainer is not unemployed")
+        #expect(state.checkInvariants().isEmpty)
+
+        try apply(.setTileWorked(city: id, tile: tile, worked: true), &state)
+        #expect(state.city(id)!.unworked == nil && state.city(id)!.workedTiles.count == 5)
+        #expect(state.city(id)!.stability == before)
+    }
+
+    @Test func onlyWorkedTilesCanBeTakenOff() throws {
+        var (state, id) = capital(population: 1)
+        let worked = state.city(id)!.workedTiles[0]
+        let free = state.cityViews(id).first { $0.status == .free }!.hex
+        #expect(throws: CommandError.self) { try apply(.setTileWorked(city: id, tile: free, worked: false), &state) }
+        #expect(throws: CommandError.self) { try apply(.setTileWorked(city: id, tile: worked, worked: true), &state) }
+        try apply(.setTileWorked(city: id, tile: worked, worked: false), &state)
+        #expect(state.city(id)!.workedTiles.isEmpty && state.city(id)!.entertainers == 1)
+    }
+
+    @Test func aShrunkCityForgetsTheExtraUnworkedTiles() throws {
+        var (state, id) = capital(population: 3)
+        for tile in state.city(id)!.workedTiles.prefix(2) { try apply(.setTileWorked(city: id, tile: tile, worked: false), &state) }
+        #expect(state.city(id)!.entertainers == 2)
+        updateCity(&state, id) { $0.population = 1 }
+        state.assignCitizens(state.cityIndex(id)!)
+        #expect(state.city(id)!.unworked?.count == 1 && state.city(id)!.workedTiles.isEmpty)
+        #expect(state.checkInvariants().isEmpty)
+    }
+}
+
+extension GameState {
+    /// `PlayerView.cityTiles` for the city's owner.
+    func cityViews(_ id: CityID) -> [CityTile] { view(for: city(id)!.owner).cityTiles(of: id) }
+}

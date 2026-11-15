@@ -413,7 +413,7 @@ import simd
         #expect(r.tileBytes[land * 4 + 1] & TileBits.improvementMask == 0 && r.tileBytes[land * 4] & TileBits.improvementHigh != 0)
     }
 
-    /// Roads (M2 §3.3): a band from each road tile's centre toward every explored road tile
+    /// Roads (M2 §3.3): one quad per road tile carrying its links to the explored road tiles
     /// beside it, nothing on unexplored tiles; pillaged marks only from `setPillaged`.
     @Test func roadsAndPillagedMarksFollowTheInputs() throws {
         let f = try Self.field()
@@ -426,10 +426,14 @@ import simd
         roads[neighbours[0]] = true
         r.setRoads(roads)
         let bands = r.roadGeometry().filter { $0.position.w == OverlayStyle.road.rawValue }
-        #expect(bands.count == 12, "two half bands meeting at the shared edge")
+        #expect(bands.count == 24, "a hexagon (four triangles) per road tile")
+        let east = Float(1 << HexDirection.allCases.firstIndex(of: .east)!), west = Float(1 << HexDirection.allCases.firstIndex(of: .west)!)
+        #expect(bands.prefix(12).allSatisfy { $0.color.z == east } && bands.suffix(12).allSatisfy { $0.color.z == west },
+                "each linked to the other across their shared edge")
         roads[neighbours[0]] = false
         r.setRoads(roads)
-        #expect(r.roadGeometry().count == 6, "a lone road: one short band")
+        #expect(r.roadGeometry().count == 12, "a lone road: one hexagon")
+        #expect(r.roadGeometry().allSatisfy { $0.color.z == 0 }, "with no links")
         r.setRoads([])
         #expect(r.roadGeometry().isEmpty)
         r.setPillaged([f.c, f.c])

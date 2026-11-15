@@ -66,7 +66,8 @@ private struct RingBuffer {
 /// Passes, back to front:
 /// 1. Ground: one quad; the fragment shader resolves each pixel's hex from a per-tile data
 ///    texture and blends neighbors (terrain, coastlines, fog). Fog changes upload ~26 KB.
-/// 2. Decorations: trees, hills, mountains as camera-facing sprites, pre-sorted back to front.
+/// 2. Decorations: trees, hills, mountains as camera-facing sprites, pre-sorted back to front
+///    (roads, from the overlay pipeline, lie on the ground under them and the units' bases).
 /// 3. Overlays: selection ring and path preview, flat on the ground.
 /// 4. Units: turn markers, unit shadows and unit tokens, sorted each frame.
 ///
@@ -706,6 +707,21 @@ public final class MapRenderer: NSObject {
             }
         }
 
+        // Overlay triangles: the roads first, drawn on the ground under the units' bases and the
+        // decorations; the rest over the decorations.
+        let overlay = passes.contains(.overlays) ? overlayGeometry() : []
+        let roadCount = overlay.isEmpty ? 0 : roadArt.ribbons.count
+        let overlayBuffer = overlayRing.upload(overlay, slot: slot, device: device)
+        func drawOverlay(_ range: Range<Int>) {
+            guard let overlayBuffer, !range.isEmpty else { return }
+            encoder.setRenderPipelineState(overlayPipeline)
+            Self.bind(&uniforms, to: encoder)
+            encoder.setVertexBuffer(overlayBuffer, offset: 0, index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: range.lowerBound, vertexCount: range.count, instanceCount: copies)
+        }
+        encoder.setDepthStencilState(plainStencil)
+        drawOverlay(0..<roadCount)
+
         let frame = passes.isDisjoint(with: [.units, .unitGround]) ? UnitFrame() : unitFrame()
         let unitBuffer = dynamicRing.upload(frame.sprites, slot: slot, device: device)
         func bindUnits(_ buffer: MTLBuffer) {
@@ -746,13 +762,7 @@ public final class MapRenderer: NSObject {
             }
         }
 
-        let overlay = passes.contains(.overlays) ? overlayGeometry() : []
-        if let buffer = overlayRing.upload(overlay, slot: slot, device: device) {
-            encoder.setRenderPipelineState(overlayPipeline)
-            Self.bind(&uniforms, to: encoder)
-            encoder.setVertexBuffer(buffer, offset: 0, index: 0)
-            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: overlay.count, instanceCount: copies)
-        }
+        drawOverlay(roadCount..<overlay.count)
 
         // Unit layers over the decorations (`UnitFrame`): bands, figures writing their ranks,
         // the plants in front of them again, then medallions and markers.

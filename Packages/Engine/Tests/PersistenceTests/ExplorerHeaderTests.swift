@@ -56,6 +56,49 @@ import Testing
         #expect(try Self.encoded(empty) == Self.encoded(plain))
     }
 
+    /// An automated Builder (the App's Automate order) rides in the same list, marked; the mark
+    /// is left out for explorers, so their entries are as before.
+    @Test func automatedBuildersAreMarked() async throws {
+        let saves = TempSaves()
+        defer { saves.cleanUp() }
+        let store = saves.store()
+        let state = SaveStoreTests.bareGame(seed: 3)
+        let mixed = Self.explorers + [SavedExplorer(unit: UnitID(11), automated: true)]
+        let summary = try await store.save(state, name: "Automated", kind: .manual, explorers: mixed)
+        let loaded = try await store.open(summary, rules: .standard)
+        #expect(loaded.summary.explorers == mixed)
+        #expect(loaded.summary.explorers.filter(\.automated).map(\.unit) == [UnitID(11)])
+        let plain = try await store.save(state, name: "Exploring", kind: .manual, explorers: Self.explorers)
+        #expect(!(try SchemaFingerprintTests.keyPaths(of: Self.header(of: plain.url))).contains("explorers[].automated"))
+        #expect(try SchemaFingerprintTests.keyPaths(of: Self.header(of: summary.url)).contains("explorers[].automated"))
+    }
+
+    /// The war orders (rally points and marches) ride in the header with every kind of save,
+    /// and are left out when there are none.
+    @Test func warOrdersAreKept() async throws {
+        let saves = TempSaves()
+        defer { saves.cleanUp() }
+        let store = saves.store()
+        let state = SaveStoreTests.bareGame(seed: 3)
+        let war = SavedWarOrders(rallies: [SavedRally(city: CityID(2), tile: HexCoord(q: 4, r: 3))],
+                                 marches: [SavedMarch(unit: UnitID(8), target: HexCoord(q: 9, r: 2), slot: HexCoord(q: 8, r: 2))])
+        let written = [
+            try await store.save(state, name: "War", kind: .manual, war: war),
+            try await store.autosave(state, war: war),
+            try await store.saveBackground(state, war: war),
+        ]
+        for summary in written {
+            let loaded = try await store.open(summary, rules: .standard)
+            #expect(loaded.summary.war == war && loaded.summary == summary)
+        }
+        let keys = try SchemaFingerprintTests.keyPaths(of: Self.header(of: written[0].url))
+        #expect(keys.contains("war.rallies[].city.rawValue") && keys.contains("war.marches[].slot.q"))
+        // No orders, no key.
+        let quiet = try await store.save(state, name: "Peace", kind: .manual, war: SavedWarOrders())
+        #expect(quiet.war == nil)
+        #expect(!(try SchemaFingerprintTests.keyPaths(of: Self.header(of: quiet.url))).contains("war"))
+    }
+
     /// A header written before the field existed reads with no explorers; an explorer stored
     /// without enemies reads with none.
     @Test func olderHeadersReadWithoutExplorers() throws {

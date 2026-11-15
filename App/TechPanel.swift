@@ -1,15 +1,14 @@
 import GameCore
 import SwiftUI
 
-/// The tech panel (M1 §16): the techs as a small tree, each with its cost, turns and what it
-/// unlocks (an improvement with its sites near the player's cities); tap one to research it (through its missing prerequisites, M1 §6: the path is
-/// numbered). Wide enough, the tree is drawn in columns by depth with its links; narrower, it is
-/// an indented outline. In another player's phase it is read-only.
+/// The tech panel (M1 §16): the tech under way and the techs that can be researched next
+/// (`NextChoices`), each with its cost, turns, what it unlocks (an improvement with its sites
+/// near the player's cities) and what it leads to; tap one to research it. A target set
+/// further on (automation, an older save) keeps its numbered path. In another player's phase it
+/// is read-only.
 struct TechPanel: View {
     let session: GameSession
     var onDone: () -> Void
-
-    @State private var width: CGFloat = 0
 
     var body: some View {
         let view = session.view
@@ -35,21 +34,14 @@ struct TechPanel: View {
             Text(status(view, options)).font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
                 .padding(.horizontal, HUD.Space.l)
                 .padding(.bottom, HUD.Space.s)
-            ScrollView([.vertical]) {
-                Group {
-                    if width >= TechTreeLayout.minWidth {
-                        TechTreeLayout(tree: tree, width: width - 2 * HUD.Space.l, progress: progress(view)) { choose($0) }
-                    } else {
-                        TechOutline(tree: tree, progress: progress(view)) { choose($0) }
-                    }
-                }
-                .padding(.horizontal, HUD.Space.l)
-                .padding(.bottom, HUD.Space.xl)
-                .opacity(session.isInputEnabled ? 1 : 0.75)
+            ScrollView(.vertical) {
+                NextChoices(tree: tree, progress: progress(view)) { choose($0) }
+                    .padding(.horizontal, HUD.Space.l)
+                    .padding(.bottom, HUD.Space.xl)
+                    .opacity(session.isInputEnabled ? 1 : 0.75)
             }
         }
         .foregroundStyle(HUD.ink)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 
     /// "Learnt Bronze Working: Spearman", in the turn it was learnt.
@@ -70,7 +62,7 @@ struct TechPanel: View {
             return "Researching \(current.name)\(turns). Tap another tech to change."
         }
         if options.allSatisfy(\.known) { return "Every tech of this age is known." }
-        return "Choose what to research. Techs whose prerequisites are missing are reached through them."
+        return "Choose what to research next."
     }
 
     /// Research progress toward the tech being researched, 0...1.
@@ -101,13 +93,11 @@ extension GameSession {
 
 // MARK: - Civics
 
-/// The civic panel (M2 §7.1): the civics as the tech panel's tree, Culture in place of Science;
-/// tap one to study it (through its missing prerequisites). Read-only in another player's phase.
+/// The civic panel (M2 §7.1): as the tech panel, Culture in place of Science: the civic under way
+/// and those that can be studied next; tap one to study it. Read-only in another player's phase.
 struct CivicPanel: View {
     let session: GameSession
     var onDone: () -> Void
-
-    @State private var width: CGFloat = 0
 
     var body: some View {
         let view = session.view
@@ -132,21 +122,14 @@ struct CivicPanel: View {
             Text(status(view, options)).font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
                 .padding(.horizontal, HUD.Space.l)
                 .padding(.bottom, HUD.Space.s)
-            ScrollView([.vertical, .horizontal]) {
-                Group {
-                    if width >= TechTreeLayout.minWidth {
-                        TechTreeLayout(tree: tree, width: max(width - 2 * HUD.Space.l, CGFloat(tree.depth) * 190), progress: progress(view)) { choose($0) }
-                    } else {
-                        TechOutline(tree: tree, progress: progress(view)) { choose($0) }
-                    }
-                }
-                .padding(.horizontal, HUD.Space.l)
-                .padding(.bottom, HUD.Space.xl)
-                .opacity(session.isInputEnabled ? 1 : 0.75)
+            ScrollView(.vertical) {
+                NextChoices(tree: tree, progress: progress(view)) { choose($0) }
+                    .padding(.horizontal, HUD.Space.l)
+                    .padding(.bottom, HUD.Space.xl)
+                    .opacity(session.isInputEnabled ? 1 : 0.75)
             }
         }
         .foregroundStyle(HUD.ink)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 
     /// "Completed Code of Laws: Chiefdom, Discipline", in the turn it was completed.
@@ -167,7 +150,7 @@ struct CivicPanel: View {
             return "Studying \(current.name)\(turns). Tap another civic to change."
         }
         if options.allSatisfy(\.known) { return "Every civic of this age is known." }
-        return "Choose a civic to study. Culture goes into it each turn; each unlocks governments and policies."
+        return "Choose a civic to study next. Culture goes into it each turn; each unlocks governments and policies."
     }
 
     private func progress(_ view: PlayerView) -> Double {
@@ -348,6 +331,11 @@ struct TechTree {
 
     func node(_ id: String) -> Node? { nodes.first { $0.option.key == id } }
 
+    /// The names of the techs (or civics) that need `id`, in tree order.
+    func leadsTo(_ id: String) -> [String] {
+        nodes.filter { $0.parents.contains(id) }.map(\.option.name)
+    }
+
     /// Depth-first order (an outline): each tech followed by the techs under it.
     var outline: [Node] {
         var out: [Node] = []
@@ -363,83 +351,53 @@ struct TechTree {
     }
 }
 
-/// The tree in columns by depth, linked from each prerequisite to what it leads to.
-struct TechTreeLayout: View {
+/// What can be chosen now (the owner's call: the panels show only the next step, never the
+/// whole tree, which ran off the screen): the tech or civic under way, then every one whose
+/// prerequisites are all known, as cards in a grid that wraps to the panel's width. Each card
+/// says what it leads to, since the later ones are not shown.
+struct NextChoices: View {
     var tree: TechTree
-    private var track: TreeTrack { tree.track }
-    var width: CGFloat
     var progress: Double
     var onChoose: (TreeOption) -> Void
 
-    static let minWidth: CGFloat = 540
-    static let nodeHeight: CGFloat = 112
-    static let rowGap: CGFloat = 10
-    static let columnGap: CGFloat = 34
+    static let columns = [GridItem(.adaptive(minimum: 230, maximum: 420), spacing: HUD.Space.s, alignment: .top)]
 
-    private var nodeWidth: CGFloat {
-        let columns = CGFloat(max(tree.depth, 1))
-        return min(230, (width - Self.columnGap * (columns - 1)) / columns)
-    }
-
-    private func frame(_ node: TechTree.Node) -> CGRect {
-        CGRect(x: CGFloat(node.depth) * (nodeWidth + Self.columnGap), y: node.row * (Self.nodeHeight + Self.rowGap),
-               width: nodeWidth, height: Self.nodeHeight)
-    }
-
-    var body: some View {
-        let height = CGFloat(tree.rows) * (Self.nodeHeight + Self.rowGap) - Self.rowGap
-        ZStack(alignment: .topLeading) {
-            Canvas { context, _ in
-                for node in tree.nodes {
-                    for parentID in node.parents {
-                        guard let parent = tree.node(parentID) else { continue }
-                        let a = frame(parent), b = frame(node)
-                        let start = CGPoint(x: a.maxX, y: a.midY), end = CGPoint(x: b.minX, y: b.midY)
-                        let midX = (start.x + end.x) / 2
-                        var path = Path()
-                        path.move(to: start)
-                        path.addCurve(to: end, control1: CGPoint(x: midX, y: start.y), control2: CGPoint(x: midX, y: end.y))
-                        let lit = node.step != nil || node.option.known
-                        context.stroke(path, with: .color(lit ? track.tint.opacity(0.7) : HUD.ink.opacity(0.28)),
-                                       style: StrokeStyle(lineWidth: lit ? 2 : 1.5, lineCap: .round))
-                    }
-                }
+    /// The one under way first, then those on the path to the target by step, then the rest
+    /// by era and cost.
+    static func choices(_ tree: TechTree) -> [TechTree.Node] {
+        tree.nodes.filter { !$0.option.known && ($0.option.active || $0.option.available) }.sorted { a, b in
+            if a.option.active != b.option.active { return a.option.active }
+            switch (a.step, b.step) {
+            case let (x?, y?) where x != y: return x < y
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: break
             }
-            .frame(width: width, height: height)
-            ForEach(tree.nodes, id: \.option.key) { node in
-                let f = frame(node)
-                TechNodeView(node: node, progress: progress, era: tree.eraName(node), track: tree.track, onChoose: onChoose)
-                    .frame(width: f.width, height: f.height)
-                    .offset(x: f.minX, y: f.minY)
-            }
+            if a.option.era != b.option.era { return a.option.era < b.option.era }
+            if a.option.cost != b.option.cost { return a.option.cost < b.option.cost }
+            return a.option.name < b.option.name
         }
-        .frame(width: width, height: height, alignment: .topLeading)
     }
-}
-
-/// The tree as an indented outline (narrow screens).
-struct TechOutline: View {
-    var tree: TechTree
-    private var track: TreeTrack { tree.track }
-    var progress: Double
-    var onChoose: (TreeOption) -> Void
 
     var body: some View {
+        let choices = Self.choices(tree)
         VStack(alignment: .leading, spacing: HUD.Space.s) {
-            ForEach(tree.outline, id: \.option.key) { node in
-                HStack(spacing: 0) {
-                    if node.depth > 0 {
-                        Image(systemName: "arrow.turn.down.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(node.step != nil ? track.tint : HUD.inkFaint)
-                            .frame(width: 22)
-                            .padding(.leading, CGFloat(node.depth - 1) * 22)
+            if choices.isEmpty {
+                Text(tree.track == .science ? "Nothing left to research in this age." : "Nothing left to study in this age.")
+                    .font(HUD.body(.caption)).foregroundStyle(HUD.inkSoft)
+            } else {
+                Text((tree.track == .science ? "Available to research" : "Available to study").uppercased() + " · \(choices.count)")
+                    .font(HUD.body(.caption2).weight(.semibold)).foregroundStyle(HUD.inkSoft)
+                LazyVGrid(columns: Self.columns, alignment: .leading, spacing: HUD.Space.s) {
+                    ForEach(choices, id: \.option.key) { node in
+                        TechNodeView(node: node, progress: progress, era: tree.eraName(node), track: tree.track,
+                                     leadsTo: tree.leadsTo(node.option.key), onChoose: onChoose)
+                            .frame(minHeight: 104)
                     }
-                    TechNodeView(node: node, progress: progress, era: tree.eraName(node), track: tree.track, onChoose: onChoose)
-                        .frame(minHeight: 76)
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -451,6 +409,8 @@ private struct TechNodeView: View {
     /// Its era's name (M2 §2; nil in rules without eras).
     var era: String?
     var track: TreeTrack
+    /// What it leads to (the next panel's choices once it is known).
+    var leadsTo: [String] = []
     var onChoose: (TreeOption) -> Void
 
     var body: some View {
@@ -476,13 +436,20 @@ private struct TechNodeView: View {
                 Text(option.unlocks.isEmpty ? " " : option.unlocks.joined(separator: ", "))
                     .font(HUD.body(.caption2))
                     .foregroundStyle(option.known ? HUD.inkSoft : HUD.ink)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 if let insight = option.insight, !option.known {
                     Label(insight, systemImage: option.insightGained ? "lightbulb.fill" : "lightbulb")
                         .font(HUD.body(.caption2))
                         .foregroundStyle(option.insightGained ? track.tint : HUD.inkSoft)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !leadsTo.isEmpty {
+                    Label("Leads to " + leadsTo.joined(separator: ", "), systemImage: "arrow.right")
+                        .font(HUD.body(.caption2))
+                        .foregroundStyle(HUD.inkSoft)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -557,6 +524,7 @@ private struct TechNodeView: View {
         if let insight = option.insight, !option.known {
             parts.append((option.insightGained ? "Insight gained: " : "Insight: ") + insight)
         }
+        if !leadsTo.isEmpty { parts.append("leads to " + leadsTo.joined(separator: ", ")) }
         return parts.joined(separator: ", ")
     }
 }

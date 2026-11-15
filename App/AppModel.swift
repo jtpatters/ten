@@ -122,7 +122,7 @@ final class AppModel {
             do {
                 let loaded = try await store.open(save, rules: .standard)
                 open(loaded.state, diagnostic: launch.revealMap ?? false, resumingSave: true, log: NoticeLogStore.app.read(for: save),
-                     explorers: loaded.summary.explorers, game: loaded.summary.game)
+                     explorers: loaded.summary.explorers, game: loaded.summary.game, war: loaded.summary.war)
                 var notes = loaded.warnings.map(\.description)
                 if let firstError {
                     notes.insert("\(Self.title(of: newest).capitalizedFirst) couldn't be opened. \(GameSession.describe(firstError)) "
@@ -163,7 +163,7 @@ final class AppModel {
         do {
             let loaded = try await store.open(save, rules: .standard)
             open(loaded.state, diagnostic: launch.revealMap ?? false, resumingSave: true, log: NoticeLogStore.app.read(for: save),
-                 explorers: loaded.summary.explorers, game: loaded.summary.game)
+                 explorers: loaded.summary.explorers, game: loaded.summary.game, war: loaded.summary.war)
             presentLoadWarnings(loaded.warnings)
         } catch {
             alert = AppAlert(title: "Couldn't open “\(save.name)”", message: GameSession.describe(error))
@@ -242,7 +242,8 @@ final class AppModel {
     /// `game`: the game's id, which its saves carry (nil for a game saved before ids, M1 §14).
     @discardableResult
     func open(_ state: GameState, diagnostic: Bool, mapGenMilliseconds: Int = 0, resumingSave: Bool = false,
-              log: NoticeLogStore.Kept = .init(), explorers: [SavedExplorer] = [], game: String?) -> GameSession {
+              log: NoticeLogStore.Kept = .init(), explorers: [SavedExplorer] = [], game: String?,
+              war: SavedWarOrders? = nil) -> GameSession {
         session?.end()
         let session = GameSession(state: state, store: store, diagnostic: diagnostic, mapGenMilliseconds: mapGenMilliseconds)
         session.gameID = game
@@ -252,6 +253,8 @@ final class AppModel {
         applyLaunchDisplayOptions(to: session)
         self.session = session
         session.resumeExploring(explorers)
+        session.resumeAutomating(explorers)
+        session.resumeWar(war)
         session.begin(resumingSave: resumingSave)
         // Opened after the app left the foreground (a load that finished late): its resume
         // point now, as on leaving.

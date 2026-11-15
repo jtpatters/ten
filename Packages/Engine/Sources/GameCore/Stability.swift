@@ -32,11 +32,13 @@ public struct StabilityBreakdown: Hashable, Sendable {
     public var quarters = 0
     /// From the government and policies (M2 §7.2–7.3).
     public var government = 0
+    /// From citizens kept off tiles as Entertainers (`City.unworked`).
+    public var entertainers = 0
 
     public init() {}
 
     /// Supply − need − penalties (the penalties are negative or 0).
-    public var total: Int { buildings + luxuries + quarters + government - need + empireSize + overcrowding + occupied }
+    public var total: Int { buildings + luxuries + quarters + government + entertainers - need + empireSize + overcrowding + occupied }
 }
 
 extension Ruleset {
@@ -130,6 +132,7 @@ extension GameState {
             if let captured = city.capturedTurn, turn - captured <= s.occupiedTurns { b.occupied = s.occupied }
             if !(city.quarters ?? []).isEmpty { b.government += quarterStability }
             if garrisonStability != 0, hasGarrison(city) { b.government += garrisonStability }
+            b.entertainers = city.entertainers * s.entertainer
             result[i] = b
         }
         let sources = improvedSources(of: player)
@@ -160,7 +163,8 @@ extension GameState {
         return best
     }
 
-    /// Recomputes the Stability of `player`'s cities (the owner's phase start, before yields).
+    /// Recomputes the Stability of `player`'s cities (the owner's phase start, before yields;
+    /// and when the owner takes a citizen off a tile or puts one back, `setTileWorked`).
     mutating func updateStability(for player: PlayerID) {
         guard rules.stability != nil else { return }
         for (i, b) in stabilityBreakdowns(for: player) { cities[i].stability = b.total }
