@@ -181,6 +181,9 @@ final class GameSession {
     var citiesAttacked: Set<CityID> = []
     var warDeclaredBy: [PlayerID] = []
     /// Important notices since the viewer's phase last ended that no item kind covers.
+    /// The selection as that visit left it: a unit selected by hand since then moves the walk
+    /// (`walkPosition`); one left over from before does not.
+    @ObservationIgnored var selectionAtVisit: Selection?
     var news: [Notice] = []
     /// Notices being posted come from the viewer's own command.
     @ObservationIgnored var postingViewerNotices = false
@@ -386,7 +389,7 @@ final class GameSession {
     /// can found a city where it stands, whatever its moves (founding takes none).
     var unitsNeedingOrders: [GameCore.Unit] {
         view.units.filter { ($0.movesLeft > 0 || view.standsReadyToFound($0)) && $0.destination == nil && $0.activity == .none && !explore.contains($0.id)
-            && !automation.contains($0.id) && !war.isMarching($0.id) }
+            && !automation.contains($0.id) && !war.isMarching($0.id) && !war.isBesieging($0.id) }
     }
 
     var nextActionTitle: String {

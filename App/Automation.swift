@@ -614,6 +614,31 @@ final class AutomationInbox {
             return session.bulkQueue(try item(word, session), in: session.warRoom.cities.sorted(), placement: placement)
         case "war":
             return warText(session)
+        case "siege":
+            // siege [<city>] [assault|lift]: a siege's outlook (default: the first), or the Siege
+            // card's Storm / Lift Siege.
+            let ids = session.war.sieges.values.map(\.city).sorted()
+            let city = args.first.flatMap { Int($0) }.map { CityID($0) } ?? ids.first
+            guard let city, ids.contains(city) else { throw Failure(description: "no such siege (sieges: \(ids.map(\.rawValue)))") }
+            switch args.last {
+            case "assault":
+                session.assault(city: city)
+                try await Task.sleep(for: .milliseconds(300))
+                return (session.attentionCard?.name ?? "") + " · " + (session.message ?? selectionText(session)) + " · " + warText(session)
+            case "lift":
+                session.liftSiege(city: city)
+                return (session.message ?? "") + " · " + warText(session)
+            default:
+                guard let o = session.siegeOutlook(ofCity: city) else { return "no outlook" }
+                var text = "\(o.city.name): walls \(o.city.wallHP)/\(o.maxWallHP) hp \(o.city.hp)/\(o.maxHP); shots \(o.shots.map(\.rawValue)); enemies near \(o.enemiesNear)"
+                if let a = o.assault {
+                    text += "; assault \(a.unit.rawValue) " + (a.preview.capturesCity ? "captures" : "\(a.preview.killChancePercent)% win \(a.preview.deathChancePercent)% loss")
+                }
+                if let r = session.war.sieges.values.first(where: { $0.city == city })?.report {
+                    text += "; last volley phase \(r.phase): \(r.shots) shots walls \(r.walls.before)->\(r.walls.after) hp \(r.hp.before)->\(r.hp.after)"
+                }
+                return text
+            }
         case "confirmpath":
             guard session.pendingPath != nil else { throw Failure(description: "no route previewed") }
             session.confirmPath()
@@ -794,6 +819,9 @@ final class AutomationInbox {
         let marches = session.war.marches.sorted { $0.key < $1.key }.map { "\($0.key.rawValue)->\($0.value.slot)" }
         let rallies = session.war.rallies.sorted { $0.key < $1.key }.map { "c\($0.key.rawValue)@\($0.value)" }
         var text = "marches [\(marches.joined(separator: " "))] rallies [\(rallies.joined(separator: " "))]"
+        let sieges = session.war.sieges.sorted { $0.value.city < $1.value.city }
+            .map { "c\($0.value.city.rawValue)@\($0.key):\($0.value.members.sorted().map(\.rawValue))" }
+        if !sieges.isEmpty { text += " sieges [\(sieges.joined(separator: " "))]" }
         if let t = session.warTargeting {
             text += t.cities.isEmpty ? "; group \(t.units.map(\.rawValue))" : "; rally for \(t.cities.map(\.rawValue))"
             if let plan = t.plan { text += " plan \(plan.slots.sorted { $0.key < $1.key }.map { "\($0.key.rawValue)->\($0.value)" })" }

@@ -81,7 +81,8 @@ import Testing
         let store = saves.store()
         let state = SaveStoreTests.bareGame(seed: 3)
         let war = SavedWarOrders(rallies: [SavedRally(city: CityID(2), tile: HexCoord(q: 4, r: 3))],
-                                 marches: [SavedMarch(unit: UnitID(8), target: HexCoord(q: 9, r: 2), slot: HexCoord(q: 8, r: 2))])
+                                 marches: [SavedMarch(unit: UnitID(8), target: HexCoord(q: 9, r: 2), slot: HexCoord(q: 8, r: 2))],
+                                 sieges: [SavedSiege(city: CityID(4), tile: HexCoord(q: 11, r: 5), units: [UnitID(9), UnitID(12)])])
         let written = [
             try await store.save(state, name: "War", kind: .manual, war: war),
             try await store.autosave(state, war: war),
@@ -93,6 +94,7 @@ import Testing
         }
         let keys = try SchemaFingerprintTests.keyPaths(of: Self.header(of: written[0].url))
         #expect(keys.contains("war.rallies[].city.rawValue") && keys.contains("war.marches[].slot.q"))
+        #expect(keys.contains("war.sieges[].units[].rawValue") && keys.contains("war.sieges[].tile.r"))
         // No orders, no key.
         let quiet = try await store.save(state, name: "Peace", kind: .manual, war: SavedWarOrders())
         #expect(quiet.war == nil)

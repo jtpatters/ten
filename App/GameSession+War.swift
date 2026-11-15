@@ -61,19 +61,68 @@ struct WarOrders: Equatable {
         var target: HexCoord
         /// Its own place there.
         var slot: HexCoord
+        /// Its HP when last seen on the march: less at the next phase means it was attacked,
+        /// and it stops for orders. Not saved: a loaded march starts from the unit's HP.
+        var hp: Int
+    }
+
+    /// A siege: own units around an enemy city, which shoot it every phase from where they
+    /// stand and hold the line around it (`GameSession.runSieges`).
+    struct Siege: Equatable {
+        var city: CityID
+        var members: Set<UnitID>
+        /// What the last volley did (for the Siege card).
+        var report: SiegeReport?
+    }
+
+    /// One phase's volley at a besieged city.
+    struct SiegeReport: Equatable {
+        var phase: Int
+        var shots: Int
+        var walls: (before: Int, after: Int)
+        var hp: (before: Int, after: Int)
+
+        static func == (a: SiegeReport, b: SiegeReport) -> Bool {
+            (a.phase, a.shots, a.walls.before, a.walls.after, a.hp.before, a.hp.after)
+                == (b.phase, b.shots, b.walls.before, b.walls.after, b.hp.before, b.hp.after)
+        }
     }
 
     private(set) var rallies: [CityID: HexCoord] = [:]
     private(set) var marches: [UnitID: March] = [:]
     /// New military units of cities with a rally point, sent there at the next chance.
     private(set) var recruits: [UnitID: CityID] = [:]
+    /// Sieges under way, by the city's tile.
+    private(set) var sieges: [HexCoord: Siege] = [:]
 
-    var isEmpty: Bool { rallies.isEmpty && marches.isEmpty }
+    var isEmpty: Bool { rallies.isEmpty && marches.isEmpty && sieges.isEmpty }
     func isMarching(_ id: UnitID) -> Bool { marches[id] != nil }
+    /// The tile of the city the unit besieges.
+    func siegeTile(of id: UnitID) -> HexCoord? { sieges.first { $0.value.members.contains(id) }?.key }
+    func isBesieging(_ id: UnitID) -> Bool { siegeTile(of: id) != nil }
+    /// The tile of the siege of city `id`.
+    func siegeTile(ofCity id: CityID) -> HexCoord? { sieges.first { $0.value.city == id }?.key }
 
     mutating func setRally(_ tile: HexCoord?, for city: CityID) { rallies[city] = tile }
     mutating func setMarch(_ march: March?, for id: UnitID) { marches[id] = march }
     mutating func addRecruit(_ id: UnitID, from city: CityID) { recruits[id] = city }
+
+    /// Puts the unit in the siege of `city` at `tile` (out of any other).
+    mutating func join(_ id: UnitID, siegeOf city: CityID, at tile: HexCoord) {
+        leaveSiege(id)
+        if sieges[tile]?.city != city { sieges[tile] = Siege(city: city, members: []) }
+        sieges[tile]?.members.insert(id)
+    }
+
+    /// Takes the unit out of its siege; a siege left with no one ends.
+    mutating func leaveSiege(_ id: UnitID) {
+        guard let tile = siegeTile(of: id) else { return }
+        sieges[tile]?.members.remove(id)
+        if sieges[tile]?.members.isEmpty == true { sieges[tile] = nil }
+    }
+
+    mutating func endSiege(at tile: HexCoord) { sieges[tile] = nil }
+    mutating func setReport(_ report: SiegeReport, at tile: HexCoord) { sieges[tile]?.report = report }
 
     mutating func takeRecruits() -> [UnitID: CityID] {
         defer { recruits = [:] }
@@ -85,8 +134,15 @@ struct WarOrders: Equatable {
         Set(marches.filter { !ids.contains($0.key) }.map(\.value.slot))
     }
 
-    /// Whether a save would keep the same orders as `other` (recruits are not saved).
-    func savesSame(as other: WarOrders) -> Bool { rallies == other.rallies && marches == other.marches }
+    /// Whether a save would keep the same orders as `other`: rally points, each march's goal and
+    /// place, each siege's city and members (recruits, a march's HP mark and a siege's last
+    /// volley are not saved).
+    func savesSame(as other: WarOrders) -> Bool {
+        rallies == other.rallies
+            && marches.mapValues { [$0.target, $0.slot] } == other.marches.mapValues { [$0.target, $0.slot] }
+            && sieges.mapValues(\.city) == other.sieges.mapValues(\.city)
+            && sieges.mapValues(\.members) == other.sieges.mapValues(\.members)
+    }
 }
 
 /// Choosing a war order's goal on the map.
@@ -134,6 +190,7 @@ extension GameSession {
 
     /// What an own military unit is doing, for the War Room and its card.
     func armyStatus(of unit: GameCore.Unit) -> String {
+        if let tile = war.siegeTile(of: unit.id) { return "Besieging \(placeName(tile))" }
         if let march = war.marches[unit.id] {
             let turns = view.path(for: unit.id, to: march.slot)?.turns
             return "Marching to \(placeName(march.target))" + (turns.map { $0 <= 1 ? " · arrives this turn" : " · \($0) turns" } ?? "")
@@ -151,7 +208,8 @@ extension GameSession {
 
     /// Whether the unit waits for orders (the War Room's Idle filter).
     func isIdle(_ unit: GameCore.Unit) -> Bool {
-        unit.activity == .none && unit.destination == nil && !war.isMarching(unit.id) && !explore.contains(unit.id)
+        unit.activity == .none && unit.destination == nil && !war.isMarching(unit.id) && !war.isBesieging(unit.id)
+            && !explore.contains(unit.id)
     }
 
     // MARK: Groups and goals on the map
@@ -164,12 +222,17 @@ extension GameSession {
             return
         }
         guard let lead = view.unit(id), lead.owner == viewer, !lead.type.isCivilian else { return }
-        let near = armyUnits.filter { $0.id != id && view.distance($0.position, lead.position) <= Self.groupRadius && !explore.contains($0.id) }
+        // Garrisons stay home: units in own cities join only when the War Room picks them.
+        let cityTiles = Set(view.cities.map(\.position))
+        let around = armyUnits.filter { $0.id != id && view.distance($0.position, lead.position) <= Self.groupRadius && !explore.contains($0.id) }
+        let near = around.filter { !cityTiles.contains($0.position) }
+        let garrisons = around.count - near.count
         clearPreviews()
         warTargeting = WarTargeting(kind: .march([id] + near.map(\.id)), fromWarRoom: false)
         let count = near.count + 1
-        show(count == 1 ? "Tap own units to add them, then tap where the group goes"
-            : "\(count) units in the group: tap where they go (tap own units to add or drop them)", for: 4)
+        let home = garrisons == 0 ? "" : " · \(garrisons) garrison\(garrisons == 1 ? " stays" : "s stay") home"
+        show((count == 1 ? "Tap own units to add them, then tap where the group goes"
+            : "\(count) units in the group: tap where they go (tap own units to add or drop them)") + home, for: 4)
         refreshSelection()
     }
 
@@ -306,61 +369,117 @@ extension GameSession {
         return sendArmy(plan)
     }
 
-    /// Gives each unit of a formation its march (a unit already in its place holds it), and
-    /// keeps the marches in mind. Returns what happened, for a message.
+    /// Gives each unit of a formation its march (a unit already in its place holds it), keeps
+    /// the marches in mind, and sets out at once: the group keeps together, so units more than a
+    /// phase ahead of the slowest wait for it. Returns what happened, for a message.
     @discardableResult
     func sendArmy(_ plan: FormationPlan) -> String {
         guard isInputEnabled else { return waitingFor.map { "Waiting for \($0.civName)" } ?? "Not your turn" }
         let before = war
         defer { if !war.savesSame(as: before) { noteHeaderChange() } }
-        var marching = 0, arrived = 0, refused = 0
         for (id, slot) in plan.slots.sorted(by: { $0.key < $1.key }) {
             guard let unit = view.unit(id) else { continue }
-            war.setMarch(nil, for: id)
-            // A unit not setting out now drops its earlier destination or Explore order, which
-            // would take it from its place (a `moveUnit` replaces them for the others).
-            if unit.position == slot || unit.zocStopped, unit.destination != nil || isExploring(id) {
-                perform(.cancelOrders(unit: id), quiet: true)
-            }
-            if unit.position == slot {
-                holdPlace(id)
-                arrived += 1
-                continue
-            }
-            let march = WarOrders.March(target: plan.target, slot: slot)
-            // Held by a zone of control this phase: it sets out next phase.
-            if unit.zocStopped {
-                war.setMarch(march, for: id)
-                marching += 1
-                continue
-            }
-            guard perform(.moveUnit(unit: id, to: slot), quiet: true) else {
-                refused += 1
-                continue
-            }
-            guard let moved = view.unit(id) else { continue }
-            if moved.position == slot {
-                holdPlace(id)
-                arrived += 1
-            } else {
-                war.setMarch(march, for: id)
-                marching += 1
-            }
+            // An older destination or Explore order would carry the unit off by itself: the App
+            // moves marches each phase, and holds back units that wait for their group.
+            if unit.destination != nil || isExploring(id) { perform(.cancelOrders(unit: id), quiet: true) }
+            war.setMarch(WarOrders.March(target: plan.target, slot: slot, hp: unit.hp), for: id)
         }
+        // An order just given may start next to the enemy on purpose: contact where a unit
+        // stands does not hold it back, only contact where its move ends.
+        let report = advanceMarches(to: plan.target, stopOnContact: false)
+        for id in report.stuck { war.setMarch(nil, for: id) }
         var parts: [String] = []
         let place = placeName(plan.target)
-        if marching > 0 {
-            var text = "\(marching) unit\(marching == 1 ? "" : "s") marching to \(place)"
+        if report.marching > 0 {
+            var text = "\(report.marching) unit\(report.marching == 1 ? "" : "s") marching to \(place)"
             if let arrivals = plan.arrivals, arrivals.upperBound > 1 {
                 text += arrivals.lowerBound == arrivals.upperBound ? " (\(arrivals.upperBound) turns)"
                     : " (\(max(arrivals.lowerBound, 1))–\(arrivals.upperBound) turns)"
             }
             parts.append(text)
         }
-        if arrived > 0 { parts.append("\(arrived) in place") }
-        let stuck = refused + plan.unreachable.count
+        if report.waiting > 0 { parts.append("\(report.waiting) wait\(report.waiting == 1 ? "s" : "") for the slower ones") }
+        if report.arrived > 0 { parts.append("\(report.arrived) in place") }
+        if !report.contact.isEmpty { parts.append("\(report.contact.count) met the enemy") }
+        let stuck = report.stuck.count + plan.unreachable.count
         if stuck > 0 { parts.append("\(stuck) can't get there") }
+        // Units already around the city open the siege at once.
+        if war.sieges[plan.target] != nil, let volley = fireSiege(at: plan.target) { parts.append(volley) }
         return parts.isEmpty ? "No one could march" : parts.joined(separator: " · ")
+    }
+
+    /// What one round of marching did (`advanceMarches`).
+    struct MarchReport {
+        var marching = 0
+        var arrived = 0
+        var waiting = 0
+        /// Units that stopped near the enemy; they wait for orders (the attention queue).
+        var contact: [UnitID] = []
+        /// Units whose place is out of reach (their march is still kept; the caller decides).
+        var stuck: [UnitID] = []
+    }
+
+    /// Moves the units marching to `target` one phase on, together (`PlayerView.marchSteps`):
+    /// arrived units hold their places, units near the enemy (where they stand, with
+    /// `stopOnContact`, or where their move ends) stop for orders, units ahead of the slowest
+    /// wait, and the rest march. A march is driven by the
+    /// App each phase, not left as a standing order, so it can keep pace and stop on contact.
+    func advanceMarches(to target: HexCoord, stopOnContact: Bool) -> MarchReport {
+        var report = MarchReport()
+        let legs = war.marches.filter { $0.value.target == target }.sorted { $0.key < $1.key }
+            .map { MarchLeg(unit: $0.key, target: $0.value.target, slot: $0.value.slot) }
+        let steps = view.marchSteps(legs, stopOnContact: stopOnContact)
+        for leg in legs {
+            let id = leg.unit
+            switch steps[id] ?? .gone {
+            case .gone:
+                war.setMarch(nil, for: id)
+            case .arrived:
+                war.setMarch(nil, for: id)
+                holdPlace(id)
+                joinSiege(id, at: target)
+                report.arrived += 1
+            case .contact:
+                war.setMarch(nil, for: id)
+                report.contact.append(id)
+            case .noRoute:
+                report.stuck.append(id)
+            case .wait:
+                // A standing order (a march from an older save) would carry it on regardless.
+                if let unit = view.unit(id), unit.destination != nil, let march = war.marches[id] {
+                    perform(.cancelOrders(unit: id), quiet: true)
+                    war.setMarch(march, for: id)
+                }
+                report.waiting += 1
+            case .move:
+                guard let unit = view.unit(id), let march = war.marches[id] else { continue }
+                // Held by a zone of control this phase: it sets out next phase.
+                if unit.zocStopped {
+                    report.marching += 1
+                    continue
+                }
+                guard perform(.moveUnit(unit: id, to: leg.slot), quiet: true) else {
+                    report.stuck.append(id)
+                    continue
+                }
+                // Any order ends a march (`warHeard`): it is given back below unless it is over.
+                guard let moved = view.unit(id) else { continue }
+                if moved.position == march.slot {
+                    holdPlace(id)
+                    joinSiege(id, at: target)
+                    report.arrived += 1
+                    continue
+                }
+                if moved.destination != nil { perform(.cancelOrders(unit: id), quiet: true) }
+                if view.marchContact(at: moved.position, target: target) {
+                    report.contact.append(id)
+                    continue
+                }
+                war.setMarch(WarOrders.March(target: march.target, slot: march.slot, hp: moved.hp), for: id)
+                report.marching += 1
+            }
+        }
+        return report
     }
 
     /// A unit arrived in its place: it fortifies, unless an enemy is near (it waits for orders).
@@ -431,8 +550,13 @@ extension GameSession {
 
     /// `perform`'s hook: an order the player gives a marching unit ends its march.
     func warHeard(_ command: Command) {
-        guard let id = Self.orderedUnit(of: command), war.isMarching(id) else { return }
-        war.setMarch(nil, for: id)
+        guard let id = Self.orderedUnit(of: command) else { return }
+        if war.isMarching(id) { war.setMarch(nil, for: id) }
+        // Shooting and fortifying are what a besieger does; any other order takes it out.
+        switch command {
+        case .attack, .fortify: break
+        default: war.leaveSiege(id)
+        }
     }
 
     /// `stateChanged`'s hook: the military units a city with a rally point just made.
@@ -475,39 +599,195 @@ extension GameSession {
         if !lines.isEmpty { show(lines.joined(separator: " · "), for: 4) }
     }
 
-    /// The viewer's phase began: arrived units hold their places, stopped marches go on by a
-    /// new route, and new units go to their rally points.
+    /// The viewer's phase began: marches go one phase on (`advanceMarches`). Units attacked
+    /// since the last phase or near the enemy stop for orders (they join the attention queue),
+    /// units whose place is out of reach get a new one around the same goal, arrived units hold
+    /// their places, and new units go to their rally points.
     func continueWar() {
         guard isInputEnabled else { return }
         for (city, _) in war.rallies where view.city(city) == nil { war.setRally(nil, for: city) }
-        var stalled: [HexCoord: [UnitID]] = [:]
-        var arrived = 0
+        // Hit on the way: the enemy found it, so the player decides.
+        var attacked: [UnitID] = []
         for (id, march) in war.marches.sorted(by: { $0.key < $1.key }) {
             guard let unit = view.unit(id) else {
                 war.setMarch(nil, for: id)
                 continue
             }
-            if unit.position == march.slot {
+            if unit.hp < march.hp {
                 war.setMarch(nil, for: id)
-                holdPlace(id)
-                arrived += 1
-            } else if unit.destination != march.slot {
-                stalled[march.target, default: []].append(id)
+                attacked.append(id)
             }
         }
+        // A new place for units whose own is out of reach (another unit on it, a way closed).
+        let targets = Set(war.marches.values.map(\.target)).sorted { ($0.q, $0.r) < ($1.q, $1.r) }
         var lost = 0
-        for (target, ids) in stalled.sorted(by: { ($0.key.q, $0.key.r) < ($1.key.q, $1.key.r) }) {
-            let plan = view.formation(of: ids, around: target, reserved: war.places(excluding: ids))
+        for target in targets {
+            let legs = war.marches.filter { $0.value.target == target }.sorted { $0.key < $1.key }
+                .map { MarchLeg(unit: $0.key, target: $0.value.target, slot: $0.value.slot) }
+            let steps = view.marchSteps(legs)
+            let blocked = legs.map(\.unit).filter { steps[$0] == .noRoute }
+            guard !blocked.isEmpty else { continue }
+            let plan = view.formation(of: blocked, around: target, reserved: war.places(excluding: blocked))
             for id in plan.unreachable { war.setMarch(nil, for: id) }
             lost += plan.unreachable.count
-            if plan.placed > 0 { sendArmy(plan) }
+            for (id, slot) in plan.slots.sorted(by: { $0.key < $1.key }) {
+                war.setMarch(WarOrders.March(target: target, slot: slot, hp: view.unit(id)?.hp ?? 0), for: id)
+            }
         }
+        var report = MarchReport()
+        for target in targets {
+            let one = advanceMarches(to: target, stopOnContact: true)
+            report.marching += one.marching
+            report.arrived += one.arrived
+            report.waiting += one.waiting
+            report.contact += one.contact
+            report.stuck += one.stuck
+        }
+        for id in report.stuck { war.setMarch(nil, for: id) }
+        lost += report.stuck.count
+        // Units resting this phase may heal: their HP now is the mark for the next.
+        for (id, march) in war.marches {
+            if let unit = view.unit(id), unit.hp != march.hp {
+                war.setMarch(WarOrders.March(target: march.target, slot: march.slot, hp: unit.hp), for: id)
+            }
+        }
+        let siegeNews = runSieges()
         dispatchRecruits()
-        if lost > 0 {
-            show("\(lost) marching unit\(lost == 1 ? "" : "s") found no way on and wait\(lost == 1 ? "s" : "") for orders", for: 4)
-        } else if arrived > 0 {
-            show("\(arrived) unit\(arrived == 1 ? "" : "s") reached \(arrived == 1 ? "its place" : "their places")")
+        let marchNews = Self.marchNews(contact: report.contact.count, attacked: attacked.count, lost: lost,
+                                       arrived: report.arrived, near: (report.contact + attacked).first.flatMap { view.unit($0) }.map { placeName($0.position) })
+        let lines = [marchNews].compactMap { $0 } + siegeNews
+        if !lines.isEmpty {
+            let urgent = !report.contact.isEmpty || !attacked.isEmpty || lost > 0 || !siegeNews.isEmpty
+            show(lines.joined(separator: " · "), for: urgent ? 5 : 2)
         }
+        refreshSelection()
+    }
+
+    /// The phase's march news, the most urgent first: "Enemy near Kumasi: 2 marching units
+    /// stopped and wait for orders · 1 attacked on the march".
+    static func marchNews(contact: Int, attacked: Int, lost: Int, arrived: Int, near place: String?) -> String? {
+        func units(_ n: Int) -> String { "\(n) marching unit\(n == 1 ? "" : "s")" }
+        var parts: [String] = []
+        if contact > 0 {
+            let at = place.map { $0 == "the open field" ? "Enemy in sight" : "Enemy \($0.hasPrefix("near ") ? $0 : "at " + $0)" } ?? "Enemy in sight"
+            parts.append("\(at): \(units(contact)) stopped and wait\(contact == 1 ? "s" : "") for orders")
+        }
+        if attacked > 0 { parts.append("\(units(attacked)) attacked on the way, waiting for orders") }
+        if lost > 0 { parts.append("\(units(lost)) found no way on and wait\(lost == 1 ? "s" : "") for orders") }
+        if parts.isEmpty, arrived > 0 { parts.append("\(arrived) unit\(arrived == 1 ? "" : "s") reached \(arrived == 1 ? "its place" : "their places")") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    // MARK: Sieges
+
+    /// An own military unit in its place around `target`: when that is a known enemy city, it
+    /// joins the city's siege.
+    func joinSiege(_ id: UnitID, at target: HexCoord) {
+        let view = self.view
+        guard let city = view.knownCity(at: target), view.isAtWar(with: city.owner),
+              let unit = view.unit(id), !unit.type.isCivilian else { return }
+        war.join(id, siegeOf: city.id, at: city.position)
+    }
+
+    /// The siege of city `id`, as it stands (nil: no siege of it, or the city is no longer an
+    /// enemy's).
+    func siegeOutlook(ofCity id: CityID) -> SiegeOutlook? {
+        guard let tile = war.siegeTile(ofCity: id), let siege = war.sieges[tile] else { return nil }
+        return view.siegeOutlook(of: siege.members.sorted(), at: tile)
+    }
+
+    /// The viewer's phase began (after the marches): every siege shoots its city. A siege whose
+    /// city fell, changed hands or is no longer at war ends; badly hurt besiegers leave it for
+    /// orders. Returns the news, a line per siege.
+    func runSieges() -> [String] {
+        var lines: [String] = []
+        let maxHP = view.rules.constants.healing.maxHP
+        for (tile, siege) in war.sieges.sorted(by: { ($0.key.q, $0.key.r) < ($1.key.q, $1.key.r) }) {
+            let view = self.view
+            guard let sighting = view.knownCity(at: tile), sighting.id == siege.city, view.isAtWar(with: sighting.owner) else {
+                war.endSiege(at: tile)
+                if let own = view.city(siege.city) {
+                    lines.append("\(own.name) is yours: the siege is over")
+                } else {
+                    lines.append("The siege of \(placeName(tile)) is over")
+                }
+                continue
+            }
+            var wounded = 0
+            for id in siege.members.sorted() {
+                guard let unit = view.unit(id) else {
+                    war.leaveSiege(id)
+                    continue
+                }
+                if unit.hp * 2 < maxHP {
+                    war.leaveSiege(id)
+                    // Awake, so it comes up in the attention queue.
+                    if [.fortified, .fortifying, .sleeping].contains(unit.activity) { perform(.wake(unit: id), quiet: true) }
+                    wounded += 1
+                }
+            }
+            if let volley = fireSiege(at: tile) { lines.append(volley) }
+            if wounded > 0 {
+                lines.append("\(wounded) wounded besieger\(wounded == 1 ? "" : "s") of \(sighting.name) wait\(wounded == 1 ? "s" : "") for orders")
+            }
+        }
+        return lines
+    }
+
+    /// The siege at `tile` shoots: each ranged member that can hit the city from where it
+    /// stands does (strongest first, until the city has no HP left), and members with nothing
+    /// to do fortify where they stand. Returns the volley's news (nil when no one shot).
+    @discardableResult
+    func fireSiege(at tile: HexCoord) -> String? {
+        guard isInputEnabled, let siege = war.sieges[tile], let outlook = view.siegeOutlook(of: siege.members.sorted(), at: tile) else { return nil }
+        let before = outlook.city
+        var shots = 0
+        for id in outlook.shots {
+            guard let now = view.knownCity(at: tile), now.hp > 0 else { break }
+            if perform(.attack(unit: id, target: tile), quiet: true) { shots += 1 }
+        }
+        for id in siege.members.sorted() {
+            if let unit = view.unit(id), unit.activity == .none { perform(.fortify(unit: id), quiet: true) }
+        }
+        guard shots > 0, let after = view.knownCity(at: tile) else { return nil }
+        war.setReport(WarOrders.SiegeReport(phase: view.phaseCount, shots: shots, walls: (before.wallHP, after.wallHP),
+                                            hp: (before.hp, after.hp)), at: tile)
+        var text = "Siege of \(after.name): \(shots) shot\(shots == 1 ? "" : "s")"
+        if before.wallHP > 0 || after.wallHP > 0 { text += " · walls \(before.wallHP)→\(after.wallHP)" }
+        if before.hp != after.hp { text += " · city \(before.hp)→\(after.hp)" }
+        if after.hp == 0 { text += " · it can be taken" }
+        return text
+    }
+
+    /// The Siege card's Assault: the best melee member storms the city (a capture opens Keep or
+    /// Raze); a city taken ends its siege.
+    func assault(city id: CityID) {
+        guard let tile = war.siegeTile(ofCity: id), let attack = siegeOutlook(ofCity: id)?.assault else {
+            show("No one can storm the city now")
+            return
+        }
+        closeAttentionCard()
+        guard perform(.attack(unit: attack.unit, target: tile)) else { return }
+        if view.city(id) != nil { war.endSiege(at: tile) }
+        refreshSelection()
+    }
+
+    /// The Siege card's Lift Siege: the besiegers wake and wait for orders where they stand.
+    func liftSiege(city id: CityID) {
+        guard let tile = war.siegeTile(ofCity: id), let siege = war.sieges[tile] else { return }
+        war.endSiege(at: tile)
+        noteHeaderChange()
+        closeAttentionCard()
+        var awake = 0
+        for id in siege.members.sorted() {
+            guard let unit = view.unit(id) else { continue }
+            if [.fortified, .fortifying, .sleeping].contains(unit.activity) {
+                if perform(.wake(unit: id), quiet: true) { awake += 1 }
+            } else {
+                awake += 1
+            }
+        }
+        show("Siege lifted: \(awake) unit\(awake == 1 ? "" : "s") wait\(awake == 1 ? "s" : "") for orders")
         refreshSelection()
     }
 
@@ -519,6 +799,9 @@ extension GameSession {
         return SavedWarOrders(rallies: war.rallies.sorted { $0.key < $1.key }.map { SavedRally(city: $0.key, tile: $0.value) },
                               marches: war.marches.sorted { $0.key < $1.key }.map {
                                   SavedMarch(unit: $0.key, target: $0.value.target, slot: $0.value.slot)
+                              },
+                              sieges: war.sieges.sorted { ($0.key.q, $0.key.r) < ($1.key.q, $1.key.r) }.map {
+                                  SavedSiege(city: $0.value.city, tile: $0.key, units: $0.value.members.sorted())
                               })
     }
 
@@ -528,8 +811,14 @@ extension GameSession {
         guard let saved else { return }
         let view = self.view
         for rally in saved.rallies where view.city(rally.city) != nil { war.setRally(rally.tile, for: rally.city) }
-        for march in saved.marches where view.unit(march.unit).map({ !$0.type.isCivilian }) == true {
-            war.setMarch(WarOrders.March(target: march.target, slot: march.slot), for: march.unit)
+        for march in saved.marches {
+            guard let unit = view.unit(march.unit), !unit.type.isCivilian else { continue }
+            war.setMarch(WarOrders.March(target: march.target, slot: march.slot, hp: unit.hp), for: march.unit)
+        }
+        for siege in saved.sieges {
+            for id in siege.units where view.unit(id).map({ !$0.type.isCivilian }) == true {
+                war.join(id, siegeOf: siege.city, at: siege.tile)
+            }
         }
     }
 
