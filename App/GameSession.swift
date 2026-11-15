@@ -108,8 +108,13 @@ final class GameSession {
             overlay.reduceMotion = reduceMotion
         }
     }
-    /// The scene is in the foreground (playback waits for animations only then).
-    @ObservationIgnored var isSceneActive = true
+    /// The scene is in the foreground (playback waits for animations only then). Coming back
+    /// wakes the map, which may have rested before it left.
+    @ObservationIgnored var isSceneActive = true {
+        didSet { if isSceneActive, !oldValue { renderer.wake() } }
+    }
+    /// Follows Low Power Mode into the renderer (`MapRenderer.lowPower`).
+    @ObservationIgnored private var powerObserver: NSObjectProtocol?
     @ObservationIgnored var aiTask: Task<Void, Never>?
     /// During an AI phase: the state when it began (what a background save writes), and the
     /// command count then.
@@ -176,14 +181,14 @@ final class GameSession {
     var attentionSeen: Set<AttentionItem> = []
     /// The item Next visited last (the walk goes on after it).
     @ObservationIgnored var attentionPosition: AttentionItem?
+    /// The selection as that visit left it: a unit selected by hand since then moves the walk
+    /// (`walkPosition`); one left over from before does not.
+    @ObservationIgnored var selectionAtVisit: Selection?
     /// Own cities attacked, and players who declared war on the viewer, since the viewer's
     /// phase last ended (from the notices' hook).
     var citiesAttacked: Set<CityID> = []
     var warDeclaredBy: [PlayerID] = []
     /// Important notices since the viewer's phase last ended that no item kind covers.
-    /// The selection as that visit left it: a unit selected by hand since then moves the walk
-    /// (`walkPosition`); one left over from before does not.
-    @ObservationIgnored var selectionAtVisit: Selection?
     var news: [Notice] = []
     /// Notices being posted come from the viewer's own command.
     @ObservationIgnored var postingViewerNotices = false
@@ -291,6 +296,11 @@ final class GameSession {
         overlay.onActivateBanner = { [weak self] city in self?.tapBanner(city) }
         renderer.onFrame = { [weak overlay] in overlay?.frameDidDraw() }
         renderer.onEventShown = { [weak self] record, point in self?.eventShown(record, at: point) }
+        renderer.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        powerObserver = NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil,
+                                                               queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.renderer.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled }
+        }
     }
 
     /// The banners as the viewer knows the cities (live ones in diagnostic mode).
@@ -346,6 +356,8 @@ final class GameSession {
         renderer.onFirstFrame = nil
         renderer.onEventShown = nil
         renderer.onAnimationsFinished = nil
+        if let powerObserver { NotificationCenter.default.removeObserver(powerObserver) }
+        powerObserver = nil
     }
 
     // MARK: Queries
@@ -605,7 +617,22 @@ final class GameSession {
         overlay.quarterMarks = MapAdapter.quarterMarks(state: state, viewer: viewer, diagnostic: diagnostic)
         let view = state.view(for: viewer)
         overlay.campMarks = view.knownRaiderCamps.map { view.coord(at: Int($0)) }
-        overlay.tradeRoutes = view.visibleTradeRoutes.map { $0.path.map { view.coord(at: Int($0)) } }
+        updateTradeRoutes()
+    }
+
+    /// The trade routes drawn over the map (dashed gilt lines): only the selected city's, from
+    /// that city to the other end, beside its panel's list of them. Drawn always, they ran
+    /// unexplained over every road (a route's path follows them) and read as a stray line.
+    func updateTradeRoutes() {
+        guard case let .city(id)? = selection else {
+            overlay.tradeRoutes = []
+            return
+        }
+        let view = self.view
+        overlay.tradeRoutes = view.visibleTradeRoutes.filter { $0.origin == id || $0.destination == id }.map { route in
+            // The path leaves out the origin's own tile: the line starts at the city.
+            (cityHex(route.origin).map { [$0] } ?? []) + route.path.map { view.coord(at: Int($0)) }
+        }
     }
 
     /// A refusal or failure as a sentence for a toast or alert.
@@ -1186,6 +1213,7 @@ final class GameSession {
         if let plan = pendingAttack { hexes += [plan.option.from, plan.option.target] }
         if let hex = inspectedHex { hexes.append(hex) }
         overlay.focusHexes = hexes.filter { view.knownCity(at: $0) == nil }
+        updateTradeRoutes()
     }
 
     // MARK: Panels and keys

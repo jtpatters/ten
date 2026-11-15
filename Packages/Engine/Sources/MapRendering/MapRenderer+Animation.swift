@@ -123,6 +123,7 @@ extension MapRenderer {
     /// Finishes every running animation at once: units go where they rest, ghosts go, effects
     /// end, and pending `onEventShown` reports fire now, in order; then `onAnimationsFinished`.
     public func skipAnimations() {
+        noteActivity()
         guard animation.running || !animation.isIdle else { return }
         advanceAnimations(by: .infinity)
     }

@@ -30,7 +30,8 @@ extension MapRenderer {
 /// it fade out at strategic zoom, so woods keep their mass instead of turning to speckle, bit
 /// 14 relief, bits 15-18 the improvement an instance needs, bit 19 open-land clutter that
 /// clears from improved tiles, bit 20 a resource icon, shown only while the viewer knows the
-/// tile's resource. (The flags travel as a Float: exact up to bit 23.)
+/// tile's resource, bit 21 a decoration a road has cleared. (The flags travel as a Float: exact
+/// up to bit 23.)
 enum DecorFlags {
     enum Wind: UInt32 { case none = 0, tree, grass, palm }
     /// 0: always drawn; 1: small scatter, gone by the strategic zoom; 2: secondary trees that
@@ -51,6 +52,9 @@ enum DecorFlags {
     /// A resource icon: shown only while the viewer knows the tile's resource (the App's
     /// `setResources`, `TileBits.resourceKnown`).
     static let resource: UInt32 = 1 << 20
+    /// Cleared by a road running through its foot (`MapRenderer+Roads.swift`); set and unset in
+    /// the decoration buffer as the roads change.
+    static let roadCleared: UInt32 = 1 << 21
 
     static func pack(_ wind: Wind, _ detail: Detail, random: UInt32, extra: UInt32 = 0) -> Float {
         Float(wind.rawValue | detail.rawValue &<< 2 | (random & 255) &<< 4 | extra)

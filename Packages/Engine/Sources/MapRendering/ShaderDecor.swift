@@ -25,6 +25,7 @@ constant uint kDecorReliefBit = 1u << 14;
 constant uint kDecorNeedsShift = 15u;
 constant uint kDecorClearsBit = 1u << 19;
 constant uint kDecorResourceBit = 1u << 20;
+constant uint kDecorRoadClearedBit = 1u << 21;
 // Cast shadows: the cool blue-violet of the art bible's shade, fading to 35% at the tip (the
 // shadow family every pass shares).
 constant float3 kDecorShadow = float3(0.10, 0.10, 0.20);
@@ -77,7 +78,8 @@ vertex DecorOut decor_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     o.dim = 0.0;
     o.shadow = -1.0;
     float fade = decorDetailFade(detail, random, zoom);
-    bool hidden = fade < 0.004;
+    // Plants, rocks and herds standing where a road runs (`DecorFlags.roadCleared`).
+    bool hidden = fade < 0.004 || (bits & kDecorRoadClearedBit) != 0u;
     float back = 1.0; // a taken tribal village's plants coming back
     bool fogged = s.flags.y > 0.5 && s.position.w >= 0.0;
     if (fogged) {

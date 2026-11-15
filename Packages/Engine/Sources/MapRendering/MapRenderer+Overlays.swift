@@ -108,6 +108,7 @@ extension MapRenderer {
     /// passable land (`PlayerView.path`, M1 §8.6), so its line through the fog shows nothing
     /// hidden; its turns there are guesses.
     public func showPath(_ path: Path?, from start: HexCoord) {
+        noteActivity()
         unitArt.route = []
         unitArt.routeAlong = []
         unitArt.routeTurns = []

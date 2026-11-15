@@ -427,13 +427,15 @@ import simd
         r.setRoads(roads)
         let bands = r.roadGeometry().filter { $0.position.w == OverlayStyle.road.rawValue }
         #expect(bands.count == 24, "a hexagon (four triangles) per road tile")
-        let east = Float(1 << HexDirection.allCases.firstIndex(of: .east)!), west = Float(1 << HexDirection.allCases.firstIndex(of: .west)!)
-        #expect(bands.prefix(12).allSatisfy { $0.color.z == east } && bands.suffix(12).allSatisfy { $0.color.z == west },
+        let east = 1 << HexDirection.allCases.firstIndex(of: .east)!, west = 1 << HexDirection.allCases.firstIndex(of: .west)!
+        #expect(r.roadArt.plans[a].map { $0.key & 63 } == east && r.roadArt.plans[neighbours[0]].map { $0.key & 63 } == west,
                 "each linked to the other across their shared edge")
+        #expect(r.roadArt.plans.values.allSatisfy { plan in plan.points.allSatisfy { simd_length(SIMD2($0.x, $0.y)) <= Float(r.layout.size) } },
+                "each path stays on its tile")
         roads[neighbours[0]] = false
         r.setRoads(roads)
         #expect(r.roadGeometry().count == 12, "a lone road: one hexagon")
-        #expect(r.roadGeometry().allSatisfy { $0.color.z == 0 }, "with no links")
+        #expect(r.roadArt.plans[a].map { $0.key & 63 } == 0, "with no links")
         r.setRoads([])
         #expect(r.roadGeometry().isEmpty)
         r.setPillaged([f.c, f.c])

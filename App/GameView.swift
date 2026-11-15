@@ -22,6 +22,9 @@ struct GameView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var cover = Cover()
     @State private var cityDetent: PresentationDetent = Self.smallDetent
+    /// The detent of a panel sheet that has two on a phone (government, diplomacy, minor
+    /// factions, notices, War Room): at `.large` it hides the map.
+    @State private var panelDetent: PresentationDetent = .medium
 
     static let smallDetent = PresentationDetent.fraction(0.35)
 
@@ -138,6 +141,9 @@ struct GameView: View {
         .onChange(of: session.cityPanelRequest) { _, request in
             cityDetent = request.focus == .production ? .large : Self.smallDetent
         }
+        .onChange(of: session.openPanel) { _, _ in panelDetent = compact ? .medium : .large }
+        // Battery: the map draws nothing while a sheet hides it (`MapRenderer.isCovered`).
+        .onChange(of: mapCovered, initial: true) { _, covered in session.renderer.isCovered = covered }
         // A side panel or city sheet that has just appeared (or moved to another detent) must not
         // hide the selection; the reveal waits until it has settled.
         .onChange(of: cover.panelLeading) { _, edge in if edge != nil { session.revealSelectionSoon() } }
@@ -334,6 +340,18 @@ struct GameView: View {
         return nil
     }
 
+    /// Whether a sheet hides the map (so it need not draw): any sheet on an iPad or a phone on
+    /// its side (the map shows only dimmed round it), the full-height ones on a phone upright
+    /// (the city sheet and the two-detent panels only at `.large`).
+    private var mapCovered: Bool {
+        guard let sheet = wantedSheet else { return false }
+        switch sheet {
+        case .research, .civics, .load: return true
+        case .city: return !compact || cityDetent == .large
+        case .government, .diplomacy, .minors, .notices, .war: return !compact || panelDetent == .large
+        }
+    }
+
     /// Dismissing a sheet by hand closes what it shows (the city sheet deselects the city).
     private var sheetBinding: Binding<GameSheet?> {
         Binding(get: { wantedSheet }, set: { sheet in
@@ -389,27 +407,27 @@ struct GameView: View {
                 .presentationBackground(HUD.parchmentTop)
         case .government:
             GovernmentPanel(session: session) { session.openPanel = nil }
-                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationDetents(compact ? [.medium, .large] : [.large], selection: $panelDetent)
                 .presentationSizing(.form)
                 .presentationBackground(HUD.parchmentTop)
         case .diplomacy:
             DiplomacySheet(session: session) { session.openPanel = nil }
-                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationDetents(compact ? [.medium, .large] : [.large], selection: $panelDetent)
                 .presentationSizing(.form)
                 .presentationBackground(HUD.parchmentTop)
         case .minors:
             MinorFactionSheet(session: session) { session.openPanel = nil }
-                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationDetents(compact ? [.medium, .large] : [.large], selection: $panelDetent)
                 .presentationSizing(.form)
                 .presentationBackground(HUD.parchmentTop)
         case .notices:
             NoticeLog(session: session) { session.openPanel = nil }
-                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationDetents(compact ? [.medium, .large] : [.large], selection: $panelDetent)
                 .presentationSizing(.form)
                 .presentationBackground(HUD.parchmentTop)
         case .war:
             WarRoom(session: session) { session.openPanel = nil }
-                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationDetents(compact ? [.medium, .large] : [.large], selection: $panelDetent)
                 .presentationSizing(.page)
                 .presentationBackground(HUD.parchmentTop)
         case .load:

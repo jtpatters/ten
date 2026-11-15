@@ -98,16 +98,19 @@ public final class MapRenderer: NSObject {
     /// When false, the whole map and all units are shown (debug/benchmark).
     public var fogEnabled = true {
         // Turning the fog back on drops the pictures of units it hides at once.
-        didSet { refreshFog(); dropGone(syncUnits()) }
+        didSet { refreshFog(); dropGone(syncUnits()); noteActivity() }
     }
     /// Tilted perspective (true) or straight top-down (false).
     public var tilted = true {
         didSet {
             camera.pitch = tilted ? Self.tiltPitch : 0
             camera.clamp(layout: layout)
+            noteActivity()
         }
     }
-    public var showGrid = true
+    public var showGrid = true {
+        didSet { noteActivity() }
+    }
 
     /// Called once after the 10th frame (automation uses it to know rendering started).
     public var onFirstFrame: (() -> Void)?
@@ -178,8 +181,10 @@ public final class MapRenderer: NSObject {
     private static var atlasCache: (device: UInt64, decor: SpriteAtlas<DecorSprite>, units: SpriteAtlas<UnitSprite>,
                                     towns: SpriteAtlas<SettlementSprite>)?
     private let groundTextures: [MTLTexture]
-    private let decorationBuffer: MTLBuffer?
-    private let decorationCount: Int
+    let decorationBuffer: MTLBuffer?
+    /// Where relief stands (`reliefFootprints`): what roads go round.
+    let reliefSpots: [SIMD4<Float>]
+    let decorationCount: Int
     /// The decoration buffer as draw segments: runs sorted by descending y can be cut to the
     /// rows on screen; the rest is drawn whole.
     private let decorSegments: [DecorSegment]
@@ -240,13 +245,37 @@ public final class MapRenderer: NSObject {
     /// so UIKit views placed in `onFrame` (banners, damage numbers) move exactly with the map.
     /// It costs a little latency: turn it on only while such views are shown.
     public var presentsWithTransaction = false
+    /// Whether the map rests (stops drawing) when nothing has happened for a while
+    /// (`restDelay`); off, the ambient motion runs at `idleFramesPerSecond` without end.
+    public var restsWhenIdle = true {
+        didSet { noteActivity() }
+    }
+    /// Low Power Mode (the App passes `ProcessInfo.isLowPowerModeEnabled`): no 120 fps, the map
+    /// rests as soon as input and animations end (no ambient motion between them), and it
+    /// renders at `lowPowerScale` of the screen's resolution at most.
+    public var lowPower = false {
+        didSet { if lowPower != oldValue { noteActivity() } }
+    }
+    /// A sheet covers the map: it draws nothing until uncovered, whatever changes (its first
+    /// frame then shows everything as it is).
+    public var isCovered = false {
+        didSet {
+            guard isCovered != oldValue else { return }
+            if isCovered { mapView?.isPaused = true } else { noteActivity() }
+        }
+    }
+    /// The view this renderer drives (`configure`), paused while the map rests.
+    weak var mapView: MTKView?
     /// Tap targets, drawn on the first tap after the frame changed.
     var unitPick: UnitPick?
     /// Selection, path preview and marker state, owned by `MapRenderer+Overlays.swift`.
     var unitArt = UnitArtState()
     /// What the App tells the renderer about the viewer's world (cities, territory,
-    /// improvements, overlays), owned by `MapRenderer+Contracts.swift`.
-    var inputs = MapInputs()
+    /// improvements, overlays), owned by `MapRenderer+Contracts.swift`. Written only by the
+    /// App's setters, never while a frame is drawn, so any change wakes a resting map.
+    var inputs = MapInputs() {
+        didSet { noteActivity() }
+    }
     /// Settlement layouts and tokens, owned by `MapRenderer+Cities.swift`.
     var cityArt = CityArtState()
     /// Border and movement-range ribbons, owned by `MapRenderer+Territory.swift`.
@@ -258,7 +287,9 @@ public final class MapRenderer: NSObject {
     /// GPU time of the last `renderImage` call (tests and benchmarks).
     public private(set) var lastOffscreenGPUMilliseconds: Double = 0
 
-    private let startTime = CACurrentMediaTime()
+    /// The ambient clock (water, clouds, sway, banners): seconds of frames drawn, so it stands
+    /// still while the map rests and goes on from there, with no jump, when it wakes.
+    private var ambientClock: Double = 0
     private var lastFrameTime: CFTimeInterval = 0
     private var fpsWindowStart: CFTimeInterval = 0
     private var decorDrawn = 0
@@ -346,8 +377,10 @@ public final class MapRenderer: NSObject {
         self.decorAtlas = decorAtlas
         self.unitAtlas = atlases.units
         self.townAtlas = atlases.towns
+        let footprints = Self.reliefFootprints(map: state.map, layout: layout)
+        reliefSpots = footprints
         groundTextures = Self.makeGroundTextures(map: state.map, layout: layout, device: device, queue: queue,
-                                                 footprints: Self.reliefFootprints(map: state.map, layout: layout))
+                                                 footprints: footprints)
 
         tileBytes = Self.packTiles(state.map)
         tileTextures = (0..<Self.framesInFlight).map { _ in
@@ -394,6 +427,9 @@ public final class MapRenderer: NSObject {
         view.framebufferOnly = true
         view.preferredFramesPerSecond = Self.idleFramesPerSecond
         view.delegate = self
+        mapView = view
+        view.isPaused = isCovered
+        noteActivity()
     }
 
     // MARK: State
@@ -579,24 +615,28 @@ public final class MapRenderer: NSObject {
 
     /// Moves the camera target to a world point (debug/automation).
     public func setCameraPosition(_ point: CGPoint) {
+        noteActivity()
         camera.target = Self.vec(point)
         camera.clamp(layout: layout)
     }
 
     /// Sets zoom directly (clamped). 1 = default, larger = zoomed out.
     public func setCameraScale(_ scale: CGFloat) {
+        noteActivity()
         camera.scale = Float(scale)
         camera.clamp(layout: layout)
     }
 
     /// Continuous eastward pan, for measuring frame rate while scrolling.
     public func setFlyover(_ enabled: Bool) {
+        noteActivity()
         flyover = enabled
     }
 
     public var statsLine: String {
-        String(format: "%.0f fps · CPU %.1f ms · GPU %.1f ms · %d sprites", framesPerSecond, cpuFrameMilliseconds,
-               gpuFrameMilliseconds, spritesDrawn)
+        let rate = isCovered ? "covered" : isResting ? "resting" : String(format: "%.0f fps", framesPerSecond)
+        return rate + String(format: " · CPU %.1f ms · GPU %.1f ms · %d sprites", cpuFrameMilliseconds, gpuFrameMilliseconds, spritesDrawn)
+            + (lowPower ? " · low power" : "")
     }
 
     // MARK: Frame
@@ -639,7 +679,7 @@ public final class MapRenderer: NSObject {
         let w = Float(layout.worldWidth), h = Float(layout.worldHeight)
         // Remainder in Double: the renderer's age keeps growing, and a Float loses the
         // sub-frame precision animations need after a few hours.
-        let t = animationTime ?? Float((CACurrentMediaTime() - startTime).truncatingRemainder(dividingBy: 3600))
+        let t = animationTime ?? Float(ambientClock.truncatingRemainder(dividingBy: 3600))
         let x0 = layout.wrapsX ? camera.target.x - w : -w * 0.5
         let x1 = layout.wrapsX ? camera.target.x + w : w * 1.5
         // North and south, the ground reaches 60% of the map's height past the poles, or a tile
@@ -717,6 +757,13 @@ public final class MapRenderer: NSObject {
             encoder.setRenderPipelineState(overlayPipeline)
             Self.bind(&uniforms, to: encoder)
             encoder.setVertexBuffer(overlayBuffer, offset: 0, index: 0)
+            // The roads' planned paths (`RoadPlan`); a stand-in when there are none.
+            if let points = roadArt.points {
+                encoder.setFragmentBuffer(points, offset: 0, index: 2)
+            } else {
+                var none = SIMD4<Float>.zero
+                encoder.setFragmentBytes(&none, length: MemoryLayout<SIMD4<Float>>.stride, index: 2)
+            }
             encoder.drawPrimitives(type: .triangle, vertexStart: range.lowerBound, vertexCount: range.count, instanceCount: copies)
         }
         encoder.setDepthStencilState(plainStencil)
@@ -1007,7 +1054,7 @@ extension MapRenderer {
     }
 }
 
-// MARK: Frame pacing and render scale
+// MARK: Frame pacing, rest and render scale
 
 extension MapRenderer {
     /// Frame rate while only ambient motion runs (water, clouds, sway, banners): slow enough
@@ -1015,32 +1062,68 @@ extension MapRenderer {
     static let idleFramesPerSecond = 30
     /// How long after input or an animation the view keeps its full frame rate.
     static let activeLinger: CFTimeInterval = 0.75
+    /// How long the ambient motion runs with nothing else happening before the map rests: it
+    /// stops drawing, its last frame stays on screen, until something wakes it
+    /// (`noteActivity`). In Low Power Mode it rests as soon as `activeLinger` ends.
+    static let restDelay: CFTimeInterval = 4
+    /// The render scale's ceiling in Low Power Mode (of the screen's native scale).
+    static let lowPowerScale: CGFloat = 0.8
 
-    /// Marks the map as in use (gestures, taps, camera and unit moves): full frame rate.
-    func noteActivity() { lastActivity = CACurrentMediaTime() }
+    /// Marks the map as in use and wakes it from rest (unless it is covered): gestures, taps,
+    /// camera moves, new state, and every change to what it draws (`inputs`, the fog, the
+    /// grid). The App calls `wake()` for its own layers over the map.
+    func noteActivity() {
+        lastActivity = CACurrentMediaTime()
+        guard !isCovered, let view = mapView, view.isPaused else { return }
+        // The first frame after a rest steps the clocks by one frame, not by the time slept.
+        lastFrameTime = 0
+        view.isPaused = false
+    }
 
-    /// Picks the frame rate for the next frames, and on iOS adapts the render scale to the GPU
-    /// time: a GPU that cannot hold 60 fps at native resolution renders slightly smaller
-    /// instead (down to 72%), and goes back up once it has headroom.
+    /// Wakes a resting map for something drawn over it (the App's banners and marks, which are
+    /// placed in `onFrame`), or after the app comes back to the foreground.
+    public func wake() { noteActivity() }
+
+    /// Whether the map is resting (drawing nothing) or covered.
+    public var isResting: Bool { mapView?.isPaused ?? false }
+
+    /// Picks the frame rate for the next frames and when to rest, and on iOS adapts the render
+    /// scale to the GPU time: a GPU that cannot hold 60 fps at native resolution renders
+    /// slightly smaller instead (down to 72%), and goes back up once it has headroom (in Low
+    /// Power Mode, to `lowPowerScale` at most).
     func pace(_ view: MTKView, now: CFTimeInterval) {
-        if cameraAnimation != nil || flyover || !animation.isIdle {
+        let wanted = inputs.viewportInsets
+        let easing = camera.coveredTop != Float(wanted.top) || camera.coveredBottom != Float(wanted.bottom)
+        if cameraAnimation != nil || flyover || easing || !animation.isIdle {
             lastActivity = now
         }
         let gpu = gpuFrameMilliseconds
-        // ProMotion only when the frame is cheap enough to hold it; otherwise 60.
-        let active = gpu > 0 && gpu < 6 ? 120 : 60
-        let rate = now - lastActivity < Self.activeLinger ? active : Self.idleFramesPerSecond
+        // ProMotion only when the frame is cheap enough to hold it, and never in Low Power Mode.
+        let active = !lowPower && gpu > 0 && gpu < 6 ? 120 : 60
+        let quiet = now - lastActivity
+        let rate = quiet < Self.activeLinger ? active : Self.idleFramesPerSecond
         if view.preferredFramesPerSecond != rate { view.preferredFramesPerSecond = rate }
+        // This frame shows the settled map: it stays on screen while the map rests.
+        if restsWhenIdle, quiet >= (lowPower ? Self.activeLinger : Self.restDelay) {
+            view.isPaused = true
+        }
 
         // Only on devices: the simulator's GPU times say nothing about an iPad's.
         #if canImport(UIKit) && !targetEnvironment(simulator)
-        guard gpu > 0, let native = view.window?.screen.nativeScale else { return }
+        guard let native = view.window?.screen.nativeScale else { return }
         let current = view.contentScaleFactor
+        let ceiling = lowPower ? native * Self.lowPowerScale : native
+        if current > ceiling + 0.01 {
+            view.contentScaleFactor = ceiling
+            lastRescale = now
+            return
+        }
+        guard gpu > 0 else { return }
         if gpu > 14, current > native * 0.75, now - lastRescale > 1 {
             view.contentScaleFactor = max(native * 0.72, current - native * 0.08)
             lastRescale = now
-        } else if gpu < 7, current < native, now - lastRescale > 4 {
-            view.contentScaleFactor = min(native, current + native * 0.08)
+        } else if gpu < 7, current < ceiling - 0.01, now - lastRescale > 4 {
+            view.contentScaleFactor = min(ceiling, current + native * 0.08)
             lastRescale = now
         }
         #endif
@@ -1049,6 +1132,7 @@ extension MapRenderer {
 
 extension MapRenderer: MTKViewDelegate {
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        noteActivity()
         camera.viewSize = [Float(view.bounds.width), Float(view.bounds.height)]
         camera.clamp(layout: layout)
     }
@@ -1057,6 +1141,7 @@ extension MapRenderer: MTKViewDelegate {
         let frameStart = CACurrentMediaTime()
         let dt = lastFrameTime == 0 ? Float(1.0 / 60) : Float(min(frameStart - lastFrameTime, 0.1))
         lastFrameTime = frameStart
+        ambientClock += Double(dt)
         fpsFrames += 1
         if fpsWindowStart == 0 { fpsWindowStart = frameStart }
         if frameStart - fpsWindowStart >= 0.5 {

@@ -39,10 +39,14 @@ final class MapOverlay: UIView {
     var timeScale: Double = 1
     /// The height the top bar covers: banners reaching under it move down below it (or hide),
     /// so they never show in the gaps between its chips.
-    var coveredTop: CGFloat = 0
+    var coveredTop: CGFloat = 0 {
+        didSet { if coveredTop != oldValue { renderer?.wake() } }
+    }
     /// Tiles the player is working with (set by the session when the selection or a preview
     /// changes): taps on one under a banner (off its name row) go to the map.
-    var focusHexes: [HexCoord] = []
+    var focusHexes: [HexCoord] = [] {
+        didSet { if focusHexes != oldValue { renderer?.wake() } }
+    }
 
     /// Banners shown in the last frame.
     private(set) var shownBanners = 0
@@ -103,9 +107,12 @@ final class MapOverlay: UIView {
         didSet { if campMarks != oldValue { rebuildMarks() } }
     }
 
-    /// The trade routes the viewer can see (M2 §13), as tile paths: faint dashed lines.
+    /// The selected city's trade routes (M2 §13), as tile paths from it: faint dashed lines.
     var tradeRoutes: [[HexCoord]] = [] {
-        didSet { if tradeRoutes.isEmpty { routeLayer.path = nil } }
+        didSet {
+            if tradeRoutes.isEmpty { routeLayer.path = nil }
+            if tradeRoutes != oldValue { renderer?.wake() }
+        }
     }
 
     private let routeLayer = CAShapeLayer()
@@ -188,6 +195,8 @@ final class MapOverlay: UIView {
     /// The banners need rebuilding (state, selection or fog changed); done at the next frame.
     func invalidateBanners() {
         bannersStale = true
+        // The layers are placed in the map's frames: a resting map draws one.
+        renderer?.wake()
     }
 
     /// The city whose banner is at a view point (the top-most), with a 44 pt tall target: its
@@ -335,6 +344,8 @@ final class MapOverlay: UIView {
         CATransaction.commit()
 
         renderer.presentsWithTransaction = !hits.isEmpty || !floaters.isEmpty || !tradeRoutes.isEmpty || !marks.isEmpty
+        // Banner art left for later frames (`rendersPerFrame`): the map must not rest before it.
+        if renders >= Self.rendersPerFrame { renderer.wake() }
         layoutMilliseconds = layoutMilliseconds * 0.9 + (CACurrentMediaTime() - start) * 100
     }
 
@@ -585,6 +596,7 @@ final class MapOverlay: UIView {
     // MARK: Quarter marks
 
     private func rebuildMarks() {
+        renderer?.wake()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for mark in marks { mark.layer.removeFromSuperlayer() }

@@ -99,6 +99,10 @@ S is the HSV saturation of the median colour, L* is CIELAB lightness and ΔE is 
   Nothing flickers, and nothing pops on zoom, detail changes or exploration.
 - The view runs at 30 fps while only ambient motion plays, so ambient animation must read
   smoothly at 30 fps: nothing moves faster than about 3 Hz.
+- After 4 s with nothing but ambient motion the map rests: it stops drawing and its last
+  frame stays on screen (to save battery). Ambient motion therefore freezes at any phase and
+  resumes from it, so no frame of it may look broken when held. The ambient clock counts only
+  the time frames were drawn, so waking never jumps it.
 - The animation clock wraps every hour: every animation completes whole cycles per 3600 s
   (phase = 2π·fract(t·N/3600) with integer N).
 
@@ -194,9 +198,13 @@ S is the HSV saturation of the median colour, L* is CIELAB lightness and ΔE is 
 - No MSAA: every edge is antialiased by the art itself (analytic coverage in shaders,
   texture alpha on sprites).
 - The view runs at full rate during gestures, camera moves and unit moves, and at 30 fps
-  otherwise (§7).
+  otherwise, until it rests (§7). Any change to what it draws (`MapRenderer` inputs, the
+  App's banners and marks) wakes it. It draws nothing while a sheet hides it
+  (`MapRenderer.isCovered`).
 - On devices whose GPU cannot hold 60 fps, the render scale drops (to 72% at most):
   detail must hold up slightly soft.
+- Low Power Mode: no 120 fps, no ambient motion between interactions (the map rests as soon
+  as the full-rate linger ends), and the render scale is 80% at most.
 - Decorations are drawn only near the view: the decoration buffer is [cast shadows][standing
   sprites], each block sorted by descending y (long sorted runs are cut to the visible rows),
   `sizeAnchor` holds each sprite's true extents, and no sprite may reach farther from its
@@ -488,21 +496,29 @@ already fetch.
 - **Roads** (M2 §3.3, `MapRenderer+Roads.swift`, `overlayRoad`): hand-painted packed earth on
   the ground, under the units' bases and the decorations (plants and relief stand on it). Each
   road tile is painted from which of its edges it shares with another explored road tile, and
-  crosses each such edge square at its middle, so neighbouring tiles meet seamlessly. Between
-  opposite edges it runs straight; between any other two it bends on a circular arc (gently, round
-  a point 1.5 tile sizes out, or tightly round the corner between adjacent edges), never a V at
-  the centre. At a junction, opposite links make straight through-roads, three edges side by
-  side a bend with the middle one joining it, and every other link a branch into them, joins
-  filleted (four or more meet round a small worn square). A dead end stops just past the centre;
-  a lone road is a short band across it. Half width 0.12 s, never under about 1.2 pt zoomed out
+  crosses each such edge near its middle, so neighbouring tiles meet seamlessly. Between
+  edges it follows a path planned in world space (`planRoad`, `RoadField`): each tile's ideal
+  path is moved by one smooth displacement over the whole map, a slow wander of up to about 0.2 s
+  in waves four to nine tiles long (whole waves round a wrapping map), plus a push off what
+  stands beside the road (hill and mountain mounds, a mine's entrance, a tribal village), so the
+  road flows on across tiles: both sides of an edge move it alike, so it crosses at the same
+  place in the same direction, sliding at most 0.12 s along the edge, and it keeps about a road's
+  width off the edges it does not cross. At a junction the branches meet at the moved centre
+  (four or more round a small worn square); the wander dies away into cities.
+  What it still crosses it goes through on purpose: plants, rocks and herds on it are cleared, and
+  the one mound per tile that would hide it is cut with its shadow, so hills keep their other
+  mounds. A dead end reaches the centre, then narrows and fades out; a lone road is a small worn
+  patch. Half width 0.12 s, never under about 1.2 pt zoomed out
   so the network reads at strategic zoom, wandering ±14% with world noise along with ragged
   edges and patches of tone, so long roads never look stamped. A paler crown, two wheel ruts
   (broken here and there, worn away where roads meet), a darker verge leaning toward the land's
   colour, a soft trodden fringe and small stones on the verge with their contact shadows; one
   step darker on pale land (plains, desert, tundra, snow). Ruts, fine raggedness and stones fade
   out by their size on screen (§4). Out of sight it takes the explored-fog look; nothing on an
-  unexplored tile. Twelve vertices per road tile (its hexagon), cached until the roads or the
-  fog change; fragments well clear of the road return at once.
+  unexplored tile. Twelve vertices per road tile (its hexagon) and its path's points in a buffer
+  the shader reads, cached until the roads, the fog, or the cities, improvements or villages
+  change (each tile's plan kept while its own inputs hold); fragments well clear of the road
+  return at once.
 - **Improvement sprites** (mine entrances, spoil, animals) sit in free cells of the decor
   atlas, which stays 2048×1536. They are placed once, on every tile that could take that
   improvement, so building one never rebuilds the decorations. The decoration shader shows

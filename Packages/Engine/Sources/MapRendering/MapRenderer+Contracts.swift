@@ -134,6 +134,7 @@ extension MapRenderer {
         inputs.cities = cities
         markCityCentres(Set(cities.compactMap { state.map.normalize($0.hex).flatMap(state.map.index(of:)) }))
         cityArt.version &+= 1
+        roadArt.version &+= 1   // roads lead into cities (`roadLinks`)
     }
 
     /// Territory as the viewer knows it: per tile 0 for none, else the owner's index + 1.
@@ -154,6 +155,7 @@ extension MapRenderer {
         guard kinds != inputs.improvements else { return }
         inputs.improvements = kinds
         writeImprovementBits()
+        roadArt.version &+= 1   // roads go round mines and keep straight across farms
     }
 
     /// Resources as the viewer knows them (M2 §3.1, `PlayerView.resource(at:)`): per tile the
@@ -227,6 +229,7 @@ extension MapRenderer {
         guard markers != inputs.tribalVillages else { return }
         inputs.tribalVillages = markers
         writeTribalVillageBits()
+        roadArt.version &+= 1   // roads go round a village's huts
     }
 
     /// Tribal village markers as drawn: on the map, one per tile (the first given wins), in tile
