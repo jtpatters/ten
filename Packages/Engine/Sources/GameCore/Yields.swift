@@ -141,7 +141,7 @@ extension GameState {
         let specialistYield = specialists.reduce(Yields.zero) { $0 + specialistYields($1) }
         if !specialistYield.isZero { breakdown.append((.specialists, specialistYield)) }
         let c = rules.constants.city
-        let unemployed = max(0, city.population - city.workedTiles.count - specialists.count)
+        let unemployed = max(0, city.population - city.workedTiles.count - specialists.count - city.entertainers)
         if unemployed > 0 { breakdown.append((.unemployed, Yields(production: unemployed * c.unemployedProduction))) }
         let science = city.population / c.populationPerScience
         if science > 0 { breakdown.append((.population, Yields(science: science))) }
@@ -182,9 +182,13 @@ extension GameState {
     /// value, then distance, then tile index). Other ties: closer to the centre, then lower
     /// tile index. Free tiles: owned by this city within the work radius, workable, not the
     /// centre, no enemy unit on them, not worked by another city. Specialist slots (M2 §5.3)
-    /// are candidates too. Citizens without a tile or slot are unemployed.
+    /// are candidates too. Citizens without a tile or slot are unemployed. Tiles the owner took a
+    /// citizen off (`City.unworked`) are left out, and one citizen per such tile stays idle as an
+    /// Entertainer; unworked tiles the city no longer owns or may not work are forgotten first.
     mutating func assignCitizens(_ cityIndex: Int) {
+        pruneUnworked(cityIndex)
         let city = cities[cityIndex]
+        let unworked = Set((city.unworked ?? []).compactMap { map.index(of: $0) })
         let focus = rules.focus(city.focus)
         let centreIndex = map.index(of: city.position)!
         let code = Int32(city.id.rawValue + 1)
@@ -196,7 +200,7 @@ extension GameState {
         map.forEachIndex(within: rules.constants.city.workRadius, of: city.position) { t in
             // A city works only tiles it owns, so no other city works these.
             guard t != centreIndex, tileCity[t] == code, rules.isWorkable(map.tiles[t]), !isQuarterTile(t), !enemies.contains(t),
-                  !candidates.contains(where: { $0.tile == t }) else { return }
+                  !unworked.contains(t), !candidates.contains(where: { $0.tile == t }) else { return }
             let y = tileYields(t, for: city.owner)
             candidates.append(Candidate(tile: t, yields: y, value: focus.value(y), distance: map.distance(index: t, centreIndex)))
         }
@@ -218,7 +222,10 @@ extension GameState {
         var food = tileYields(centreIndex, for: city.owner, isCityCentre: true).food + buildingFood(city)
         var chosen: [Int] = []
         var taken = [Bool](repeating: false, count: candidates.count)
-        for citizen in stride(from: 1, through: city.population, by: 1) {
+        // Entertainers eat but work nothing: they count against the food floor first.
+        let entertainers = city.entertainers
+        food -= eats * entertainers
+        for citizen in stride(from: 1, through: city.population - entertainers, by: 1) {
             var pick: Int?
             for (i, c) in candidates.enumerated() where !taken[i] && food + c.yields.food - eats * citizen >= focus.foodFloor {
                 pick = i
@@ -239,6 +246,21 @@ extension GameState {
         cities[cityIndex].workedTiles = chosen.filter { $0 < map.tileCount }.sorted().map { map.coord(at: $0) }
         let specialists = chosen.filter { $0 >= map.tileCount }.sorted().map { slots[$0 - map.tileCount] }
         cities[cityIndex].specialists = specialists.isEmpty ? nil : specialists
+    }
+
+    /// Forgets the city's unworked tiles it no longer owns or may not work (a quarter built
+    /// there, the tile lost), and any beyond its population (it shrank).
+    mutating func pruneUnworked(_ cityIndex: Int) {
+        guard let list = cities[cityIndex].unworked else { return }
+        let code = Int32(cities[cityIndex].id.rawValue + 1)
+        let centre = cities[cityIndex].position
+        var kept = list.filter { hex in
+            guard hex != centre, let t = map.index(of: hex) else { return false }
+            return tileCity[t] == code && rules.isWorkable(map.tiles[t]) && !isQuarterTile(t)
+                && map.distance(hex, centre) <= rules.constants.city.workRadius
+        }
+        if kept.count > cities[cityIndex].population { kept = Array(kept.prefix(cities[cityIndex].population)) }
+        cities[cityIndex].unworked = kept.isEmpty ? nil : kept
     }
 
     /// Tiles with a unit of a player `player` is at war with.

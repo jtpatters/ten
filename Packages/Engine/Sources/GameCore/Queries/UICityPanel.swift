@@ -465,3 +465,47 @@ extension PlayerView {
         return TilePurchase(price: price, tiles: tiles, problem: problem)
     }
 }
+
+/// One tile a city may work, for the map's citizen marks and the tile choice (`setTileWorked`).
+public struct CityTile: Hashable, Sendable {
+    public enum Status: Hashable, Sendable {
+        /// A citizen works it.
+        case worked
+        /// The owner took the citizen off it: an Entertainer stands idle instead.
+        case unworked
+        /// No citizen works it (the focus chose other tiles, or there are too few citizens).
+        case free
+        /// Free, but an enemy unit stands on it, so no citizen may work it now.
+        case blocked
+    }
+
+    public var hex: HexCoord
+    public var yields: Yields
+    public var status: Status
+}
+
+extension PlayerView {
+    /// The tiles an own city may work, in tile order: owned by it, within its work radius,
+    /// workable, not its centre or a quarter (M1 §4, M2 §5.3), with their yields and whether a
+    /// citizen works them. Empty for another's city.
+    public func cityTiles(of id: CityID) -> [CityTile] {
+        guard let city = city(id), city.owner == me.id, let centre = state.map.index(of: city.position) else { return [] }
+        let code = Int32(city.id.rawValue + 1)
+        let worked = Set(city.workedTiles), unworked = Set(city.unworked ?? [])
+        let enemies = Set(state.enemyUnitTiles(of: city.owner))
+        var out: [CityTile] = []
+        var seen = Set<Int>()
+        state.map.forEachIndex(within: rules.constants.city.workRadius, of: city.position) { t in
+            guard t != centre, seen.insert(t).inserted, state.tileCity[t] == code, rules.isWorkable(state.map.tiles[t]),
+                  !state.isQuarterTile(t) else { return }
+            let hex = state.map.coord(at: t)
+            let status: CityTile.Status = worked.contains(hex) ? .worked : unworked.contains(hex) ? .unworked
+                : enemies.contains(t) ? .blocked : .free
+            out.append(CityTile(hex: hex, yields: state.tileYields(t, for: city.owner), status: status))
+        }
+        return out.sorted { state.map.index(of: $0.hex)! < state.map.index(of: $1.hex)! }
+    }
+
+    /// Stability each Entertainer adds (nil without Stability rules).
+    public var entertainerStability: Int? { rules.stability?.entertainer }
+}

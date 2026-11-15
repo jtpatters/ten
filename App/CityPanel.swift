@@ -158,7 +158,14 @@ struct CityPanel: View {
             }
             if let yields { YieldStrip(population: city.population, yields: yields) }
             if let growth { GrowthRow(growth: growth) }
-            if let wellbeing = view.wellbeing(of: city.id) { WellbeingRow(wellbeing: wellbeing, population: city.population) }
+            if let wellbeing = view.wellbeing(of: city.id) {
+                WellbeingRow(wellbeing: wellbeing, population: city.population)
+                // Below Content: the one lever the city itself has now is its citizens.
+                if wellbeing.state < .content, !readOnly {
+                    UnrestHelp(state: wellbeing.state, bonus: view.entertainerStability ?? 1,
+                               entertainers: city.entertainers) { session.beginWorkTiles(in: city.id) }
+                }
+            }
             if let loyalty = city.loyalty, let breakdown = view.loyaltyBreakdown(of: city.id) {
                 LoyaltyRow(loyalty: loyalty, breakdown: breakdown, turnsToRevolt: view.turnsUntilRevolt(of: city.id),
                            foreignName: breakdown.topForeign.map { session.civName(of: $0) })
@@ -277,13 +284,21 @@ struct CityPanel: View {
     @ViewBuilder
     private func citizens(_ view: PlayerView) -> some View {
         let specialists = view.specialists(of: city.id)
-        let unemployed = max(0, city.population - city.workedTiles.count - (specialists?.filled.count ?? 0))
+        let unemployed = max(0, city.population - city.workedTiles.count - (specialists?.filled.count ?? 0) - city.entertainers)
         VStack(alignment: .leading, spacing: HUD.Space.s) {
             SectionHeader(title: "Citizens")
             FocusPicker(focus: city.focus, readOnly: readOnly) { session.setFocus($0, of: city.id) }
             Text(workedText(unemployed: unemployed))
                 .font(HUD.body(.caption))
                 .foregroundStyle(HUD.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
+            if !readOnly {
+                Button { session.beginWorkTiles(in: city.id) } label: {
+                    Label("Work tiles…", systemImage: "person.crop.square").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(BronzeButtonStyle())
+                .accessibilityHint("Shows the city's tiles on the map: take citizens off tiles to make Entertainers, or put them back.")
+            }
             if let specialists { SpecialistRow(specialists: specialists, rules: view.rules) }
             if let purchase = view.tilePurchase(of: city.id) {
                 BuyTileButton(purchase: purchase, readOnly: readOnly) { session.beginBuyTile(in: city.id) }
@@ -319,8 +334,11 @@ struct CityPanel: View {
 
     private func workedText(unemployed: Int) -> String {
         let worked = city.workedTiles.count
-        var text = worked == 1 ? "1 citizen works the tile marked on the map" : "\(worked) citizens work the tiles marked on the map"
+        var text = worked == 1 ? "1 citizen works the tile with a gilt token on the map"
+            : "\(worked) citizens work the tiles with gilt tokens on the map"
         if worked == 0 { text = "No citizen works a tile" }
+        let entertainers = city.entertainers
+        if entertainers > 0 { text += entertainers == 1 ? "; 1 Entertainer (plum token)" : "; \(entertainers) Entertainers (plum tokens)" }
         if unemployed > 0 { text += "; \(unemployed) without a tile" }
         return text + "."
     }
@@ -640,6 +658,9 @@ struct WellbeingRow: View {
             heading("Stability")
             row("Buildings", b.buildings)
             row("Luxuries", b.luxuries)
+            if b.quarters != 0 { row("Arenas", b.quarters) }
+            if b.government != 0 { row("Government", b.government) }
+            row("Entertainers", b.entertainers)
             row("Need (citizens)", -b.need)
             row("Empire size", b.empireSize)
             row("Overcrowding", b.overcrowding)
@@ -832,7 +853,7 @@ private struct YieldBreakdown: View {
         switch source {
         case .centre: "City centre"
         case .workedTiles: "Worked tiles (\(city.workedTiles.count))"
-        case .unemployed: "Without a tile (\(max(0, city.population - city.workedTiles.count - (city.specialists?.count ?? 0))))"
+        case .unemployed: "Without a tile (\(max(0, city.population - city.workedTiles.count - (city.specialists?.count ?? 0) - city.entertainers)))"
         case .specialists: "Specialists (\(city.specialists?.count ?? 0))"
         case .population: "Population"
         case let .building(id): rules.building(id)?.name ?? id.rawValue.capitalized
@@ -1496,6 +1517,33 @@ private struct SpecialistRow: View {
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Below Content: what to do about it now. Taking citizens off tiles makes Entertainers, each
+/// worth Stability, at the cost of the tiles' yields.
+private struct UnrestHelp: View {
+    let state: StabilityState
+    let bonus: Int
+    let entertainers: Int
+    let action: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HUD.Space.xs) {
+            Text("\(WellbeingRow.name(state)): take citizens off tiles to make Entertainers, +\(bonus) Stability each (the tiles' yields are lost)."
+                 + (entertainers > 0 ? " \(entertainers) entertaining now." : "")
+                 + " Arenas, Monuments, luxuries and Housing help for good.")
+                .font(HUD.body(.caption))
+                .foregroundStyle(HUD.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(action: action) {
+                Label("Work tiles…", systemImage: "figure.dance").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(BronzeButtonStyle())
+        }
+        .padding(HUD.Space.s)
+        .background(RoundedRectangle(cornerRadius: HUD.Radius.small).fill(HUD.danger.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: HUD.Radius.small).stroke(HUD.danger.opacity(0.3)))
     }
 }
 

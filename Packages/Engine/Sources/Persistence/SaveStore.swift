@@ -40,11 +40,15 @@ public struct SaveSummary: Codable, Hashable, Sendable, Identifiable {
     /// saves carry on. Nil in saves made before games had ids (their game is their seed, map
     /// size and civ); stored only when set, as `explorers` is.
     public var game: String?
+    /// The App's war orders (rally points and marches, `SavedWarOrders`); nil when there are
+    /// none. Stored only when set, as `explorers` is.
+    public var war: SavedWarOrders?
 
     public var id: URL { url }
 
     public init(url: URL, name: String, kind: SaveKind, savedAt: Date, turn: Int, currentPlayer: PlayerID, civName: String,
-                mapSizeName: String, seed: UInt64, rulesID: String, explorers: [SavedExplorer] = [], game: String? = nil) {
+                mapSizeName: String, seed: UInt64, rulesID: String, explorers: [SavedExplorer] = [], game: String? = nil,
+                war: SavedWarOrders? = nil) {
         self.url = url
         self.name = name
         self.kind = kind
@@ -57,13 +61,14 @@ public struct SaveSummary: Codable, Hashable, Sendable, Identifiable {
         self.rulesID = rulesID
         self.explorers = explorers
         self.game = game
+        self.war = war?.isEmpty == true ? nil : war
     }
 
     /// `decoder.userInfo` key: the URL of the file whose header is being decoded.
     public static let fileURLKey = CodingUserInfoKey(rawValue: "TenThousandYears.saveFileURL")!
 
     private enum CodingKeys: String, CodingKey {
-        case name, kind, savedAt, turn, currentPlayer, civName, mapSizeName, seed, rulesID, explorers, game
+        case name, kind, savedAt, turn, currentPlayer, civName, mapSizeName, seed, rulesID, explorers, game, war
     }
 
     public init(from decoder: Decoder) throws {
@@ -78,7 +83,8 @@ public struct SaveSummary: Codable, Hashable, Sendable, Identifiable {
                   mapSizeName: try c.decode(String.self, forKey: .mapSizeName), seed: try c.decode(UInt64.self, forKey: .seed),
                   rulesID: try c.decode(String.self, forKey: .rulesID),
                   explorers: try c.decodeIfPresent([SavedExplorer].self, forKey: .explorers) ?? [],
-                  game: try c.decodeIfPresent(String.self, forKey: .game))
+                  game: try c.decodeIfPresent(String.self, forKey: .game),
+                  war: try c.decodeIfPresent(SavedWarOrders.self, forKey: .war))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -94,6 +100,7 @@ public struct SaveSummary: Codable, Hashable, Sendable, Identifiable {
         try c.encode(rulesID, forKey: .rulesID)
         if !explorers.isEmpty { try c.encode(explorers, forKey: .explorers) }
         if let game { try c.encode(game, forKey: .game) }
+        if let war, !war.isEmpty { try c.encode(war, forKey: .war) }
     }
 }
 
@@ -224,14 +231,14 @@ public actor SaveStore {
     /// go into the header (`SaveSummary.explorers`, `.game`), as with every kind of save.
     @discardableResult
     public func save(_ state: GameState, name: String, kind: SaveKind, explorers: [SavedExplorer] = [],
-                     game: String? = nil) throws -> SaveSummary {
+                     game: String? = nil, war: SavedWarOrders? = nil) throws -> SaveSummary {
         switch kind {
-        case .auto: return try autosave(state, name: name, explorers: explorers, game: game)
-        case .background: return try saveBackground(state, name: name, explorers: explorers, game: game)
+        case .auto: return try autosave(state, name: name, explorers: explorers, game: game, war: war)
+        case .background: return try saveBackground(state, name: name, explorers: explorers, game: game, war: war)
         case .manual:
             let n = try nextSerial(prefix: "manual-")
             return try write(state, name: name, kind: .manual, to: directory.appending(path: "manual-\(n).\(Self.fileExtension)"),
-                             explorers: explorers, game: game)
+                             explorers: explorers, game: game, war: war)
         }
     }
 
@@ -240,29 +247,34 @@ public actor SaveStore {
     /// `autosavesKept`, every other game its newest `otherGameAutosavesKept`, and all games
     /// together at most `autosavesKeptInAll`.
     @discardableResult
-    public func autosave(_ state: GameState, explorers: [SavedExplorer] = [], game: String? = nil) throws -> SaveSummary {
-        try autosave(state, name: Self.defaultName(for: state), explorers: explorers, game: game)
+    public func autosave(_ state: GameState, explorers: [SavedExplorer] = [], game: String? = nil,
+                         war: SavedWarOrders? = nil) throws -> SaveSummary {
+        try autosave(state, name: Self.defaultName(for: state), explorers: explorers, game: game, war: war)
     }
 
     /// Writes the game's background slot (M1 §14: when the app leaves the screen), replacing
     /// that game's previous one; other games keep their newest `otherGameBackgroundsKept`.
     @discardableResult
-    public func saveBackground(_ state: GameState, explorers: [SavedExplorer] = [], game: String? = nil) throws -> SaveSummary {
-        try saveBackground(state, name: Self.defaultName(for: state), explorers: explorers, game: game)
+    public func saveBackground(_ state: GameState, explorers: [SavedExplorer] = [], game: String? = nil,
+                               war: SavedWarOrders? = nil) throws -> SaveSummary {
+        try saveBackground(state, name: Self.defaultName(for: state), explorers: explorers, game: game, war: war)
     }
 
-    private func autosave(_ state: GameState, name: String, explorers: [SavedExplorer], game: String?) throws -> SaveSummary {
+    private func autosave(_ state: GameState, name: String, explorers: [SavedExplorer], game: String?,
+                          war: SavedWarOrders?) throws -> SaveSummary {
         let n = try nextSerial(prefix: "auto-")
         let file = "auto-\(state.turn)-\(state.currentPlayer.rawValue)-\(n).\(Self.fileExtension)"
-        let summary = try write(state, name: name, kind: .auto, to: directory.appending(path: file), explorers: explorers, game: game)
+        let summary = try write(state, name: name, kind: .auto, to: directory.appending(path: file), explorers: explorers, game: game,
+                                war: war)
         try pruneAutosaves(keeping: summary)
         return summary
     }
 
-    private func saveBackground(_ state: GameState, name: String, explorers: [SavedExplorer], game: String?) throws -> SaveSummary {
+    private func saveBackground(_ state: GameState, name: String, explorers: [SavedExplorer], game: String?,
+                                war: SavedWarOrders?) throws -> SaveSummary {
         let summary = try write(state, name: name, kind: .background,
                                 to: directory.appending(path: Self.backgroundFileName(for: state, game: game)), explorers: explorers,
-                                game: game)
+                                game: game, war: war)
         try pruneBackgrounds(keeping: summary)
         return summary
     }
@@ -291,10 +303,10 @@ public actor SaveStore {
     }
 
     private func write(_ state: GameState, name: String, kind: SaveKind, to url: URL, explorers: [SavedExplorer],
-                       game: String?) throws -> SaveSummary {
+                       game: String?, war: SavedWarOrders? = nil) throws -> SaveSummary {
         let summary = SaveSummary(url: url, name: name, kind: kind, savedAt: now(), turn: state.turn, currentPlayer: state.currentPlayer,
                                   civName: Self.civName(of: state), mapSizeName: state.mapSizeName, seed: state.seed,
-                                  rulesID: state.rules.id, explorers: explorers, game: game)
+                                  rulesID: state.rules.id, explorers: explorers, game: game, war: war)
         let data = try Self.encode(state, summary: summary)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: url, options: [.atomic])

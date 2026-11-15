@@ -104,3 +104,28 @@ public enum AIPlayer {
                              notes: turn.notes, stepTimes: turn.stepTimes, escortRequests: turn.escortWanted)
     }
 }
+
+extension AIPlayer {
+    /// Automated Builders (the App's Automate order for a human's Builders): the commands the
+    /// AI's own Builder logic (M1 §13 Builders and Safety, M2 §3.3 roads) gives `builders` of
+    /// `player` now, played on a copy of `state` and returned in order for the caller to apply
+    /// one by one. It reads only `player`'s view. A Builder with nothing left to do goes to the
+    /// nearest own city, where it is left awake (no `sleep`), so the order picks it up again
+    /// when work appears. Only the Builders' own commands are returned: an escort the AI would
+    /// move along with one (`travelTogether`) is the player's to command, so the Builder goes
+    /// alone. Empty when it is not `player`'s phase.
+    public static func builderCommands(_ state: GameState, player: PlayerID, builders: [UnitID]) -> [Command] {
+        guard state.outcome == nil, state.currentPlayer == player, !builders.isEmpty else { return [] }
+        let ids = Set(builders)
+        var turn = AITurn(state: state, player: player)
+        turn.moveBuilders(only: ids)
+        return turn.steps.map(\.command).filter { command in
+            switch command {
+            case let .moveUnit(unit, _), let .buildImprovement(unit, _), let .buildRoad(unit), let .wake(unit), let .cancelOrders(unit):
+                ids.contains(unit)
+            default:
+                false
+            }
+        }
+    }
+}

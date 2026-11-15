@@ -365,6 +365,63 @@ struct BuyTileHintCard: View {
     }
 }
 
+/// Choosing a city's worked tiles: the city's Stability and Entertainers, what a tap does, and
+/// Done.
+struct WorkTilesHintCard: View {
+    let session: GameSession
+    let city: CityID
+
+    var body: some View {
+        let view = session.view
+        let c = view.city(city)
+        let name = c?.name ?? "the city"
+        let entertainers = c?.entertainers ?? 0
+        let wellbeing = view.wellbeing(of: city)
+        let bonus = view.entertainerStability ?? 1
+        HStack(alignment: .top, spacing: HUD.Space.m) {
+            Image(systemName: "person.crop.square").font(.system(size: 18, weight: .semibold)).foregroundStyle(HUD.gilt)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Worked tiles of \(name)").font(HUD.title(.subheadline))
+                HStack(spacing: HUD.Space.s) {
+                    if let wellbeing {
+                        Text("Stability \(YieldChip.signed(wellbeing.stability)) \(WellbeingRow.name(wellbeing.state))")
+                            .font(HUD.numeric(.caption).weight(.semibold))
+                            .foregroundStyle(wellbeing.state < .content ? HUD.danger : HUD.good)
+                    }
+                    Text(entertainers == 1 ? "1 Entertainer" : "\(entertainers) Entertainers")
+                        .font(HUD.numeric(.caption)).foregroundStyle(HUD.inkSoft)
+                }
+                legend(bonus: bonus)
+            }
+            Spacer(minLength: HUD.Space.s)
+            Button("Done") { session.endWorkTiles() }
+                .buttonStyle(ParchmentButtonStyle())
+        }
+        .hudCard()
+    }
+
+    private func legend(bonus: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Label("Worked: tap to take the citizen off (an Entertainer: +\(bonus) Stability, no yields)", systemImage: "person.fill")
+            Label("Entertainer: tap to put a citizen back to work", systemImage: "figure.dance")
+            Label("Dashed: not worked; the city's focus places citizens", systemImage: "circle.dashed")
+        }
+        .font(HUD.body(.caption))
+        .foregroundStyle(HUD.inkSoft)
+        .labelStyle(TightLabelStyle())
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct TightLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            configuration.icon.frame(width: 14)
+            configuration.title
+        }
+    }
+}
+
 /// Next (Space): what the attention queue visits next, with how many items are pending, or End
 /// Turn when none is; "Waiting for <civ>" in another player's phase. While items are pending,
 /// the hourglass beside it (and its menu) ends the turn at once (asking once per game).

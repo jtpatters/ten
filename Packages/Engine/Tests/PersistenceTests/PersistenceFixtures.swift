@@ -226,6 +226,13 @@ enum PersistenceFixture {
             if c.workedTiles.count >= c.population { c.workedTiles.removeLast() }
             c.specialists = ["campus"]
         }
+        // A tile Rome's owner took its citizen off (an Entertainer, additive).
+        city(&state, rome) { c in
+            if c.population >= 2, let tile = c.workedTiles.last {
+                c.workedTiles.removeLast()
+                c.unworked = [tile]
+            }
+        }
         // Tribal villages (M1 §7.7): (4,1) in players 0's and 1's sight, (9,1) in no one's.
         for site in [at(4, 1), at(9, 1)] {
             let placed = DebugTools.placeTribalVillage(at: site, in: &state)

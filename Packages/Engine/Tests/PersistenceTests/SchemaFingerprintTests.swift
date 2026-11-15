@@ -34,10 +34,11 @@ import Testing
         // M2 2.1c: map resources and strategic stockpiles (M2 §3.1), roads and pillage (§3.3).
         // M2 2.2a: city Stability (M2 §5.2). M2 2.2b: quarters, queued quarters and their fixed cost (§5.3).
         // M2 2.4: raiders and remembered camps (M2 §11), minor factions (§12), trade routes (§13).
+        // Tiles a city's owner took citizens off (Entertainers).
         1: ["cities[].quarters", "cities[].quarters[].kind", "cities[].quarters[].tile", "cities[].quarters[].tile.q",
             "cities[].quarters[].tile.r", "cities[].queue[].cost", "cities[].queue[].item.quarter", "cities[].queue[].item.quarter._0",
             "cities[].queue[].item.quarter.at", "cities[].queue[].item.quarter.at.q", "cities[].queue[].item.quarter.at.r",
-            "cities[].stability", "cities[].loyalty", "cities[].freeCityLeader", "cities[].freeCityLeader.rawValue", "cities[].freeCityTurns", "players[].kind", "cities[].tilesBought", "cities[].specialists", "map.tiles[].pillaged", "map.tiles[].resource", "map.tiles[].road", "players[].insights", "players[].memory.tileRoad",
+            "cities[].stability", "cities[].loyalty", "cities[].freeCityLeader", "cities[].freeCityLeader.rawValue", "cities[].freeCityTurns", "players[].kind", "cities[].tilesBought", "cities[].specialists", "cities[].unworked", "cities[].unworked[].q", "cities[].unworked[].r", "map.tiles[].pillaged", "map.tiles[].resource", "map.tiles[].road", "players[].insights", "players[].memory.tileRoad",
             "players[].memory.tileRoad.count", "players[].memory.tileRoad.words", "players[].memory.tribalVillages", "players[].stockpile",
             "players[].techCredit", "players[].studying", "players[].civicTarget", "players[].civicProgress", "players[].knownCivics", "players[].civicInsights", "players[].government", "players[].governmentsAdopted", "players[].policies", "players[].freeChangeTurn", "players[].influence", "players[].envoyTokens", "players[].envoysEarned",
             "tribalVillages", "tribalVillages.gifts", "tribalVillages.sites", "units[].attacked",

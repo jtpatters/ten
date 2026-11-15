@@ -80,8 +80,10 @@ extension GameState {
             }
             check(Set(queuedBuildings).count == queuedBuildings.count, "\(city.id) building queued twice")
             check(queuedBuildings.allSatisfy { !city.has($0) }, "\(city.id) queues a building it has")
-            check(city.workedTiles.count + (city.specialists?.count ?? 0) <= city.population,
+            check(city.workedTiles.count + (city.specialists?.count ?? 0) + city.entertainers <= city.population,
                   "\(city.id) works more tiles and slots than citizens")
+            check((city.unworked ?? []).allSatisfy { !city.workedTiles.contains($0) }, "\(city.id) works a tile it keeps unworked")
+            check(city.unworked?.isEmpty != true, "\(city.id) keeps an empty unworked list")
             check(Set(city.workedTiles).count == city.workedTiles.count, "\(city.id) works a tile twice")
             for hex in city.workedTiles {
                 guard let t = map.index(of: hex) else { continue }

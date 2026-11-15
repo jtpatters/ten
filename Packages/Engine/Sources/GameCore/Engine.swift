@@ -28,6 +28,10 @@ public enum Command: Codable, Hashable, Sendable {
     /// Buy an unowned tile next to a city's territory (M2 §7.4).
     case purchaseTile(city: CityID, tile: HexCoord)
     case setFocus(city: CityID, focus: CityFocus)
+    /// Take the citizen off one of a city's worked tiles (`worked` false: it becomes an
+    /// Entertainer, and no citizen works the tile), or let citizens work an unworked one again
+    /// (`City.unworked`). Stability is recomputed at once.
+    case setTileWorked(city: CityID, tile: HexCoord, worked: Bool)
     /// Research a tech, through its missing prerequisites (M1 §6).
     case setResearch(tech: TechID)
     /// Study `civic`, through its missing prerequisites (M2 §7.1).
@@ -316,6 +320,22 @@ public enum GameEngine {
             let index = try ownedCity(cityID, by: player, in: state)
             state.cities[index].focus = focus
             state.assignCitizens(index)
+
+        case let .setTileWorked(cityID, tile, worked):
+            let index = try ownedCity(cityID, by: player, in: state)
+            guard let hex = state.map.normalize(tile) else { throw .rejected(reason: "no such tile") }
+            var unworked = state.cities[index].unworked ?? []
+            if worked {
+                guard let i = unworked.firstIndex(of: hex) else { throw .rejected(reason: "the tile is not kept unworked") }
+                unworked.remove(at: i)
+            } else {
+                guard state.cities[index].workedTiles.contains(hex) else { throw .rejected(reason: "no citizen works that tile") }
+                unworked.append(hex)
+                unworked.sort { state.map.index(of: $0)! < state.map.index(of: $1)! }
+            }
+            state.cities[index].unworked = unworked.isEmpty ? nil : unworked
+            state.assignCitizens(index)
+            state.updateStability(for: player)
 
         case let .setResearch(tech):
             guard state.rules.tech(tech) != nil else { throw .rejected(reason: "no such tech") }

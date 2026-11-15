@@ -6,10 +6,15 @@ import simd
 // knowledge: roads as remembered (`PlayerView.tile(at:)`), pillaged improvements only where in
 // sight. Nothing is drawn on an unexplored tile.
 //
-// - A road is a packed-earth band on the ground (the overlay pass, under the borders): from each
-//   road tile's centre to the middle of every edge it shares with another explored road tile,
-//   so neighbouring halves meet; a lone road is a short band across its centre. Out of sight it
-//   takes the explored-fog look.
+// - A road is a band of packed earth on the ground (the overlay pipeline, drawn before the units'
+//   bases and the decorations, so plants and relief stand on it), painted per road tile by the
+//   overlay shader (`overlayRoad` in `ShaderOverlay.swift`) from which of its
+//   edges it shares with another explored road tile. It crosses each such edge at its middle,
+//   square to the edge, so neighbouring tiles' halves meet seamlessly: straight through the tile
+//   between opposite edges, on a circular arc between any other two (a gentle bend, or a tight one
+//   round a corner), and through a junction as straight through-roads with branches joining them,
+//   their joins filleted into a worn crossing. A dead end stops in the middle of its tile; a lone
+//   road is a short band across its centre. Out of sight it takes the explored-fog look.
 // - A pillaged improvement gets a mark, a flame on a cream disc in a red rim, on its tile's north
 //   side, drawn by the unit pass with the job marks.
 
@@ -45,39 +50,34 @@ extension MapRenderer {
         return roadArt.ribbons
     }
 
-    /// A road's half width (world units).
-    static func roadHalfWidth(size: Float) -> Float { size * 0.085 }
-
+    /// Each explored road tile's hexagon, as four triangles (`OverlayStyle.road`): the shader
+    /// paints the road from the tile's links.
     private func makeRoads() -> [OverlayVertex] {
         let roads = inputs.roads
         guard roads.contains(true) else { return [] }
-        let s = Float(layout.size), half = Self.roadHalfWidth(size: s)
+        let s = Float(layout.size), halfX = s * 0.8660254, style = OverlayStyle.road.rawValue
         var out: [OverlayVertex] = []
-        func band(_ a: SIMD2<Float>, _ b: SIMD2<Float>, dim: Float) {
-            let d = simd_normalize(b - a), n = SIMD2(-d.y, d.x) * half
-            let start = a - d * half * 0.7, length = simd_distance(start, b)
-            func vertex(_ p: SIMD2<Float>, _ across: Float, _ along: Float) -> OverlayVertex {
-                OverlayVertex(position: [p.x, p.y, 0, OverlayStyle.road.rawValue], color: [across, along, 0, 0], aux: [0, dim, 0, 0])
-            }
-            let v0 = vertex(start + n, 1, 0), v1 = vertex(start - n, -1, 0)
-            let v2 = vertex(b + n, 1, length), v3 = vertex(b - n, -1, length)
-            out += [v0, v1, v2, v2, v1, v3]
-        }
         func road(_ i: Int) -> Bool { i < roads.count && roads[i] }
         for i in 0..<state.map.tileCount where road(i) {
             let hex = state.map.coord(at: i), fog = fogLevel(hex)
             guard fog < 2 else { continue }
             let c = Self.vec(layout.center(of: hex)), dim: Float = fog == 1 ? 1 : 0
-            var linked = false
-            for direction in HexDirection.allCases {
+            var links = 0
+            for (bit, direction) in HexDirection.allCases.enumerated() {
                 guard let nh = state.map.normalize(hex.neighbor(direction)), let n = state.map.index(of: nh), road(n),
                       fogLevel(nh) < 2 else { continue }
-                linked = true
-                var nc = Self.vec(layout.center(of: nh))
-                nc.x = Float(layout.nearestCopy(of: CGFloat(nc.x), to: CGFloat(c.x)))
-                band(c, (c + nc) / 2, dim: dim)
+                links |= 1 << bit
             }
-            if !linked { band(c - [s * 0.3, 0], c + [s * 0.3, 0], dim: dim) }
+            let terrain = Float(state.map[index: i].terrain.rawValue)
+            func vertex(_ dx: Float, _ dy: Float) -> OverlayVertex {
+                OverlayVertex(position: [c.x + dx, c.y + dy, 0, style], color: [dx, dy, Float(links), 0], aux: [0, dim, terrain, 0])
+            }
+            // The hexagon (pointy-top) as four triangles.
+            let top = vertex(0, s), bottom = vertex(0, -s)
+            let upperLeft = vertex(-halfX, s / 2), upperRight = vertex(halfX, s / 2)
+            let lowerLeft = vertex(-halfX, -s / 2), lowerRight = vertex(halfX, -s / 2)
+            out += [top, upperLeft, upperRight, upperLeft, lowerLeft, upperRight, upperRight, lowerLeft, lowerRight,
+                    lowerLeft, bottom, lowerRight]
         }
         return out
     }

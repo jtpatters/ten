@@ -70,6 +70,34 @@ final class MapOverlay: UIView {
         didSet { if siteLabels != oldValue { rebuildMarks() } }
     }
 
+    /// The selected own city's workable tiles: who works them (a citizen on a gilt token, an
+    /// Entertainer the player took off the tile on a plum one, free tiles a faint token), low in
+    /// the tile so units and improvements stay in sight; with `yields`, each tile's yields too
+    /// (while the player chooses tiles, `GameSession.tileWorking`).
+    struct CitizenMark: Equatable {
+        enum Kind: Equatable { case worked, unworked, free, blocked }
+        var hex: HexCoord
+        var kind: Kind
+        var yields: Yields?
+    }
+
+    var citizenMarks: [CitizenMark] = [] {
+        didSet { if citizenMarks != oldValue { rebuildMarks() } }
+    }
+
+    /// The war tools' tokens (GameSession+War.swift): rally points (a flag, with how many
+    /// cities send units there), and while a group's goal is chosen its units (a shield under
+    /// each), the places previewed for them (dashed rings) and the goal (a crimson scope).
+    struct ArmyMark: Equatable {
+        enum Kind: Hashable { case rally(Int), newRally, member, slot, target }
+        var hex: HexCoord
+        var kind: Kind
+    }
+
+    var armyMarks: [ArmyMark] = [] {
+        didSet { if armyMarks != oldValue { rebuildMarks() } }
+    }
+
     /// Raider camps the viewer remembers (M2 §11): a tent glyph on a crimson-rimmed disc.
     var campMarks: [HexCoord] = [] {
         didSet { if campMarks != oldValue { rebuildMarks() } }
@@ -83,7 +111,9 @@ final class MapOverlay: UIView {
     private let routeLayer = CAShapeLayer()
 
     private let markLayer = CALayer()
-    private var marks: [(layer: CALayer, hex: HexCoord)] = []
+    /// Each mark's layer and tile, and how far below the tile's centre it hangs (a fraction of
+    /// the tile's width on screen).
+    private var marks: [(layer: CALayer, hex: HexCoord, drop: CGFloat)] = []
     private let bannerLayer = CALayer()
     private let floaterLayer = CALayer()
     private var slots: [CityID: Slot] = [:]
@@ -304,7 +334,7 @@ final class MapOverlay: UIView {
         placeFloaters(renderer, snap: snap)
         CATransaction.commit()
 
-        renderer.presentsWithTransaction = !hits.isEmpty || !floaters.isEmpty || !tradeRoutes.isEmpty
+        renderer.presentsWithTransaction = !hits.isEmpty || !floaters.isEmpty || !tradeRoutes.isEmpty || !marks.isEmpty
         layoutMilliseconds = layoutMilliseconds * 0.9 + (CACurrentMediaTime() - start) * 100
     }
 
@@ -567,14 +597,23 @@ final class MapOverlay: UIView {
             QuarterMarkArt.image("tent.2.fill", pillaged: true, scale: scale).map { ($0, hex) }
         }
         arts += siteLabels.compactMap { label in DamageArt.image(label.text, fill: .gift, big: false, scale: scale).map { ($0, label.hex) } }
-        for (art, hex) in arts {
+        var dropped: [(DamageArt.Rendered, HexCoord, CGFloat)] = arts.map { ($0.0, $0.1, 0) }
+        // Citizens: low in the tile, or in its middle with the yields while tiles are chosen.
+        dropped += citizenMarks.filter { !labelled.contains($0.hex) }.compactMap { mark in
+            CitizenMarkArt.image(mark.kind, yields: mark.yields, scale: scale).map { ($0, mark.hex, mark.yields == nil ? 0.24 : 0.1) }
+        }
+        // War tokens: under a group's units, in the middle of other tiles.
+        dropped += armyMarks.filter { !labelled.contains($0.hex) }.compactMap { mark in
+            ArmyMarkArt.image(mark.kind, scale: scale).map { ($0, mark.hex, mark.kind == .member ? 0.3 : 0) }
+        }
+        for (art, hex, drop) in dropped {
             let layer = CALayer()
             layer.contents = art.image
             layer.contentsScale = scale
             layer.bounds = CGRect(origin: .zero, size: art.size)
             layer.isHidden = true
             markLayer.addSublayer(layer)
-            marks.append((layer, hex))
+            marks.append((layer, hex, drop))
         }
         CATransaction.commit()
     }
@@ -607,7 +646,8 @@ final class MapOverlay: UIView {
                 continue
             }
             mark.layer.isHidden = false
-            mark.layer.position = CGPoint(x: snap(p.x), y: snap(p.y))
+            let dy = mark.drop == 0 ? 0 : (tileWidth(renderer, at: mark.hex) ?? 0) * mark.drop
+            mark.layer.position = CGPoint(x: snap(p.x), y: snap(p.y + dy))
         }
     }
 
@@ -748,6 +788,183 @@ enum QuarterMarkArt {
         guard let cgImage = image.cgImage else { return nil }
         let rendered = DamageArt.Rendered(image: cgImage, size: size)
         cache[key] = rendered
+        return rendered
+    }
+}
+
+// MARK: - Citizen mark art
+
+/// A city's tile token (`MapOverlay.CitizenMark`): a citizen on a gilt disc (worked), an
+/// Entertainer on a plum disc (the player took the citizen off), a faint empty disc (free), or
+/// a crimson cross (an enemy stands there); with yields, a parchment pill beside it with each
+/// yield's number and glyph in its colour.
+@MainActor
+enum CitizenMarkArt {
+    private struct Key: Hashable {
+        var kind: MapOverlay.CitizenMark.Kind
+        var yields: Yields?
+    }
+
+    private static var cache: [Key: DamageArt.Rendered] = [:]
+
+    static let plum = UIColor(red: 0.45, green: 0.22, blue: 0.42, alpha: 1)
+
+    static func image(_ kind: MapOverlay.CitizenMark.Kind, yields: Yields?, scale: CGFloat) -> DamageArt.Rendered? {
+        let key = Key(kind: kind, yields: yields)
+        if let cached = cache[key] { return cached }
+        let side: CGFloat = 22
+        let config = UIImage.SymbolConfiguration(pointSize: 11, weight: .bold)
+        let (fill, rim, symbol, glyphTint): (UIColor, UIColor, String?, UIColor) = switch kind {
+        case .worked: (HUD.UI.gilt, HUD.UI.ink, "person.fill", HUD.UI.cream)
+        case .unworked: (plum, HUD.UI.cream, "figure.dance", HUD.UI.cream)
+        case .free: (HUD.UI.cream.withAlphaComponent(0.55), HUD.UI.ink.withAlphaComponent(0.45), nil, HUD.UI.ink)
+        case .blocked: (HUD.UI.cream.withAlphaComponent(0.8), HUD.UI.danger, "xmark", HUD.UI.danger)
+        }
+        let glyph = symbol.flatMap { UIImage(systemName: $0, withConfiguration: config)?.withTintColor(glyphTint, renderingMode: .alwaysOriginal) }
+
+        // The yields: "2 leaf 1 hammer", each in its colour.
+        var text: NSAttributedString?
+        if let y = yields {
+            let out = NSMutableAttributedString()
+            let font = HUD.UI.numeric(11, weight: .bold)
+            let parts: [(Int, YieldChip.Kind)] = [(y.food, .food), (y.production, .production), (y.gold, .gold),
+                                                  (y.science, .science), (y.culture, .culture)].filter { $0.0 != 0 }
+            for (i, part) in parts.enumerated() {
+                if i > 0 { out.append(NSAttributedString(string: " ", attributes: [.font: font])) }
+                out.append(NSAttributedString(string: "\(part.0)", attributes: [.font: font, .foregroundColor: part.1.uiTint]))
+                let icon = UIImage(systemName: part.1.systemImage, withConfiguration: UIImage.SymbolConfiguration(pointSize: 8, weight: .bold))?
+                    .withTintColor(part.1.uiTint, renderingMode: .alwaysOriginal)
+                if let icon {
+                    let attachment = NSTextAttachment(image: icon)
+                    attachment.bounds = CGRect(x: 0.5, y: 0, width: icon.size.width, height: icon.size.height)
+                    out.append(NSAttributedString(attachment: attachment))
+                }
+            }
+            if parts.isEmpty { out.append(NSAttributedString(string: "0", attributes: [.font: font, .foregroundColor: HUD.UI.ink])) }
+            text = out
+        }
+        let textSize = text?.size() ?? .zero
+        let pillWidth = text == nil ? 0 : ceil(textSize.width) + 10
+        let size = CGSize(width: side + (pillWidth > 0 ? pillWidth - 4 : 0) + 2, height: side + 2)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let cg = context.cgContext
+            if let text {
+                // The pill sits behind the disc, reaching right from its middle.
+                let pill = CGRect(x: side / 2, y: 4, width: size.width - side / 2 - 1, height: side - 6)
+                cg.setShadow(offset: CGSize(width: 0.5, height: 1), blur: 1.5, color: UIColor.black.withAlphaComponent(0.35).cgColor)
+                cg.setFillColor(HUD.UI.parchmentTop.withAlphaComponent(kind == .free ? 0.8 : 0.95).cgColor)
+                cg.addPath(UIBezierPath(roundedRect: pill, cornerRadius: pill.height / 2).cgPath)
+                cg.fillPath()
+                cg.setShadow(offset: .zero, blur: 0)
+                cg.setStrokeColor(HUD.UI.ink.withAlphaComponent(0.35).cgColor)
+                cg.setLineWidth(0.75)
+                cg.addPath(UIBezierPath(roundedRect: pill, cornerRadius: pill.height / 2).cgPath)
+                cg.strokePath()
+                text.draw(at: CGPoint(x: side + 1, y: pill.midY - textSize.height / 2))
+            }
+            let disc = CGRect(x: 1, y: 1, width: side, height: side).insetBy(dx: 1.5, dy: 1.5)
+            cg.setShadow(offset: CGSize(width: 0.5, height: 1), blur: 1.5, color: UIColor.black.withAlphaComponent(kind == .free ? 0.15 : 0.4).cgColor)
+            cg.setFillColor(fill.cgColor)
+            cg.fillEllipse(in: disc)
+            cg.setShadow(offset: .zero, blur: 0)
+            cg.setStrokeColor(rim.cgColor)
+            cg.setLineWidth(kind == .free ? 1 : 1.5)
+            if kind == .free { cg.setLineDash(phase: 0, lengths: [2.5, 2]) }
+            cg.strokeEllipse(in: disc)
+            cg.setLineDash(phase: 0, lengths: [])
+            if let glyph {
+                let g = glyph.size
+                glyph.draw(in: CGRect(x: disc.midX - g.width / 2, y: disc.midY - g.height / 2, width: g.width, height: g.height))
+            }
+        }
+        guard let cgImage = image.cgImage else { return nil }
+        let rendered = DamageArt.Rendered(image: cgImage, size: size)
+        cache[key] = rendered
+        return rendered
+    }
+}
+
+// MARK: - Army mark art
+
+/// The war tools' tokens (`MapOverlay.ArmyMark`): a flag on a crimson disc (a rally point, with
+/// its count of cities), a gilt one (a rally point being chosen), a shield on a small gilt disc
+/// (a unit of the group), a dashed gilt ring (a place for one), a crimson scope (the goal).
+@MainActor
+enum ArmyMarkArt {
+    private static var cache: [MapOverlay.ArmyMark.Kind: DamageArt.Rendered] = [:]
+
+    static func image(_ kind: MapOverlay.ArmyMark.Kind, scale: CGFloat) -> DamageArt.Rendered? {
+        if let cached = cache[kind] { return cached }
+        let side: CGFloat
+        let (fill, rim, symbol, glyphTint, dashed): (UIColor, UIColor, String?, UIColor, Bool)
+        var count = 0
+        switch kind {
+        case let .rally(n):
+            side = 24
+            count = n
+            (fill, rim, symbol, glyphTint, dashed) = (HUD.UI.danger, HUD.UI.cream, "flag.fill", HUD.UI.cream, false)
+        case .newRally:
+            side = 26
+            (fill, rim, symbol, glyphTint, dashed) = (HUD.UI.gilt, HUD.UI.ink, "flag.fill", HUD.UI.ink, false)
+        case .member:
+            side = 18
+            (fill, rim, symbol, glyphTint, dashed) = (HUD.UI.gilt, HUD.UI.ink, "shield.lefthalf.filled", HUD.UI.cream, false)
+        case .slot:
+            side = 22
+            (fill, rim, symbol, glyphTint, dashed) = (HUD.UI.cream.withAlphaComponent(0.45), HUD.UI.gilt, nil, HUD.UI.ink, true)
+        case .target:
+            side = 28
+            (fill, rim, symbol, glyphTint, dashed) = (HUD.UI.cream.withAlphaComponent(0.85), HUD.UI.danger, "scope", HUD.UI.danger, false)
+        }
+        let config = UIImage.SymbolConfiguration(pointSize: side * 0.46, weight: .bold)
+        let glyph = symbol.flatMap { UIImage(systemName: $0, withConfiguration: config)?.withTintColor(glyphTint, renderingMode: .alwaysOriginal) }
+        let label: NSAttributedString? = count > 1
+            ? NSAttributedString(string: "\(count)", attributes: [.font: HUD.UI.numeric(10, weight: .bold), .foregroundColor: HUD.UI.ink])
+            : nil
+        let badge = label.map { CGSize(width: max(14, ceil($0.size().width) + 7), height: 14) } ?? .zero
+        let size = CGSize(width: side + 2 + (label == nil ? 0 : badge.width - 6), height: side + 2)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let cg = context.cgContext
+            let disc = CGRect(x: 1, y: 1, width: side, height: side).insetBy(dx: 1.5, dy: 1.5)
+            cg.setShadow(offset: CGSize(width: 0.5, height: 1), blur: 1.5, color: UIColor.black.withAlphaComponent(dashed ? 0.15 : 0.4).cgColor)
+            cg.setFillColor(fill.cgColor)
+            cg.fillEllipse(in: disc)
+            cg.setShadow(offset: .zero, blur: 0)
+            cg.setStrokeColor(rim.cgColor)
+            cg.setLineWidth(dashed ? 2 : 1.5)
+            if dashed { cg.setLineDash(phase: 0, lengths: [3, 2.5]) }
+            cg.strokeEllipse(in: disc)
+            cg.setLineDash(phase: 0, lengths: [])
+            if dashed {
+                cg.setFillColor(HUD.UI.gilt.cgColor)
+                cg.fillEllipse(in: CGRect(x: disc.midX - 2.5, y: disc.midY - 2.5, width: 5, height: 5))
+            }
+            if let glyph {
+                let g = glyph.size
+                glyph.draw(in: CGRect(x: disc.midX - g.width / 2, y: disc.midY - g.height / 2, width: g.width, height: g.height))
+            }
+            if let label {
+                let pill = CGRect(x: size.width - badge.width - 0.5, y: 0.5, width: badge.width, height: badge.height)
+                cg.setFillColor(HUD.UI.cream.cgColor)
+                cg.addPath(UIBezierPath(roundedRect: pill, cornerRadius: pill.height / 2).cgPath)
+                cg.fillPath()
+                cg.setStrokeColor(HUD.UI.ink.withAlphaComponent(0.5).cgColor)
+                cg.setLineWidth(0.75)
+                cg.addPath(UIBezierPath(roundedRect: pill, cornerRadius: pill.height / 2).cgPath)
+                cg.strokePath()
+                let t = label.size()
+                label.draw(at: CGPoint(x: pill.midX - t.width / 2, y: pill.midY - t.height / 2))
+            }
+        }
+        guard let cgImage = image.cgImage else { return nil }
+        let rendered = DamageArt.Rendered(image: cgImage, size: size)
+        cache[kind] = rendered
         return rendered
     }
 }

@@ -970,7 +970,7 @@ extension MapRenderer {
         }
         table.escorted = [false, true].map { unitAtlas.uv(.escortedBody(east: $0)) }
         table.escortedBoxes = [false, true].map { UnitSprite.bounds(.escortedBody(east: $0)) }
-        table.escortedMask = code(.escortedMask)
+        table.escortedMask = code(.teamMask(.settler)) + 0.25 // in the Settler's blue and alpha
         table.standards = players.map { unitAtlas.uv(.standard(player: $0)) }
         table.standardBounds = UnitSprite.bounds(.standard(player: 0))
         table.standardField = unitAtlas.uv(.standardField)
@@ -1138,8 +1138,9 @@ struct UnitAtlasTable {
     /// plus one, negative when the east-facing body reads the west-facing body's data mirrored.
     func maskCode(_ type: UnitType, east: Bool, escorted isEscorted: Bool = false) -> Float {
         let code = isEscorted && type == .settler ? escortedMask : masks[Self.typeIndex[type] ?? 0]
-        // A mirrored west-facing body reads its own data as it is.
-        return east && (isEscorted || !UnitSprite.sharesWestBody(type)) ? -code : code
+        // A mirrored west-facing body reads its own data as it is (an escorted Trader keeps its
+        // own body; only the Settler has an escorted one, painted facing both ways).
+        return east && !UnitSprite.sharesWestBody(type) ? -code : code
     }
 
     func badge(_ type: UnitType) -> SIMD4<Float> { badges[Self.typeIndex[type] ?? 0] }

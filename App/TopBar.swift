@@ -27,11 +27,41 @@ struct TopBar<MenuContent: View>: View {
                 cultureChip(view, income)
                 if view.government != nil { InfluenceChip(view: view, compact: compact) }
                 StrategicChip(view: view, compact: compact)
+                warChip
                 Spacer(minLength: 0)
                 menu()
             }
             if compact { researchChip(view, income) }
         }
+    }
+
+    /// The War Room (docs/M2.md §10.4): the military units, with how many await orders; a tap
+    /// opens it.
+    private var warChip: some View {
+        let army = session.armyUnits
+        let idle = army.filter { session.isIdle($0) && $0.movesLeft > 0 }.count
+        return Button {
+            session.openPanel = .war
+        } label: {
+            HStack(spacing: HUD.Space.xs) {
+                Image(systemName: "shield.lefthalf.filled").font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(HUD.danger)
+                Text("\(army.count)").font(HUD.numeric()).lineLimit(1).fixedSize()
+                if !compact { Text("War Room").font(HUD.title(.caption)).lineLimit(1).fixedSize() }
+            }
+            .padding(.horizontal, HUD.Space.m)
+            .frame(minHeight: HUD.touch)
+            .parchmentCapsule()
+            .overlay(alignment: .topTrailing) {
+                if idle > 0 {
+                    Circle().fill(HUD.gilt).frame(width: 9, height: 9).overlay(Circle().stroke(HUD.ink.opacity(0.6), lineWidth: 1))
+                        .offset(x: -2, y: 4)
+                }
+            }
+        }
+        .buttonStyle(ChipButtonStyle())
+        .accessibilityLabel("War Room, \(army.count) military units" + (idle > 0 ? ", \(idle) awaiting orders" : ""))
+        .accessibilityHint("Orders production and armies across your empire.")
     }
 
     private func turnChip(_ view: PlayerView) -> some View {

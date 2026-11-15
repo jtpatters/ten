@@ -612,6 +612,7 @@ extension GameState {
         let palace = rules.palace.id
         let walls = rules.buildings.filter { $0.wallHP > 0 }.map(\.id)
         cities[index].owner = new
+        cities[index].unworked = nil
         cities[index].population = max(1, city.population - 1)
         cities[index].buildings.removeAll { $0 == palace || walls.contains($0) }
         cities[index].wallHP = 0

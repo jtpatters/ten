@@ -78,7 +78,7 @@ struct GameView: View {
 
     /// The sheets, one at a time.
     enum GameSheet: String, Identifiable {
-        case city, research, civics, government, diplomacy, notices, minors, load
+        case city, research, civics, government, diplomacy, notices, minors, war, load
         var id: String { rawValue }
     }
 
@@ -95,7 +95,7 @@ struct GameView: View {
     /// Whether `card` shows anything.
     private var showsCard: Bool {
         session.state.outcome != nil || session.attentionCard != nil || session.pendingAttack != nil
-            || session.bombardTargeting != nil || session.quarterPlacing != nil || session.tileBuying != nil || session.inspectedHex != nil || session.selectedUnit != nil
+            || session.bombardTargeting != nil || session.quarterPlacing != nil || session.tileBuying != nil || session.tileWorking != nil || session.warTargeting != nil || session.inspectedHex != nil || session.selectedUnit != nil
     }
 
     var body: some View {
@@ -129,6 +129,8 @@ struct GameView: View {
         .animation(.easeInOut(duration: 0.2), value: session.bombardTargeting)
         .animation(.easeInOut(duration: 0.2), value: session.quarterPlacing)
         .animation(.easeInOut(duration: 0.2), value: session.tileBuying)
+        .animation(.easeInOut(duration: 0.2), value: session.tileWorking)
+        .animation(.easeInOut(duration: 0.2), value: session.warTargeting)
         // At this level so that turning a phone upright (no side panel there) clears it too.
         .onChange(of: sidePanelCity != nil, initial: true) { _, shows in cover.hasSidePanel = shows }
         .onChange(of: cover.insets(sideCard: short && showsCard), initial: true) { _, insets in session.setMapInsets(insets) }
@@ -297,6 +299,10 @@ struct GameView: View {
             QuarterHintCard(session: session, placing: placing)
         } else if let city = session.tileBuying {
             BuyTileHintCard(session: session, city: city)
+        } else if let city = session.tileWorking {
+            WorkTilesHintCard(session: session, city: city)
+        } else if let targeting = session.warTargeting {
+            WarTargetCard(session: session, targeting: targeting)
         } else if let hex = session.inspectedHex {
             if session.inspectMode == .tile {
                 TileSheet(session: session, hex: hex)
@@ -321,6 +327,7 @@ struct GameView: View {
         case .diplomacy?: return .diplomacy
         case .minors?: return .minors
         case .notices?: return .notices
+        case .war?: return .war
         case nil: break
         }
         if compact, session.panelCity(compact: true) != nil { return .city }
@@ -333,7 +340,7 @@ struct GameView: View {
             guard sheet == nil, let shown = wantedSheet else { return }
             switch shown {
             case .load: model.isShowingLoad = false
-            case .research, .civics, .government, .diplomacy, .minors, .notices: session.openPanel = nil
+            case .research, .civics, .government, .diplomacy, .minors, .notices, .war: session.openPanel = nil
             case .city:
                 cover.sheetTop = nil
                 // Turning the phone on its side also closes the sheet (the side panel takes
@@ -400,6 +407,11 @@ struct GameView: View {
                 .presentationDetents(compact ? [.medium, .large] : [.large])
                 .presentationSizing(.form)
                 .presentationBackground(HUD.parchmentTop)
+        case .war:
+            WarRoom(session: session) { session.openPanel = nil }
+                .presentationDetents(compact ? [.medium, .large] : [.large])
+                .presentationSizing(.page)
+                .presentationBackground(HUD.parchmentTop)
         case .load:
             LoadGameView(model: model) { save in
                 Task { await model.load(save) }
@@ -430,6 +442,11 @@ struct GameView: View {
                     session.openPanel = .diplomacy
                 } label: {
                     Label("Diplomacy…", systemImage: "globe.europe.africa")
+                }
+                Button {
+                    session.openPanel = .war
+                } label: {
+                    Label("War Room…", systemImage: "shield.lefthalf.filled")
                 }
                 Button {
                     session.openPanel = .research

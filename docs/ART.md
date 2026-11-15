@@ -165,6 +165,12 @@ S is the HSV saturation of the median colour, L* is CIELAB lightness and ΔE is 
   wheelbarrow; horseman; axes and clubs (at most one small buckler); bows drawn to the jaw;
   spears with big round shields. Their pictograms: cart, crossed pick and hammer, horse head, sword, bow,
   rimmed shield with a spear.
+- The Trader (M2 §13) is a merchant on foot with a walking staff, in a cap and tunic in the
+  owner's colour, leading a long-eared donkey by its halter under a lumpy pack (a corded canvas
+  pannier on a striped blanket, a bundle wrapped in the owner's colour, a rolled carpet across it
+  and an amphora slung behind), the banner pole stuck upright in the load: a narrow upright
+  figure ahead of a small animal, never the Settler's low ox and big round wagon hood. Its
+  pictogram is a tied sack with a coin.
 - A tap on a unit's drawn token selects its tile; a tap on a city's buildings or token
   selects the city (a unit standing in a city is drawn over it and wins); a tap on open
   ground beside them selects the tile under the finger.
@@ -175,9 +181,12 @@ S is the HSV saturation of the median colour, L* is CIELAB lightness and ΔE is 
   than 30% slower than the baseline.
 - Renderer setup at most 150 ms slower than the baseline; decoration placement at most 30 ms
   on the Large map; total texture memory at most 48 MB on the Large map, 50 MB at the very
-  most (M1 §15). Atlases: decor 2048×1536, units 2048×1536 since M2's nine land units (which
-  share their data cells two to a cell and mirror their west-facing body to face east: placeholder art, so their sun is on the
-  wrong side facing east, the one exception to the no-mirroring rule above),
+  most (M1 §15). Atlases: decor 2048×1536, units 2048×1536 since M2's nine land units and the
+  Trader (which share their data cells two to a cell and mirror their west-facing body to face
+  east: placeholder art, so their sun is on the wrong side facing east, the one exception to the
+  no-mirroring rule above; the unit atlas is full, so the Trader's body took the escorted
+  settler's data cell, whose data now shares the Settler's, and its own data shares the
+  Builder's),
   settlements 2048×512 (§11); the shaders take their sizes from the atlases (`kUnitAtlasTexels`,
   `kTownAtlasTexels`).
 - East–west wrap stays seamless (noise periods tied to map width; sprites instanced across
@@ -476,6 +485,24 @@ already fetch.
   and goats on tundra; each animal is painted facing both ways and never mirrored.
 - **Mines** (decorations): an adit's dark mouth in a timber frame, cut low into the lit face
   of the hill's frontmost mound, with one or two spoil heaps in front of it.
+- **Roads** (M2 §3.3, `MapRenderer+Roads.swift`, `overlayRoad`): hand-painted packed earth on
+  the ground, under the units' bases and the decorations (plants and relief stand on it). Each
+  road tile is painted from which of its edges it shares with another explored road tile, and
+  crosses each such edge square at its middle, so neighbouring tiles meet seamlessly. Between
+  opposite edges it runs straight; between any other two it bends on a circular arc (gently, round
+  a point 1.5 tile sizes out, or tightly round the corner between adjacent edges), never a V at
+  the centre. At a junction, opposite links make straight through-roads, three edges side by
+  side a bend with the middle one joining it, and every other link a branch into them, joins
+  filleted (four or more meet round a small worn square). A dead end stops just past the centre;
+  a lone road is a short band across it. Half width 0.12 s, never under about 1.2 pt zoomed out
+  so the network reads at strategic zoom, wandering ±14% with world noise along with ragged
+  edges and patches of tone, so long roads never look stamped. A paler crown, two wheel ruts
+  (broken here and there, worn away where roads meet), a darker verge leaning toward the land's
+  colour, a soft trodden fringe and small stones on the verge with their contact shadows; one
+  step darker on pale land (plains, desert, tundra, snow). Ruts, fine raggedness and stones fade
+  out by their size on screen (§4). Out of sight it takes the explored-fog look; nothing on an
+  unexplored tile. Twelve vertices per road tile (its hexagon), cached until the roads or the
+  fog change; fragments well clear of the road return at once.
 - **Improvement sprites** (mine entrances, spoil, animals) sit in free cells of the decor
   atlas, which stays 2048×1536. They are placed once, on every tile that could take that
   improvement, so building one never rebuilds the decorations. The decoration shader shows
@@ -593,4 +620,8 @@ filters:
 - `--filter TribalVillageGallery`: the tribal village views, and `--filter TribalVillageLooks`
   more of them (`g20e`…`g20n`: every zoom, a take half faded and over, and many layouts on
   every kind of land);
-- `--filter ArtLineup`: the six unit types side by side at every zoom (`g05b`).
+- `--filter ArtLineup`: the six unit types side by side at every zoom (`g05b`);
+- `--filter RoadGallery`: a road network (straight, bends of every angle, a T, a crossroads, a
+  hairpin, a dense cluster, a dead end and a lone road) partly out of sight, at every zoom
+  (`r01`…`r06`), and Traders beside Settlers of two players, close up, at standard and strategic
+  zoom and escorted (`t01`…`t04`).

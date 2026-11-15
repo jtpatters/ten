@@ -87,9 +87,10 @@ enum OverlayStyle: Float {
     /// The movement range's outline: a cream line just inside the range's edge. Same
     /// parameters as `border` (aux.x unused).
     case rangeEdge = 7
-    /// A road (M2 §3.3): a packed-earth band from a tile's centre to the middle of its edge with
-    /// a road tile beside it (`MapRenderer+Roads.swift`). color: across (-1...1), along (world
-    /// units); aux.y: dim (explored, out of sight).
+    /// A road tile (M2 §3.3): its hexagon (four triangles), on which the shader paints the
+    /// road through the edges it shares with other road tiles (`MapRenderer+Roads.swift`).
+    /// color: the corner's offset from the tile's centre (x, y, world units), the links (a bit per
+    /// `HexDirection`); aux.y: dim (explored, out of sight), aux.z: the tile's `Terrain` raw value.
     case road = 8
 }
 

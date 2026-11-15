@@ -159,6 +159,7 @@ extension GameSession {
     /// The orders to put in a save's header (`SaveSummary.explorers`).
     var explorersToSave: [SavedExplorer] {
         explore.orders.map { SavedExplorer(unit: $0.unit, knownEnemies: $0.knownEnemies) }
+            + automation.units.map { SavedExplorer(unit: $0, automated: true) }
     }
 
     /// After a load, before play begins: the orders the save's header kept, for own units still
@@ -167,7 +168,7 @@ extension GameSession {
     /// tells then (the header does not keep it).
     func resumeExploring(_ saved: [SavedExplorer]) {
         let view = self.view
-        for record in saved {
+        for record in saved where !record.automated {
             guard let unit = view.unit(record.unit), canExplore(unit) else { continue }
             explore.set(ExploreOrders.Order(unit: record.unit, knownEnemies: record.knownEnemies, resting: nil))
         }

@@ -158,8 +158,11 @@ extension AITurn {
     /// territory — Farm by fresh water first, Mines on hills, then Pastures (then plain
     /// Farms) — nearest first; Builders reserve their tiles. A Builder with nothing to do sleeps
     /// in the nearest own city.
-    mutating func moveBuilders() {
-        let ids = view.units.filter { $0.type == .builder && $0.charges > 0 && !acted.contains($0.id) }.map(\.id)
+    ///
+    /// `only`: just these Builders (a human's automated ones, `AIPlayer.builderCommands`).
+    mutating func moveBuilders(only: Set<UnitID>? = nil) {
+        let ids = view.units.filter { $0.type == .builder && $0.charges > 0 && !acted.contains($0.id) && only?.contains($0.id) != false }
+            .map(\.id)
         guard !ids.isEmpty else { return }
         let work = improvableWorkedTiles(view)
         var reserved: [Int] = []

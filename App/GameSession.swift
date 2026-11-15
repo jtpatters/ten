@@ -209,6 +209,9 @@ final class GameSession {
     var quarterPlacing: QuarterPlacing?
     /// The city choosing a tile to buy (M2 §7.4), its panel stepped aside.
     var tileBuying: CityID?
+    /// The city whose worked tiles the player is choosing (GameSession+City.swift): the panel
+    /// steps aside and a tap on one of its tiles takes the citizen off or puts one back.
+    var tileWorking: CityID?
     /// What the city panel should show (a new city's production list); the token changes with
     /// every request.
     var cityPanelRequest = CityPanelRequest(focus: .overview, token: 0)
@@ -243,6 +246,14 @@ final class GameSession {
     private(set) var mapGenMilliseconds = 0
     /// Units on the Explore order (GameSession+Explore.swift).
     var explore = ExploreOrders()
+    /// Builders on the Automate order (GameSession+Automate.swift).
+    var automation = BuilderAutomation()
+    /// The war orders: rally points, marches, group orders (GameSession+War.swift).
+    var war = WarOrders()
+    /// Choosing a war order's goal on the map (a march or a rally point), with its preview.
+    var warTargeting: WarTargeting?
+    /// The War Room's tab, choices and filters, kept while a goal is chosen on the map.
+    var warRoom = WarRoomState()
 
     static let quickAIKey = "quickAITurns"
 
@@ -371,7 +382,8 @@ final class GameSession {
     /// Own units waiting for orders (M1 §16): moves left, no orders, no activity; a Settler that
     /// can found a city where it stands, whatever its moves (founding takes none).
     var unitsNeedingOrders: [GameCore.Unit] {
-        view.units.filter { ($0.movesLeft > 0 || view.standsReadyToFound($0)) && $0.destination == nil && $0.activity == .none && !explore.contains($0.id) }
+        view.units.filter { ($0.movesLeft > 0 || view.standsReadyToFound($0)) && $0.destination == nil && $0.activity == .none && !explore.contains($0.id)
+            && !automation.contains($0.id) && !war.isMarching($0.id) }
     }
 
     var nextActionTitle: String {
@@ -383,9 +395,10 @@ final class GameSession {
     // MARK: Commands
 
     /// Applies a command for the viewer, then updates the map and overlays. Returns whether it
-    /// was accepted; a refusal shows its reason.
+    /// was accepted; a refusal shows its reason, unless `quiet` (orders given to many units at
+    /// once, which sum up their refusals).
     @discardableResult
-    func perform(_ command: Command) -> Bool {
+    func perform(_ command: Command, quiet: Bool = false) -> Bool {
         guard isInputEnabled else {
             if let waiting = waitingFor {
                 show("Waiting for \(waiting.civName)")
@@ -400,6 +413,8 @@ final class GameSession {
             let events = try GameEngine.apply(command, by: viewer, to: &state)
             commandCount += 1
             exploreHeard(command)
+            automateHeard(command)
+            warHeard(command)
             // The viewer's own deeds stay quiet in the notices; ending the phase is not one
             // (what follows it is news).
             let isEndTurn = if case .endTurn = command { true } else { false }
@@ -414,11 +429,13 @@ final class GameSession {
                 select(.city(id))
                 attentionCard = .capture(id)
             }
+            // A unit bought in a city with a rally point marches there at once.
+            if isViewerPhase, !war.recruits.isEmpty { dispatchRecruits() }
             // The phase ended: the other players' phases follow, with playback.
             if !isViewerPhase { playOtherPhases() }
             return true
         } catch {
-            show(Self.describe(error))
+            if !quiet { show(Self.describe(error)) }
             return false
         }
     }
@@ -474,6 +491,7 @@ final class GameSession {
     /// listeners hear the events. `byViewer`: they come from the viewer's own command.
     func stateChanged(events: [EventRecord], animate: Bool = true, byViewer: Bool = false) {
         let visible = visibleRecords(events)
+        noteRecruits(events)
         noteCombats(visible)
         noteGifts(visible)
         if animate {
@@ -640,6 +658,17 @@ final class GameSession {
         // 0b. Buying a tile: a marked tile is bought.
         if tileBuying != nil {
             buyTile(at: hex)
+            return
+        }
+        // 0c. Choosing worked tiles: a city tile is worked or left.
+        if tileWorking != nil {
+            toggleWorked(at: hex)
+            return
+        }
+        // 0d. Choosing a war order's goal: own military units join or leave the group, any
+        // other tile is the goal (previewed; the second tap gives the order).
+        if warTargeting != nil {
+            warTap(at: hex)
             return
         }
 
@@ -893,6 +922,7 @@ final class GameSession {
             bombardTargeting = nil
             quarterPlacing = nil
             tileBuying = nil
+            tileWorking = nil
             // Another city's panel opens on its overview.
             if case .city = selection { cityPanelRequest = CityPanelRequest(focus: .overview, token: cityPanelRequest.token &+ 1) }
         }
@@ -948,6 +978,7 @@ final class GameSession {
         bombardTargeting = nil
         quarterPlacing = nil
         tileBuying = nil
+        tileWorking = nil
         selection = nil
         refreshSelection()
     }
@@ -1072,6 +1103,8 @@ final class GameSession {
     func refreshSelection() {
         overlay.invalidateBanners()
         if quarterPlacing == nil, tileBuying == nil { overlay.siteLabels = [] }
+        overlay.citizenMarks = citizenMarks()
+        overlay.armyMarks = armyMarks()
         let view = self.view
         switch selection {
         case let .unit(id)?:
@@ -1154,7 +1187,7 @@ final class GameSession {
     /// The panels presented over the map on request (the tech panel, the diplomacy sheet, the
     /// notices log).
     enum Panel: Equatable {
-        case research, civics, government, diplomacy, notices, minors
+        case research, civics, government, diplomacy, notices, minors, war
     }
 
     /// Esc: closes the combat preview, else leaves bombard target mode, else drops the
@@ -1168,6 +1201,10 @@ final class GameSession {
             endQuarter()
         } else if tileBuying != nil {
             endBuyTile()
+        } else if tileWorking != nil {
+            endWorkTiles()
+        } else if warTargeting != nil {
+            endWarTargeting()
         } else if pendingPath != nil {
             clearPreviews()
         } else if inspectedHex != nil {

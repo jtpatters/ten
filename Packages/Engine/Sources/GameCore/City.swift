@@ -71,6 +71,14 @@ public struct City: Codable, Hashable, Sendable, Identifiable {
     public var tilesBought: Int?
     /// Citizens in specialist slots (M2 §5.3), one entry each, by quarter; nil = none.
     public var specialists: [QuarterKind]?
+    /// Tiles the owner took a citizen off (`setTileWorked`), sorted by tile index; nil = none.
+    /// No citizen works them, and each keeps one citizen idle as an Entertainer, who adds
+    /// Stability (`StabilityRules.entertainer`) instead of working. Kept while the city owns
+    /// the tile and it stays workable; cleared when the city changes hands.
+    public var unworked: [HexCoord]?
+
+    /// Citizens kept idle as Entertainers: one per unworked tile, at most the population.
+    public var entertainers: Int { min(unworked?.count ?? 0, population) }
 
     init(id: CityID, name: String, owner: PlayerID, position: HexCoord, turn: Int, hp: Int) {
         self.id = id

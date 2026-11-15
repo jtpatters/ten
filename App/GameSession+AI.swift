@@ -352,6 +352,10 @@ extension GameSession {
         guard state.outcome == nil, isViewerPhase else { return }
         continueExploring()
         guard state.outcome == nil, isViewerPhase else { return }
+        continueAutomating()
+        guard state.outcome == nil, isViewerPhase else { return }
+        continueWar()
+        guard state.outcome == nil, isViewerPhase else { return }
         autosave()
         // Playback may have taken the camera away from the selection: bring it back, unless
         // the player has been moving the map.

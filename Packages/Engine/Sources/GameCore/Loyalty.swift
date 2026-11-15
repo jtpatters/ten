@@ -146,6 +146,7 @@ extension GameState {
         }
         let palace = rules.palace.id
         cities[index].owner = free
+        cities[index].unworked = nil
         cities[index].buildings.removeAll { $0 == palace }
         cities[index].queue = []
         cities[index].capturedTurn = turn
@@ -265,6 +266,7 @@ extension GameState {
             moveOut(unit.id, from: centre, &fx)
         }
         cities[index].owner = new
+        cities[index].unworked = nil
         cities[index].capturedTurn = turn
         cities[index].loyalty = l.flipped
         cities[index].freeCityLeader = nil

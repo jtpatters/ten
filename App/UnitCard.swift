@@ -20,7 +20,9 @@ struct UnitCard: View {
         let maxHP = max(1, view.rules.constants.healing.maxHP)
         VStack(alignment: .leading, spacing: HUD.Space.s) {
             CardHeader(title: unit.type.displayName, player: unit.owner, onClose: { session.deselect() }) {
-                if let status = session.exploreBadge(of: unit) ?? Self.status(of: unit) { KindBadge(text: status) }
+                if let status = session.exploreBadge(of: unit) ?? session.automateBadge(of: unit) ?? Self.status(of: unit) {
+                    KindBadge(text: status)
+                }
             }
             HStack(spacing: HUD.Space.m) {
                 StatPill(systemImage: "figure.walk",
@@ -48,6 +50,8 @@ struct UnitCard: View {
             }
             if own { routeRow }
             if own { ExploreRow(session: session, unit: unit) }
+            if own { AutomateRow(session: session, unit: unit) }
+            if own { MarchRow(session: session, unit: unit) }
             if own {
                 let actions = Self.ordered(view.unitActions(for: unit.id), unit: unit)
                 let offered = def.isMilitary ? view.promotionsOffered(unit.id) : []
@@ -55,9 +59,11 @@ struct UnitCard: View {
                 // and an edge with more beyond it fades out.
                 ActionBar {
                     if session.canExplore(unit), session.exploreLeads(unit) { ExploreTile(session: session, unit: unit, compact: compact) }
+                    if session.canAutomate(unit) { AutomateTile(session: session, unit: unit, compact: compact) }
                     ForEach(actions, id: \.kind) { action in
                         tile(action, fill: true)
                     }
+                    if def.isMilitary { GroupTile(session: session, unit: unit, compact: compact) }
                     if let target = def.upgradesTo { upgradeTile(to: target) }
                     if unit.type == .trader, view.rules.trade != nil { tradeTile }
                     if def.isMilitary, view.rules.trade != nil, view.plunderProblem(unit.id) == nil { plunderTile }

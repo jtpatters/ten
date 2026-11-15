@@ -113,6 +113,148 @@ static float4 overlayTrail(float4 p, float px, float pt, float ptHere, float tim
     return c * opacity * (later ? mix(0.62, 1.0, remembered) : 1.0);
 }
 
+// ---------------------------------------------------------------- roads
+
+// Smooth minimum of two distances (polynomial, over `k`): joins road centrelines with fillets.
+static float overlaySmin(float a, float b, float k) {
+    float h = saturate(0.5 + 0.5 * (b - a) / k);
+    return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+// The distance to the arc joining the middles of edges `i` and `j` (`kNormals`, one or two steps
+// apart round the hex), crossing both square, so it runs on straight into the next tile: round
+// their shared corner at half an edge (a tight bend) or round the point where the edges' lines
+// meet, 1.5 tile sizes out (a gentle one). `apothem` is the tile's centre-to-edge distance.
+static float overlayRoadArc(float2 p, uint i, uint j, bool tight, float apothem) {
+    float2 bisector = normalize(kNormals[i] + kNormals[j]);
+    float far = tight ? apothem * 1.1547005 : apothem * 2.0;
+    float radius = tight ? apothem * 0.5773503 : apothem * 1.7320508;
+    return abs(length(p - bisector * far) - radius);
+}
+
+// The distance from `p` (world units from a road tile's centre) to the road's centreline for the
+// tile's links (a bit per edge with a road beyond it, `kNormals` order). Each edge is crossed
+// square at its middle: two links make a straight road or an arc; at a junction opposite links
+// make straight through-roads, three side by side a bend with the middle one joining it, and every
+// other link a branch to where they meet (`meet`; far away when there is no junction), joins
+// filleted over `k`, four or more round a small square. A dead end stops just past the centre; a
+// lone road is a short band across it.
+static float overlayRoadDistance(float2 p, uint links, float s, float k, thread float2& meet) {
+    float apothem = s * 0.8660254;
+    meet = float2(1e4);
+    uint n = popcount(links);
+    if (n == 0u) return overlaySegmentDistance(p, float2(-0.26 * s, 0.0), float2(0.26 * s, 0.0));
+    if (n == 1u) {
+        float2 dir = kNormals[ctz(links)];
+        return overlaySegmentDistance(p, dir * apothem, -dir * 0.06 * s);
+    }
+    if (n == 2u) {
+        uint i = ctz(links), j = 31u - clz(links), apart = min(j - i, 6u - (j - i));
+        if (apart == 3u) return overlaySegmentDistance(p, kNormals[i] * apothem, kNormals[j] * apothem);
+        return overlayRoadArc(p, i, j, apart == 1u, apothem);
+    }
+    float d = 1e4;
+    uint through = 0u;
+    for (uint i = 0u; i < 3u; i++) {
+        uint pair = (1u << i) | (1u << (i + 3u));
+        if ((links & pair) == pair) {
+            d = overlaySmin(d, overlaySegmentDistance(p, kNormals[i] * apothem, kNormals[i + 3u] * apothem), k);
+            through |= pair;
+        }
+    }
+    meet = float2(0.0);
+    uint branches = links & ~through;
+    if (through == 0u && n == 3u) {
+        for (uint c = 0u; c < 6u; c++) {
+            uint l = (c + 5u) % 6u, r = (c + 1u) % 6u;
+            if (((links >> l) & (links >> c) & (links >> r) & 1u) != 0u) {
+                d = overlayRoadArc(p, l, r, false, apothem);
+                meet = kNormals[c] * (apothem * (2.0 - 1.7320508));
+                branches = 1u << c;
+            }
+        }
+    }
+    for (uint i = 0u; i < 6u; i++) {
+        if (((branches >> i) & 1u) != 0u) d = overlaySmin(d, overlaySegmentDistance(p, kNormals[i] * apothem, meet), k);
+    }
+    // Where four or more roads meet, a small worn square.
+    return n >= 4u ? overlaySmin(d, length(p - meet) - k * 0.9, k) : d;
+}
+
+// A road (`MapRenderer+Roads.swift`), hand-painted packed earth: a paler crown, two worn wheel
+// ruts (broken here and there, smoothed away where roads meet), a darker verge leaning toward the
+// land's colour, a soft trodden fringe and small stones scattered along its edges, each with its
+// contact shadow to the lower right. Its width, edges and tone wander with world noise, so a long
+// road never looks stamped; ruts, fine raggedness and stones fade out by their size on screen
+// before they can shimmer (ART.md §4), and zoomed far out the road keeps about 2.4 points of width.
+// `local` is the fragment's offset from the tile's centre; only the tile's own hex is painted.
+static float4 overlayRoad(float2 local, uint links, uint terrain, float3 world, constant Uniforms& u) {
+    float s = u.map.x, tw = u.map.y, pt = u.eye.w;
+    int mapW = int(u.dims.x);
+    float px = max(max(length(dfdx(world.xy)), length(dfdy(world.xy))), 1e-4);  // world units per pixel
+    float2 np = world.xy / tw;   // tile widths: the noise repeats with the world (ART.md §10)
+    float fine = smoothstep(0.012, 0.006, px / s);   // close enough for fine detail
+    float w0 = clamp(s * 0.12, 1.2 * pt, s * 0.2);
+    float2 meet;
+    float d = overlayRoadDistance(local, links, s, w0 * 0.8, meet);
+    float dw = fwidth(d);
+    // Only this tile's hex (its neighbours paint theirs, meeting it square at the shared edges),
+    // and most of it is well clear of the road and its fringe: nothing to paint there.
+    float2 q = abs(local);
+    if (d > w0 * 2.0 || max(q.x, q.x * 0.5 + q.y * 0.8660254) > s * 0.8660254) return float4(0.0);
+    float w = w0 * (0.86 + 0.28 * vnoise(np * 2.0, mapW * 2));
+    float rag = 0.16 * (vnoise(np * 7.0, mapW * 7) - 0.5) + 0.12 * fine * (vnoise(np * 19.0, mapW * 19) - 0.5);
+    float t = max(d / w + rag, 0.0);
+    float aa = max(dw / w, 1e-3);
+    float band = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, t);
+    float fringe = (1.0 - smoothstep(1.0, 1.6, t)) * (1.0 - band) * 0.22;
+
+    float3 land = u.terrain[min(terrain, 7u)].rgb;
+    // On pale land (plains, desert, tundra, snow) the earth is a step darker, so it still reads.
+    float pale = smoothstep(0.5, 0.75, dot(land, float3(0.30, 0.59, 0.11)));
+    float tone = vnoise(np * 3.0, mapW * 3), grain = vnoise(np * 13.0, mapW * 13);
+    float3 earth = mix(float3(0.69, 0.56, 0.39), float3(0.78, 0.66, 0.48), tone) * mix(1.0, 0.84, pale);
+    earth *= 1.0 + 0.08 * fine * (grain - 0.5);
+    float3 crown = earth * float3(1.12, 1.11, 1.1);
+    earth = mix(earth, crown, 0.7 * (1.0 - smoothstep(0.05, 0.32, t)));
+    float rutWidth = 0.1 * (0.8 + 0.4 * grain);
+    float rut = 1.0 - smoothstep(rutWidth - aa, rutWidth + aa, abs(t - 0.5));
+    rut *= smoothstep(1.0, 2.2, rutWidth * w / px);                                   // a pixel or two wide
+    rut *= smoothstep(0.2, 0.5, vnoise(np * 5.0 + 17.0, mapW * 5));                    // broken here and there
+    rut *= smoothstep(1.1, 2.4, length(local - meet) / w);                             // worn flat at junctions
+    earth = mix(earth, earth * float3(0.7, 0.66, 0.66), rut * 0.8);
+    float3 verge = mix(float3(0.5, 0.39, 0.27) * mix(1.0, 0.9, pale), land * 0.66, 0.3);
+    earth = mix(earth, verge, smoothstep(0.66, 0.97, t) * 0.85);
+    earth = mix(earth, land, 0.06);
+    float3 trodden = mix(float3(0.46, 0.38, 0.27), land * 0.68, 0.45);
+    float4 c = float4(trodden * fringe, fringe);
+    c = overlayOver(c, float4(earth * band * 0.94, band * 0.94));
+
+    // Stones along the edges: at most one per cell of a world lattice (ten per tile width), shown
+    // when it lies on the verge.
+    float2 g = np * 10.0, gi = floor(g);
+    int gx = wrapIndex(int(gi.x), mapW * 10), gy = int(gi.y);
+    float h1 = hash2(gx, gy), h2 = hash2(gy + 71, gx), h3 = hash2(gx + 13, gy + 29);
+    float2 stone = (gi + 0.35 + 0.3 * float2(h1, h2)) / 10.0 * tw;   // world, beside this fragment's copy
+    float2 toStone = stone - world.xy;
+    float r = s * (0.014 + 0.02 * h3);
+    float shown = smoothstep(1.0, 2.2, r / px) * step(h3, 0.5);
+    if (shown > 0.0 && length(toStone) < r * 2.0) {
+        float2 unused;
+        float ds = overlayRoadDistance(local + toStone, links, s, w0 * 0.8, unused) / w + rag;
+        shown *= smoothstep(0.66, 0.76, ds) * (1.0 - smoothstep(1.06, 1.16, ds));
+        float2 off = -toStone;
+        float2 shadowAt = off - float2(0.77, -0.63) * r * 0.45;
+        float sh = (1.0 - smoothstep(r * 0.7, r * 1.35, length(shadowAt))) * 0.38 * shown;
+        c = overlayOver(c, float4(float3(0.10, 0.10, 0.20) * sh, sh));
+        float cover = (1.0 - smoothstep(r - px, r + px, length(off * float2(1.0, 1.25)))) * shown;
+        float lit = saturate(0.5 + 0.9 * dot(off / r, float2(-0.6, 0.55)));
+        float3 rock = mix(float3(0.45, 0.42, 0.46), float3(0.82, 0.76, 0.63), lit) * (0.9 + 0.2 * h1);
+        c = overlayOver(c, float4(rock * cover, cover));
+    }
+    return c;
+}
+
 // Dashed ring around the destination, slowly turning; or (style 5) the rest of a route through
 // unexplored land: faint open rings, a guess where the route's filled dots are a plan. `p.z` is
 // the dash period, `p.w` the half width.
@@ -201,12 +343,7 @@ fragment float4 overlay_fragment(OverlayOut in [[stage_in]], constant Uniforms& 
     } else if (style == 4 || style == 5) {
         c = overlayDashes(in.params, px, time, style == 5);
     } else if (style == 8) {
-        // A road: packed earth with darker worn edges and a faint rut down the middle.
-        float x = abs(in.params.x);
-        float a = 1.0 - smoothstep(1.0 - 2.0 * aaAcross, 1.0, x);
-        float3 earth = mix(float3(0.74, 0.62, 0.44), float3(0.48, 0.37, 0.25), smoothstep(0.55, 0.85, x));
-        earth *= 1.0 - 0.12 * (1.0 - smoothstep(0.08, 0.2, x));
-        c = float4(earth * a * 0.92, a * 0.92);
+        c = overlayRoad(in.params.xy, uint(in.params.z + 0.5), uint(in.aux.z + 0.5), in.world, u);
         c = mix(c, applyExploredFog(c), saturate(in.aux.y));
     } else {
         c = in.params;
