@@ -313,14 +313,14 @@ extension PlayerView {
 
     /// `improvementSites` for each improvement `tech` unlocks (in rules order).
     public func improvementSites(unlockedBy tech: TechID) -> [ImprovementSites] {
-        Improvement.allCases.filter { rules.improvement($0).tech == tech }.map { improvementSites($0) }
+        Improvement.tileWork.filter { rules.improvement($0).tech == tech }.map { improvementSites($0) }
     }
 
     /// Where an own Builder could work now (`BuilderJob`), in tile order; empty for any other
     /// unit.
     public func builderJobs(for id: UnitID) -> [BuilderJob] {
         guard let unit = state.unit(id), unit.owner == player, unit.charges > 0, let start = index(of: unit.position) else { return [] }
-        let known = Improvement.allCases.filter { rules.improvement($0).tech.map(me.knows) ?? true }
+        let known = Improvement.tileWork.filter { rules.improvement($0).tech.map(me.knows) ?? true }
         guard !known.isEmpty else { return [] }
         let movesLeft = unit.zocStopped ? 0 : unit.movesLeft
         let field = Pathfinder.movementField(MoveKnowledge(state: state, unit: unit), from: start, movesLeft: movesLeft,

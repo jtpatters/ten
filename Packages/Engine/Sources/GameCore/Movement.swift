@@ -74,7 +74,7 @@ struct MoveKnowledge {
         for other in state.units {
             let t = map.index(of: other.position)!
             if other.owner != unit.owner {
-                guard me.visible[t] else { continue }
+                guard me.visible[t], !state.isHidden(other, from: unit.owner) else { continue }
                 if other.type.isCivilian {
                     if !(isMilitary && atWar[other.owner.rawValue]) { blocked[t] = true }
                 } else {

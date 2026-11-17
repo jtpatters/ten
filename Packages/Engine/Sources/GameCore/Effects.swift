@@ -52,14 +52,37 @@ struct Effects {
     func records(before: [TileBitSet], after state: GameState) -> [EventRecord] {
         var records: [EventRecord] = []
         records.reserveCapacity(pending.count)
+        let anyHidden = state.hasHiddenUnits
         for (event, audience) in pending {
+            let hidden = anyHidden ? Self.hiddenMask(event, in: state) : 0
             if case let .move(owner, tiles) = audience, case let .unitMoved(unit, from, path) = event, path.count + 1 == tiles.count {
                 records += Self.moveRecords(unit: unit, from: from, path: path, owner: owner, tiles: tiles, before: before, after: state)
+                    .compactMap { r in
+                        let mask = r.audience & ~hidden
+                        return mask == 0 ? nil : EventRecord(r.event, audience: mask)
+                    }
             } else {
-                records.append(EventRecord(event, audience: Self.mask(audience, before: before, after: state)))
+                records.append(EventRecord(event, audience: Self.mask(audience, before: before, after: state) & ~hidden))
             }
         }
         return records
+    }
+
+    /// Players a hidden ship (M3a §9.4) that the event is about stays hidden from after the
+    /// command: they get no record of its moves or appearance.
+    private static func hiddenMask(_ event: GameEvent, in state: GameState) -> UInt16 {
+        let id: UnitID
+        switch event {
+        case let .unitMoved(unit, _, _), let .unitCreated(unit, _, _, _), let .unitPromoted(unit, _, _, _),
+             let .unitUpgraded(unit, _, _, _, _):
+            id = unit
+        default:
+            return 0
+        }
+        guard let unit = state.unit(id) else { return 0 }
+        var mask: UInt16 = 0
+        for p in state.players.indices where state.isHidden(unit, from: PlayerID(p)) { mask |= bit(PlayerID(p)) }
+        return mask
     }
 
     /// The records of one move (`Audience.move`): every distinct run of seen steps once, with

@@ -151,7 +151,7 @@ struct TurtlePlayer {
         let v = view
         let worked = v.cities.flatMap(\.workedTiles)
         func kind(_ hex: HexCoord) -> Improvement? {
-            Improvement.allCases.first { v.aiImprovementProblem($0, at: hex) == nil }
+            Improvement.tileWork.first { v.aiImprovementProblem($0, at: hex) == nil }
         }
         if worked.contains(unit.position), let k = kind(unit.position), unit.movesLeft > 0 {
             issue(.buildImprovement(unit: unit.id, improvement: k))

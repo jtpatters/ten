@@ -89,6 +89,7 @@ extension GameState {
             b.government += bonus(\.garrisonLoyalty, for: owner)
         }
         if city.capturedTurn != nil { b.government += bonus(\.conqueredLoyalty, for: owner) }
+        if isDistantCity(city) { b.government += bonus(\.distantCityLoyalty, for: owner) }
         if let capital = players[owner.rawValue].capital, let c = self.city(capital) {
             for bonus in bonuses(of: owner) {
                 guard let v = bonus.capitalLoyalty,

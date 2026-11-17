@@ -40,7 +40,8 @@ func validationProblems(_ change: (inout [String: Any]) -> Void) throws -> [Stri
         // M2 §6.1: the M1 techs come first, in M1's order.
         #expect(rules.techs.prefix(10).map(\.id) == ["pottery", "mining", "animalHusbandry", "sailing", "writing", "irrigation",
                                                     "archery", "bronzeWorking", "masonry", "currency"])
-        #expect(rules.techs.count == 30 && rules.eras.map(\.id) == ["ancient", "classical", "medieval"])
+        // M3a §6.1: 9 Renaissance techs after M2's 30.
+        #expect(rules.techs.count == 39 && rules.eras.map(\.id) == ["ancient", "classical", "medieval", "renaissance"])
         #expect(rules.civs.map(\.name) == ["Rome", "Mongols", "Mali", "China", "Inca", "Khmer", "Norse", "Abbasid Caliphate"])
         #expect(rules.civs.map(\.leader) == ["Trajan", "Genghis Khan", "Mansa Musa", "Wu Zetian", "Pachacuti",
                                              "Jayavarman VII", "Harald Hardrada", "Harun al-Rashid"])
@@ -84,7 +85,8 @@ func validationProblems(_ change: (inout [String: Any]) -> Void) throws -> [Stri
         #expect(c.upkeep.freeBase == 2 && c.upkeep.freePerCity == 1 && c.upkeep.goldPerUnit == 1)
         let healing: [Int] = [c.healing.ownCity, c.healing.ownTerritory, c.healing.neutral, c.healing.foreign]
         #expect(healing == [20, 15, 10, 5])
-        #expect(c.knowledge.sightingMaxAge == 20 && c.turnLimit == 250)
+        // M3a-D1: no turn limit.
+        #expect(c.knowledge.sightingMaxAge == 20 && c.turnLimit == nil)
         #expect(rules.focuses.map(\.foodFloor) == [2, 2, 0, 0, 0, 0])
         #expect(rules.aiMaxCities(mapSize: "duel") == 6 && rules.aiMaxCities(mapSize: "large") == 12)
     }

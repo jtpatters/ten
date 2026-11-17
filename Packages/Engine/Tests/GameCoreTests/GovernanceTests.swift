@@ -6,9 +6,10 @@ import Testing
 @Suite struct GovernanceTests {
     let p0 = PlayerID(0)
 
-    @Test func theRulesHaveSevenGovernmentsAndThirtyPolicies() throws {
+    @Test func theRulesHaveSevenGovernmentsAndThirtyEightPolicies() throws {
         let g = try #require(Ruleset.standard.governance)
-        #expect(g.governments.count == 7 && g.policies.count == 30)
+        // M2's 30, then M3a's 8 Renaissance policies.
+        #expect(g.governments.count == 7 && g.policies.count == 38)
         #expect(makeTestState(map: openMap(), gold: 0).government(of: p0)?.id == "despotism")
     }
 

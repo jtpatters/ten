@@ -59,7 +59,7 @@ extension GameState {
             case let .patronChanged(_, patron):
                 if let patron { mark(patron, .bePatron) }
             case let .cityFounded(_, _, owner, _):
-                mark(owner, .ownCities, .ownCoastalCities)
+                mark(owner, .ownCities, .ownCoastalCities, .foundOverseasCity)
             case let .warDeclared(_, on):
                 mark(on, .warDeclaredOn)
             case let .cityGrew(city, _, _):
@@ -67,11 +67,11 @@ extension GameState {
             case let .phaseStarted(_, player):
                 mark(player, .cityInUnrest)
             case let .cityCaptured(_, _, _, to, _):
-                mark(to, .ownCities, .ownCoastalCities, .ownBuildings)
+                mark(to, .ownCities, .ownCoastalCities, .ownBuildings, .foundOverseasCity)
             case let .improvementBuilt(_, _, owner):
-                mark(owner, .buildImprovements)
+                mark(owner, .buildImprovements, .quarterAdjacency)
             case let .productionCompleted(city, _, _):
-                if let owner = self.city(city)?.owner { mark(owner, .ownBuildings, .ownUnits, .ownQuarters, .ownMilitaryUnits) }
+                if let owner = self.city(city)?.owner { mark(owner, .ownBuildings, .ownUnits, .ownQuarters, .ownMilitaryUnits, .quarterAdjacency) }
             case let .unitCreated(_, _, owner, _):
                 mark(owner, .ownUnits, .ownMilitaryUnits)
             case let .unitCaptured(_, _, _, _, to, _):
@@ -88,6 +88,8 @@ extension GameState {
                 }
             case let .raiderCampCleared(player, _, _):
                 mark(player, .clearRaiderCamp)
+            case let .tradeRouteStarted(_, owner, _, _):
+                mark(owner, .tradeRoutes)
             default:
                 break
             }
@@ -168,8 +170,38 @@ extension GameState {
             }
         case .ownMilitaryUnits:
             return units.count { $0.owner == player && rules.unit($0.type).isMilitary }
+        case .foundOverseasCity:
+            return overseasCityCount(of: player)
+        case .quarterAdjacency:
+            return cities.reduce(0) { best, city in
+                guard city.owner == player, let centre = map.index(of: city.position) else { return best }
+                return (city.quarters ?? []).reduce(best) { b, q in
+                    guard q.kind.rawValue == insight.target, let t = map.index(of: q.tile) else { return b }
+                    return max(b, quarterAdjacency(q.kind, at: t, owner: player, centre: centre))
+                }
+            }
+        case .tradeRoutes:
+            return (tradeRoutes ?? []).count { $0.owner == player }
         case .killWith, .cityDefended, .warDeclaredOn, .clearRaiderCamp:
             return 0
         }
+    }
+
+    /// `player`'s cities on another landmass than its capital's (land tiles joined by land).
+    func overseasCityCount(of player: PlayerID) -> Int {
+        let own = cities.filter { $0.owner == player }
+        guard own.count > 1, let capital = own.first(where: { $0.has(rules.palace.id) }),
+              let start = map.index(of: capital.position) else { return 0 }
+        var seen = [Bool](repeating: false, count: map.tiles.count)
+        var stack = [start]
+        seen[start] = true
+        while let t = stack.popLast() {
+            map.forEachNeighbor(of: t) { n, _ in
+                guard !seen[n], !map.tiles[n].terrain.isWater else { return }
+                seen[n] = true
+                stack.append(n)
+            }
+        }
+        return own.count { city in map.index(of: city.position).map { !seen[$0] } ?? false }
     }
 }

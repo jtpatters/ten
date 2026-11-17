@@ -16,6 +16,8 @@ public enum UnitType: String, Codable, Sendable, CaseIterable {
     case galley, quadrireme, cog, dromon
     // M2 §8.4, §13 (appended).
     case trader
+    // M3a §8.1, Renaissance (appended).
+    case musketman, pikeAndShot, hussar, bombard, caravel, privateer, frigate
 
     /// Hard-coded; rules validation checks it matches the data's unit class.
     public var isCivilian: Bool {
@@ -24,6 +26,7 @@ public enum UnitType: String, Codable, Sendable, CaseIterable {
         case .scout, .warrior, .archer, .spearman: false
         case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: false
         case .galley, .quadrireme, .cog, .dromon: false
+        case .musketman, .pikeAndShot, .hussar, .bombard, .caravel, .privateer, .frigate: false
         }
     }
 
@@ -31,6 +34,7 @@ public enum UnitType: String, Codable, Sendable, CaseIterable {
     public var isNaval: Bool {
         switch self {
         case .galley, .quadrireme, .cog, .dromon: true
+        case .caravel, .privateer, .frigate: true
         default: false
         }
     }
@@ -39,6 +43,7 @@ public enum UnitType: String, Codable, Sendable, CaseIterable {
         switch self {
         case .heavyChariot: "Heavy Chariot"
         case .manAtArms: "Man-at-Arms"
+        case .pikeAndShot: "Pike and Shot"
         default: rawValue.capitalized
         }
     }
@@ -71,6 +76,9 @@ public struct Unit: Codable, Hashable, Sendable {
     public var promotions: [String]?
     /// Attacked this phase, for units that may move after attacking (M2 §8.3); nil = no.
     public var attacked: Bool?
+    /// A hidden ship that attacked is seen by everyone who sees its tile until the end of this
+    /// turn (M3a §9.4); nil = never revealed.
+    public var revealedUntil: Int?
 
     /// A fresh unit: full HP, no orders or activity. Moves and charges come from the rules
     /// (`GameState.addUnit` fills them in).

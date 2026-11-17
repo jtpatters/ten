@@ -339,7 +339,7 @@ public enum DebugTools {
                 commands.append(.foundCity(unit: unit.id))
                 continue
             }
-            if unit.charges > 0, let kind = Improvement.allCases.first(where: { state.improvementProblem($0, by: unit) == nil }) {
+            if unit.charges > 0, let kind = Improvement.tileWork.first(where: { state.improvementProblem($0, by: unit) == nil }) {
                 commands.append(.buildImprovement(unit: unit.id, improvement: kind))
                 continue
             }

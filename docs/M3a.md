@@ -680,6 +680,34 @@ first (as M2 §22).
 | **3a.2 Industrial** | Era 4; 9 techs, 5 civics, 8 policies; Coal; move points ×6 and railroads; Factory, Exchange, Research Lab, Seaport, Military Academy, Menagerie, Sewer; regional effects; Corps; Line Infantry, Ranger, Field Gun, Cavalry, Cuirassier, Ironclad | Railroads and Factories used by AIs; Corps keep unit counts in target |
 | **3a.3 Modern** | Era 5; 9 techs, 6 civics, 3 governments, 10 policies; Oil and Oil Well; Power; Power Plant, Broadcast Tower, Stadium, Hangar; Armies; air layer; Infantry, Machine Gun, AT Gun, Artillery, Tank, Destroyer, Battleship, Submarine, Biplane, Bomber | Full §17 targets; **late-game check** |
 
+### 20.1 3a.1 as built
+Simplified where the M2 promotion and bonus fields already cover the spirit; revisit in balance.
+- **Square Rigging:** +1 move for naval units everywhere, not only on Ocean.
+- **Insights:** Gunpowder is "own 2 Barracks quarters" (there is no Armory); Exploration is
+  "own 3 coastal cities".
+- **Tier 3 promotions** (one effect each, from M2's fields): Elite has no extra healing;
+  Emplacement does not fortify at once; Hold the Line is +10 defending (no aura); Spearhead is
+  +7 attacking anywhere; Rolling Barrage also gives +5 vs cities. *Suppression* became
+  **Sharpshooters** (+1 range), *Spotter* became **Pathfinder** (+1 move), and *Coastal Raid*
+  became **Ironsides** (+7 defending).
+- **Naval raider tree:** T1 Silent Running (+1 move) / **Raiding Party** (+7 attacking, for
+  *Wolfpack*); T2 **Lookout** (+1 sight, for *Periscope*) / Boarding; T3 **Raking Fire** (+10 vs
+  naval, for *Torpedoes*) / **Prize Hunter** (+7 vs wounded units, for *Prize Crew*).
+- **Hidden ships:** hidden from a player unless one of its units or cities is adjacent, or the
+  ship attacked this turn or last (`Unit.revealedUntil`); hidden ships exert no zone of control
+  and send no move events to the players they are hidden from.
+- **Strategic fairness** is data (`stockpile.fairness`: Horses or Iron within 6, Niter within 8);
+  `strategicPer1000Land` 14 → 21 for the third strategic.
+- **Stockpile cap:** +`capBonus` from `capBonusEra` and again for each later era (Medieval 30,
+  Renaissance 40).
+- **Forts** are not offered in Builder job lists or automation (`Improvement.tileWork`); the AI
+  does not build them yet.
+- **AI raiders:** at war, Privateers attack like naval melee, else head for the nearest seen
+  enemy sea route tile, else the water by a known enemy city. No avoidance of enemy warships yet.
+- **Art:** the seven new units use their forebears' bodies and badges (placeholders); the turn
+  marker numerals moved to 64 px cells so the Fort job glyph fits in the 2048 × 1536 unit atlas.
+  Their own art needs atlas room beyond ART.md §10's budget (to decide with the art pass).
+
 **Cut order inside M3a** if it runs long (lowest value first): tier 3 promotions for new classes
 → naval raider hiding (they become ordinary ships) → patrol/intercept (fighters only strike) →
 Armies (keep Corps) → Power (Power Plant becomes a flat +Prod building) → Bomber.

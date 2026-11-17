@@ -340,7 +340,7 @@ extension PlayerView {
         // knows it, units, borders and zones of control ignored; melee units strike the tiles
         // next to where they can get with a move left, ranged units those within range of them.
         for enemy in state.units where enemy.owner != player && !enemy.type.isCivilian && state.isAtWar(player, enemy.owner) {
-            guard let start = index(of: enemy.position), visible[start], power(of: enemy) > 0 else { continue }
+            guard let start = index(of: enemy.position), visible[start], state.sees(player, enemy), power(of: enemy) > 0 else { continue }
             let def = rules.unit(enemy.type)
             if def.unitClass == .recon, !reconExplorer { continue }
             let reach = def.isRanged ? state.range(of: enemy) : 1

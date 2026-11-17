@@ -5,7 +5,9 @@ import GameCore
 ///
 /// - **Allowed:** a resource's site, no resource yet, not a start tile, neither Oasis nor Snow.
 /// - **Fairness first:** each start in order gets, within 3 tiles, 2 bonus and 1 luxury, and
-///   within 6 tiles Horses or Iron, counting what is already there.
+///   one strategic of each of the rules' fairness groups within its radius (M3a §3.1: Horses
+///   or Iron within 6, Niter within 8; without groups, any strategic within 6), counting what
+///   is already there.
 /// - **Then** up to the targets per 1000 land tiles: strategics, luxuries in clusters of
 ///   `clusterMin…clusterMax` of one kind, then bonuses; a random fill avoids tiles next to
 ///   another resource.
@@ -65,11 +67,17 @@ enum ResourcePlacer {
             tiles.filter { map.tiles[$0].resource.map(pool.contains) ?? false }.count
         }
 
+        let fairness: [(pool: [Resource], radius: Int)] = s.fairness.map { groups in
+            groups.map { g in (Resource.allCases.filter { g.resources.contains(String(describing: $0)) }, g.radius) }
+        } ?? [(strategic, 6)]
         for start in startTiles {
-            let near = within(3, of: start), far = within(6, of: start)
+            let near = within(3, of: start)
             while count(bonus, in: near) < 2, drop(bonus, among: near, spread: false) != nil {}
             if count(luxury, in: near) < 1 { _ = drop(luxury, among: near, spread: false) }
-            if count(strategic, in: far) < 1 { _ = drop(strategic, among: far, spread: false) }
+            for (pool, radius) in fairness {
+                let far = within(radius, of: start)
+                if count(pool, in: far) < 1 { _ = drop(pool, among: far, spread: false) }
+            }
         }
 
         let all = Array(map.tiles.indices)

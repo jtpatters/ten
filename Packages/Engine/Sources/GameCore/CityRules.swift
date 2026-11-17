@@ -91,6 +91,7 @@ extension GameState {
             guard let def = rules.building(id), def.buildable else { return "cannot be built" }
             if city.has(id) { return "already built" }
             if let tech = def.tech, !player.knows(tech) { return "needs \(techName(tech))" }
+            if let civic = def.civic, !player.knowsCivic(civic) { return "needs \(rules.civic(civic)?.name ?? civic.rawValue)" }
             if def.requiresRiver == true, map.tiles[map.index(of: city.position)!].riverEdges == 0 { return "needs a river" }
             if let kind = def.quarter {
                 guard let q = quarter(kind, of: city) else { return "needs a \(rules.quarter(kind)?.name ?? kind.rawValue)" }

@@ -6,10 +6,12 @@ import Testing
 @Suite struct CivicsTests {
     let p0 = PlayerID(0)
 
-    @Test func theTreeHasEighteenCivicsCosting2115() {
+    @Test func theTreeHasTwentyThreeCivics() {
         let rules = Ruleset.standard
-        #expect(rules.civics.count == 18)
-        #expect(rules.civics.reduce(0) { $0 + $1.cost } == 2115)
+        // M2's 18 costing 2115, then M3a's 5 Renaissance civics.
+        #expect(rules.civics.count == 23)
+        #expect(rules.civics.prefix(18).reduce(0) { $0 + $1.cost } == 2115)
+        #expect(rules.civics.reduce(0) { $0 + $1.cost } == 3745)
     }
 
     @Test func setCivicWalksPrerequisitesInTreeOrder() throws {

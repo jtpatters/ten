@@ -123,6 +123,13 @@ extension GameState {
 
     /// A specialist's yields in a quarter of `kind` (M2 §5.3): +2 of the quarter's yield;
     /// Barracks +1 Production +1 Gold, Arena +1 Culture +1 Gold.
+    /// …plus `player`'s specialist bonuses (M3a §6.1: Printing).
+    public func specialistYields(_ kind: QuarterKind, for player: PlayerID) -> Yields {
+        bonuses(of: player).reduce(specialistYields(kind)) { y, b in
+            (b.specialistYields ?? []).reduce(y) { $1.quarter == kind ? $0 + $1.yields : $0 }
+        }
+    }
+
     public func specialistYields(_ kind: QuarterKind) -> Yields {
         switch rules.quarter(kind)?.yield {
         case "science": Yields(science: 2)

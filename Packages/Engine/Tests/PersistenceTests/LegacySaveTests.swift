@@ -118,16 +118,26 @@ struct LegacySave {
         }
         var m1 = json
         m1["units"] = Array(m1Units)
+        // M1's 250-turn limit (M3a-D1 dropped it).
+        var m1Constants = constants
+        m1Constants["turnLimit"] = 250
+        m1["constants"] = m1Constants
         // The naval AI's ship share (M2 §8.4).
         var m1AI = ai
         m1AI.removeValue(forKey: "shipsPerCoastalCityPct")
         m1["ai"] = m1AI
         var playable = json
-        playable["units"] = Array(m1Units) + units.dropFirst(6).map { unit in unit.filter { $0.key != "tech" } }
-        playable["resources"] = m2Resources
+        playable["units"] = Array(m1Units) + units.dropFirst(6).map { unit in
+            unit.filter { $0.key != "tech" }
+        }
+        // M3a's Niter, without the Renaissance tech that reveals it.
+        playable["resources"] = (m2Resources as? [[String: Any]] ?? []).map { r in
+            r["name"] as? String == "niter" ? r.filter { $0.key != "revealedBy" } : r
+        }
         playable["stockpile"] = m2Stockpile
+        // The Fort without its Renaissance tech (every improvement needs a definition).
         playable["improvements"] = improvements.map { imp in
-            imp.filter { $0.key != "techBonuses" && !($0.key == "tech" && imp["name"] as? String == "lumberMill") }
+            imp.filter { $0.key != "techBonuses" && !($0.key == "tech" && ["lumberMill", "fort"].contains(imp["name"] as? String ?? "")) }
         }
         return (m1, playable)
     }

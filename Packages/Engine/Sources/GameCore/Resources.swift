@@ -16,7 +16,8 @@ extension GameState {
     /// The stockpile cap now: higher from the cap-bonus world era on.
     public var stockpileCap: Int {
         guard let s = rules.stockpile else { return 0 }
-        return s.cap + ((worldEra ?? 0) >= s.capBonusEra ? s.capBonus : 0)
+        // +capBonus from `capBonusEra` on, and again for every later era (M3a §3.1).
+        return s.cap + max(0, (worldEra ?? 0) - s.capBonusEra + 1) * s.capBonus
     }
 
     /// Whether tile `t` is an improved source of its resource for its owner.

@@ -101,9 +101,10 @@ extension MapRenderer {
     static func legHeight(_ type: UnitType) -> Float {
         switch type {
         case .warrior, .archer, .spearman, .builder, .swordsman, .manAtArms, .crossbowman, .pikeman, .trader: 0.10
-        case .scout, .horseman, .knight: 0.17
-        case .settler, .heavyChariot, .catapult, .trebuchet: 0.12
-        case .galley, .quadrireme, .cog, .dromon: 0.12
+        case .musketman, .pikeAndShot: 0.10
+        case .scout, .horseman, .knight, .hussar: 0.17
+        case .settler, .heavyChariot, .catapult, .trebuchet, .bombard: 0.12
+        case .galley, .quadrireme, .cog, .dromon, .caravel, .privateer, .frigate: 0.12
         }
     }
 

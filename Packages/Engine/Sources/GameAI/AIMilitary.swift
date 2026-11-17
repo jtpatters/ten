@@ -250,7 +250,7 @@ extension AITurn {
     mutating func meleeAttacks() {
         let garrisons = forces(view).garrisonIDs
         let ids = view.units.filter { u in
-            (isLine(u.type) || rules.unit(u.type).unitClass == .navalMelee) && u.movesLeft > 0 && !acted.contains(u.id)
+            (isLine(u.type) || [.navalMelee, .navalRaider].contains(rules.unit(u.type).unitClass)) && u.movesLeft > 0 && !acted.contains(u.id)
                 && !garrisons.contains(u.id)
         }.map(\.id)
         for id in ids {
@@ -696,6 +696,36 @@ extension AITurn {
                 continue
             }
             fortify(garrison)
+        }
+    }
+}
+
+// MARK: - Naval raiders (M3a §15)
+
+extension AITurn {
+    /// At war, hidden ships that did not attack head for the nearest water tile of an enemy's
+    /// trade route it sees, else for the water next to the nearest enemy city it knows, to
+    /// strike there next phase (simplified: no escape from enemy warships yet).
+    mutating func raidAtSea() {
+        let enemies = Set(plan.enemies)
+        guard !enemies.isEmpty else { return }
+        let raiders = view.units.filter { rules.unit($0.type).unitClass == .navalRaider && $0.movesLeft > 0 && !acted.contains($0.id) }
+        guard !raiders.isEmpty else { return }
+        let v = view
+        var targets: [HexCoord] = []
+        for route in v.visibleTradeRoutes where enemies.contains(route.owner) {
+            for t in route.path where v.tile(at: v.coord(at: Int(t)))?.terrain.isWater == true { targets.append(v.coord(at: Int(t))) }
+        }
+        if targets.isEmpty {
+            for city in v.knownCities where enemies.contains(city.owner) {
+                targets += v.neighbors(of: city.position).filter { v.tile(at: $0)?.terrain.isWater == true }
+            }
+        }
+        guard !targets.isEmpty else { return }
+        for raider in raiders {
+            guard live else { return }
+            let goal = targets.min { (v.distance($0, raider.position), v.index(of: $0) ?? 0) < (v.distance($1, raider.position), v.index(of: $1) ?? 0) }!
+            if goal != raider.position, hop(raider.id, toward: goal) { acted.insert(raider.id) }
         }
     }
 }

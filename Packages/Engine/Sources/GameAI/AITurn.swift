@@ -121,6 +121,7 @@ struct AITurn {
             timed("1 captureCities") { $0.captureCities() }
             timed("2 bombardAndShoot") { $0.bombardAndShoot() }
             timed("3 meleeAttacks") { $0.meleeAttacks() }
+            timed("raidAtSea") { $0.raidAtSea() }
         }
         timed("4 retreatWounded") { $0.retreatWounded() }
         timed("fightRaiders") { $0.fightRaiders() }

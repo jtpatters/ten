@@ -17,7 +17,7 @@ extension PlayerView {
     public func builderWork(in id: CityID) -> CityBuilderWork? {
         guard let city = state.city(id), city.owner == player else { return nil }
         let code = Int32(id.rawValue + 1)
-        let kinds = Improvement.allCases
+        let kinds = Improvement.tileWork
         let known = kinds.map { rules.improvement($0).tech.map(me.knows) ?? true }
         var fits = [Bool](repeating: false, count: kinds.count)
         var jobs = 0

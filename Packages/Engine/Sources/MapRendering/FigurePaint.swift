@@ -361,7 +361,7 @@ enum FigurePaint {
                 head.addCurve(to: q(-0.34, -0.98), control1: q(-0.08, -0.38), control2: q(-0.3, -0.62))
                 head.closeSubpath()
                 shapes.append(head)
-            case .horseman:
+            case .horseman, .hussar:
                 // A lance with its pennon, slanting up to the west.
                 shapes.append(line([q(0.9, -0.9), q(-0.6, 0.6)], width: 0.13 * h))
                 let tip = CGMutablePath()
@@ -387,7 +387,7 @@ enum FigurePaint {
                     shapes.append(line([q(-0.8 * side, -0.8), q(0.72 * side, 0.9)], width: 0.16 * h))
                     shapes.append(line([q(-0.66 * side - 0.26, -0.44), q(-0.66 * side + 0.26, -0.72)], width: 0.12 * h))
                 }
-            case .manAtArms:
+            case .manAtArms, .musketman:
                 // A long axe: a haft and a broad crescent blade.
                 shapes.append(line([q(0.5, -0.98), q(-0.2, 0.9)], width: 0.14 * h))
                 let blade = CGMutablePath()
@@ -404,7 +404,7 @@ enum FigurePaint {
                 shapes.append(bow.copy(strokingWithWidth: 0.18 * h, lineCap: .round, lineJoin: .round, miterLimit: 4))
                 shapes.append(line([q(-0.95, 0.1), q(0.95, 0.1)], width: 0.06 * h))
                 shapes.append(line([q(0, 0.9), q(0, -0.95)], width: 0.2 * h))
-            case .pikeman:
+            case .pikeman, .pikeAndShot:
                 // Three pikes upright, heads up.
                 for x in [-0.55, 0, 0.55] as [CGFloat] {
                     shapes.append(line([q(x, -0.95), q(x, 0.5)], width: 0.12 * h))
@@ -426,7 +426,7 @@ enum FigurePaint {
                 shapes.append(line([q(0.8, -0.6), q(-0.5, 0.6)], width: 0.14 * h))
                 shapes.append(line([q(0.1, -0.6), q(0.1, 0.1)], width: 0.14 * h))
                 shapes.append(CGPath(ellipseIn: circle(-0.62, 0.72, 0.26), transform: nil))
-            case .trebuchet:
+            case .trebuchet, .bombard:
                 // An A-frame, the long arm across it and the counterweight.
                 shapes.append(line([q(-0.7, -0.95), q(0, 0.4), q(0.7, -0.95)], width: 0.14 * h))
                 shapes.append(line([q(-0.9, 0.9), q(0.6, 0.05)], width: 0.12 * h))
@@ -443,7 +443,7 @@ enum FigurePaint {
                 shapes.append(line([q(-0.3, 0.55), q(0.3, 0.55)], width: 0.16 * h))
                 shapes.append(line([q(-0.32, 0.9), q(0, 0.6), q(0.32, 0.9)], width: 0.14 * h))
                 shapes.append(CGPath(ellipseIn: circle(0.68, 0.58, 0.28), transform: nil))
-            case .galley, .quadrireme, .cog, .dromon:
+            case .galley, .quadrireme, .cog, .dromon, .caravel, .privateer, .frigate:
                 // A hull under a mast and sail: one sail (galley, cog) or two (quadrireme, dromon);
                 // the war galleys carry a ram.
                 let hull = CGMutablePath()

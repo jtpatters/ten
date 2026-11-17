@@ -138,18 +138,27 @@ extension GameState {
         for hex in city.workedTiles { tiles += tileYields(map.index(of: hex)!, for: city.owner) }
         if !tiles.isZero { breakdown.append((.workedTiles, tiles)) }
         let specialists = activeSpecialists(city)
-        let specialistYield = specialists.reduce(Yields.zero) { $0 + specialistYields($1) }
+        let specialistYield = specialists.reduce(Yields.zero) { $0 + specialistYields($1, for: city.owner) }
         if !specialistYield.isZero { breakdown.append((.specialists, specialistYield)) }
         let c = rules.constants.city
         let unemployed = max(0, city.population - city.workedTiles.count - specialists.count - city.entertainers)
         if unemployed > 0 { breakdown.append((.unemployed, Yields(production: unemployed * c.unemployedProduction))) }
         let science = city.population / c.populationPerScience
         if science > 0 { breakdown.append((.population, Yields(science: science))) }
+        let ownerBonuses = bonuses(of: city.owner)
         for id in city.buildings {
-            if let def = rules.building(id), !def.yields.isZero { breakdown.append((.building(id), def.yields)) }
+            guard let def = rules.building(id) else { continue }
+            let y = ownerBonuses.reduce(def.yields) { y, b in
+                (b.buildingYields ?? []).reduce(y) { $1.building == id ? $0 + $1.yields : $0 }
+            }
+            if !y.isZero { breakdown.append((.building(id), y)) }
         }
         for (kind, yields) in quarterYields(city) { breakdown.append((.quarter(kind), yields)) }
-        let government = governmentYields(city)
+        var government = governmentYields(city)
+        if isDistantCity(city) {
+            let pct = ownerBonuses.reduce(0) { $0 + ($1.distantCityFoodPct ?? 0) }
+            government.food += breakdown.reduce(0) { $0 + $1.1.food } * pct / 100
+        }
         if !government.isZero { breakdown.append((.government, government)) }
         let envoys = envoyYields(city)
         if !envoys.isZero { breakdown.append((.envoys, envoys)) }
@@ -207,7 +216,7 @@ extension GameState {
         // Specialist slots (M2 §5.3) compete like tiles, after every tile on ties.
         let slots = specialistSlots(city)
         for (n, kind) in slots.enumerated() {
-            let y = specialistYields(kind)
+            let y = specialistYields(kind, for: city.owner)
             guard !y.isZero else { continue }
             candidates.append(Candidate(tile: map.tileCount + n, yields: y, value: focus.value(y),
                                         distance: rules.constants.city.workRadius + 1))

@@ -43,7 +43,8 @@ extension GameState {
 
     /// Whether military unit `u` standing on `from` holds neighbour `to` in its zone of control.
     func zocReaches(_ u: Unit, from: Int, to: Int) -> Bool {
-        Self.zocReaches(naval: u.type.isNaval, fromWater: map.tiles[from].terrain.isWater, toWater: map.tiles[to].terrain.isWater)
+        // Hidden ships exert none (M3a §9.2).
+        rules.unit(u.type).unitClass != .navalRaider && Self.zocReaches(naval: u.type.isNaval, fromWater: map.tiles[from].terrain.isWater, toWater: map.tiles[to].terrain.isWater)
     }
 
     @inline(__always)

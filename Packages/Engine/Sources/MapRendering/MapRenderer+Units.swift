@@ -975,7 +975,7 @@ extension MapRenderer {
         table.standardBounds = UnitSprite.bounds(.standard(player: 0))
         table.standardField = unitAtlas.uv(.standardField)
         table.emblems = players.map { unitAtlas.uv(.emblem(player: $0)) }
-        table.badges = UnitType.allCases.map { unitAtlas.uv(.badge($0)) }
+        table.badges = UnitType.allCases.map { unitAtlas.uv(.badge(UnitSprite.badgeType($0))) }
         table.markers = [unitAtlas.uv(.marker(final: false)), unitAtlas.uv(.marker(final: true))]
         table.digits = (0...9).map { unitAtlas.uv(.digit($0)) }
         for kind in Improvement.allCases { table.jobs[kind.rawValue] = unitAtlas.uv(.job(kind)) }

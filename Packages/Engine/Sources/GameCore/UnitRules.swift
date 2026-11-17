@@ -82,6 +82,13 @@ extension GameState {
         guard map.tiles[t].improvement == nil || repair else { return "tile already improved" }
         guard rules.allowsImprovement(improvement, on: map.tiles[t], resource: knownResource(at: t, for: unit.owner)) else { return "\(def.displayName) not allowed here" }
         if let tech = def.tech, !players[unit.owner.rawValue].knows(tech) { return "needs \(techName(tech))" }
+        if def.spaced == true {
+            var near = false
+            map.forEachNeighbor(of: t) { n, _ in
+                if map.tiles[n].improvement == improvement, tileOwner(n) == unit.owner { near = true }
+            }
+            if near { return "not next to another \(def.displayName)" }
+        }
         return nil
     }
 
@@ -122,7 +129,17 @@ extension GameState {
         }
         if let city = city(atTile: t), city.owner == unit.owner { return h.ownCity }
         guard let owner = tileOwner(t) else { return h.neutral }
-        return owner == unit.owner ? h.ownTerritory : h.foreign
+        let fort = fortDefense(unit, at: t) != nil ? (map.tiles[t].improvement.flatMap { rules.improvement($0).heal } ?? 0) : 0
+        return (owner == unit.owner ? h.ownTerritory : h.foreign) + fort
+    }
+
+    /// The defence an own, unpillaged Fort-like improvement gives `unit` standing on tile `t`
+    /// (M3a §4); nil when there is none. It also counts as fortified.
+    func fortDefense(_ unit: Unit, at t: Int) -> Int? {
+        let tile = map.tiles[t]
+        guard let improvement = tile.improvement, !tile.isPillaged, let d = rules.improvement(improvement).defense,
+              tileOwner(t) == unit.owner, !unit.type.isNaval, !tile.terrain.isWater else { return nil }
+        return d
     }
 
     /// Phase start step 5 for one unit (M1 §3), before standing orders: clear `zocStopped`;
@@ -151,7 +168,7 @@ extension GameState {
         let visible = players[unit.owner.rawValue].visible
         return units.contains { other in
             !other.type.isCivilian && isAtWar(unit.owner, other.owner) && map.distance(other.position, unit.position) <= radius
-                && map.index(of: other.position).map { visible[$0] } == true
+                && map.index(of: other.position).map { visible[$0] } == true && !isHidden(other, from: unit.owner)
         }
     }
 
@@ -220,7 +237,13 @@ extension GameState {
 
     /// Its moves per phase, promotions included.
     public func maxMoves(of unit: Unit) -> Int {
-        (rules.unit(unit.type).moves + promotionMoves(unit) + reconBonus(unit, \.reconMoves)) * rules.movePoints
+        (rules.unit(unit.type).moves + promotionMoves(unit) + reconBonus(unit, \.reconMoves) + navalBonus(unit, \.navalMoves))
+            * rules.movePoints
+    }
+
+    /// A bonus that applies to naval units (M3a §6.1: Navigation, Square Rigging).
+    func navalBonus(_ unit: Unit, _ field: KeyPath<Bonuses, Int?>) -> Int {
+        unit.type.isNaval ? bonus(field, for: unit.owner) : 0
     }
 
     /// A government or policy bonus that applies to recon units (M2 §7.3).
@@ -239,6 +262,7 @@ extension GameState {
     public func sight(of unit: Unit) -> Int {
         if let e = rules.embark, isEmbarked(unit) { return e.sight }
         return rules.unit(unit.type).sight + promotionDefs(unit).reduce(0) { $0 + ($1.sight ?? 0) } + reconBonus(unit, \.reconSight)
+            + navalBonus(unit, \.navalSight)
     }
 
     /// Whether it may fire after moving in the phase (siege may not, M2 §8.1, unless promoted).
@@ -278,4 +302,30 @@ extension GameState {
         let t = map.index(of: unit.position)!
         fx.emit(.unitPromoted(unit: id, promotion: promotion, owner: unit.owner, at: unit.position), .ownerAndTiles(unit.owner, [t]))
     }
+}
+
+// MARK: - Hidden ships (M3a §9.4)
+
+extension GameState {
+    /// Whether `viewer` sees `unit` now: its own, or on a tile `viewer` sees, except a hidden
+    /// ship (`navalRaider`) that no unit or city of `viewer` stands next to and that has not
+    /// revealed itself by attacking this turn or the last.
+    public func sees(_ viewer: PlayerID, _ unit: Unit) -> Bool {
+        if unit.owner == viewer { return true }
+        guard players.indices.contains(viewer.rawValue), let t = map.index(of: unit.position),
+              players[viewer.rawValue].visible[t] else { return false }
+        return !isHidden(unit, from: viewer)
+    }
+
+    /// A hidden ship `viewer` has not found (whether or not it sees the tile).
+    func isHidden(_ unit: Unit, from viewer: PlayerID) -> Bool {
+        guard unit.owner != viewer, rules.unit(unit.type).unitClass == .navalRaider else { return false }
+        if let r = unit.revealedUntil, turn <= r { return false }
+        if units.contains(where: { $0.owner == viewer && map.distance($0.position, unit.position) <= 1 }) { return false }
+        if cities.contains(where: { $0.owner == viewer && map.distance($0.position, unit.position) <= 1 }) { return false }
+        return true
+    }
+
+    /// Whether any unit could be hidden (skip per-unit checks in rules without the class).
+    var hasHiddenUnits: Bool { units.contains { rules.unit($0.type).unitClass == .navalRaider } }
 }

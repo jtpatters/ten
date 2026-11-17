@@ -92,7 +92,9 @@ import Testing
         state.advanceWorldEraIfDue(&fx)
         #expect(state.worldEra == 2)
         state.advanceWorldEraIfDue(&fx)
-        #expect(state.worldEra == 2)
+        #expect(state.worldEra == 3)
+        state.advanceWorldEraIfDue(&fx)
+        #expect(state.worldEra == 3)
     }
 
     /// The research options show eras, credit and Insights.

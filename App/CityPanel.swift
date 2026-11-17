@@ -515,6 +515,13 @@ struct ItemIcon: View {
             case .galley, .cog: "sailboat"
             case .quadrireme, .dromon: "sailboat.fill"
             case .trader: "shippingbox"
+            case .musketman: "flame"
+            case .pikeAndShot: "arrow.up.and.line.horizontal.and.arrow.down"
+            case .hussar: "hare.fill"
+            case .bombard: "circle.hexagongrid.fill"
+            case .caravel: "sailboat"
+            case .privateer: "eye.slash"
+            case .frigate: "sailboat.fill"
             }
         case let .building(id):
             switch id.rawValue {

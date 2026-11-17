@@ -86,7 +86,7 @@ extension GameState {
         let start = map.index(of: origin.position)!, goal = map.index(of: destination.position)!
         let sea = players[player.rawValue].knows(t.seaTech) && quarter(t.seaQuarter, of: origin) != nil
             && quarter(t.seaQuarter, of: destination) != nil
-        let range = t.routeRange + (sea ? t.seaRangeBonus : 0)
+        let range = t.routeRange + (sea ? t.seaRangeBonus + bonus(\.seaTradeRange, for: player) : 0)
         let explored = players[player.rawValue].explored
         var parent = [Int32](repeating: -1, count: map.tileCount)
         var depth = [Int16](repeating: -1, count: map.tileCount)
@@ -234,6 +234,7 @@ extension GameState {
                     let theirs = players[d.owner.rawValue].knownTechs
                     if theirs.count(where: { !players[owner.rawValue].knows($0) }) >= t.scienceTechGap { y.science += t.internationalScience }
                     y.science += bonus(\.intlTradeScience, for: owner)
+                    y.gold += bonus(\.intlTradeGold, for: owner)
                     y.culture += bonus(\.intlTradeCulture, for: owner)
                 case .minor:
                     y.gold += t.minorGold

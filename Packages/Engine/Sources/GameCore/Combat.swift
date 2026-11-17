@@ -26,6 +26,8 @@ public struct StrengthModifier: Hashable, Sendable {
         case feature(Feature)
         /// A fortified defender.
         case fortified
+        /// A defender on an own Fort (M3a §4).
+        case fort
         /// Defender: other own military units next to it (melee attacks only).
         case support
         /// Attacker: other own military units next to the target (melee attacks).
@@ -68,6 +70,7 @@ public struct StrengthModifier: Hashable, Sendable {
         case let .elevation(e): caseName(e).capitalized
         case let .feature(f): caseName(f).capitalized
         case .fortified: "Fortified"
+        case .fort: "Fort"
         case .support: "Support"
         case .flanking: "Flanking"
         case .river: "River crossing"
@@ -282,6 +285,7 @@ extension GameState {
         case let .city(city):
             var s = cityStrength(city, sees: sees)
             s.add(.government, bonus(\.bombard, for: city.owner))
+            s.add(.walls, city.buildings.compactMap { rules.building($0)?.bombard }.max() ?? 0)
             attack = s
         case let .unit(unit):
             let def = rules.unit(unit.type)
@@ -316,7 +320,12 @@ extension GameState {
             s.add(.elevation(tile.elevation), rules.elevation(tile.elevation).defense)
             let feature = rules.feature(tile.feature)
             if !(feature.removedByCity && city(atTile: target) != nil) { s.add(.feature(tile.feature), feature.defense) }
-            if unit.activity == .fortified { s.add(.fortified, c.fortified) }
+            if let fort = fortDefense(unit, at: target) {
+                s.add(.fort, fort)
+                s.add(.fortified, c.fortified)
+            } else if unit.activity == .fortified {
+                s.add(.fortified, c.fortified)
+            }
             if !ranged {
                 let supporters = adjacentMilitary(of: unit.owner, around: target, excluding: unit.id, sees: sees)
                 s.add(.support, min(c.supportMax, c.supportPerUnit * supporters))
@@ -365,7 +374,7 @@ extension GameState {
             return .target(.city(city))
         }
         let hex = map.coord(at: t)
-        let foreign = units.filter { $0.position == hex && $0.owner != player }
+        let foreign = units.filter { $0.position == hex && $0.owner != player && !isHidden($0, from: player) }
         if let military = foreign.first(where: { !$0.type.isCivilian }) {
             guard isAtWar(player, military.owner) else { return .problem("not at war with \(players[military.owner.rawValue].name)") }
             return .target(.unit(military))
@@ -438,6 +447,7 @@ extension GameState {
         // its activity and orders.
         let skirmish = promotionDefs(attacker).contains { $0.moveAfterAttack == true }
         let move = rules.movePoints
+        let raider = rules.unit(attacker.type).unitClass == .navalRaider, now = turn
         updateUnit(id) { u in
             u.movesLeft = skirmish ? max(0, u.movesLeft - move) : 0
             if skirmish { u.attacked = true }
@@ -445,6 +455,7 @@ extension GameState {
             u.destination = nil
             u.lastActedTurn = turn
             u.xp += ranged ? c.xpRangedAttack : c.xpMeleeAttack
+            if raider { u.revealedUntil = now + 1 }
         }
 
         let damage = CombatMath.damage(base: clash.baseDealt, roll: rolls.attack)

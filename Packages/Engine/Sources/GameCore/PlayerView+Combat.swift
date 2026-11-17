@@ -111,7 +111,7 @@ extension PlayerView {
         }
         for unit in state.units where unit.owner != player && !unit.type.isCivilian && state.isAtWar(player, unit.owner) {
             let t = index(of: unit.position)!
-            if me.visible[t], state.city(atTile: t) == nil { targets.append((t, .unit(unit.id))) }
+            if state.sees(player, unit), state.city(atTile: t) == nil { targets.append((t, .unit(unit.id))) }
         }
         return targets.sorted { $0.tile < $1.tile }
     }
@@ -257,7 +257,7 @@ extension PlayerView {
         var left = [Int8](repeating: -1, count: tileCount)
         var stamp: Int32 = 0
         for enemy in state.units where enemy.owner != player && !enemy.type.isCivilian && state.isAtWar(player, enemy.owner) {
-            guard let start = index(of: enemy.position), me.visible[start] else { continue }
+            guard let start = index(of: enemy.position), state.sees(player, enemy) else { continue }
             let def = rules.unit(enemy.type)
             let power = Int32(power(of: enemy))
             let reach = def.isRanged ? state.range(of: enemy) : 1

@@ -191,9 +191,24 @@ import Testing
         #expect(state.outcome == .defeat && events(records).last == .gameOver(.defeat))
     }
 
-    /// At the end of the turn limit's last turn the highest score wins (ties: lower index).
-    @Test func scoreVictoryAtTheTurnLimit() throws {
+    /// The standard rules have no turn limit (M3a-D1): turn 250 ends like any other.
+    @Test func noTurnLimitByDefault() throws {
         var state = makeTestState()
+        state.turn = 250
+        try apply(.endTurn, &state)
+        try apply(.endTurn, &state)
+        #expect(state.outcome == nil && state.turn == 251)
+    }
+
+    /// With a turn limit in the rules, the highest score wins at the end of its last turn
+    /// (ties: lower index).
+    @Test func scoreVictoryAtTheTurnLimit() throws {
+        var json = try standardRulesJSON()
+        var constants = json["constants"] as! [String: Any]
+        constants["turnLimit"] = 250
+        json["constants"] = constants
+        let rules = try loadRules(json)
+        var state = makeTestState(rules: rules)
         addCity(&state, PlayerID(1), at: hex(2, 2))
         state.turn = 250
         try apply(.endTurn, &state)
@@ -203,7 +218,7 @@ import Testing
         #expect(events(records) == [.gameOver(.victory(player: PlayerID(1), kind: .score))])
         #expect(state.turn == 250)
 
-        var tied = makeTestState()
+        var tied = makeTestState(rules: rules)
         tied.turn = 250
         try apply(.endTurn, &tied)
         try apply(.endTurn, &tied)

@@ -83,7 +83,7 @@ enum UnitSprite: SpriteSet {
         let players = Palette.playerStyles.indices
         for p in players { keys.append(.standard(player: p)) }
         for p in players { keys.append(.emblem(player: p)) }
-        for type in UnitType.allCases { keys.append(.badge(type)) }
+        for type in UnitType.allCases where badgeType(type) == type { keys.append(.badge(type)) }
         keys += [.marker(final: false), .marker(final: true)]
         for d in 0...9 { keys.append(.digit(d)) }
         // The atlas is as tall as its cells need (`SpriteSheet.height`), and the unit shader
@@ -105,6 +105,7 @@ enum UnitSprite: SpriteSet {
         case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: true
         case .galley, .quadrireme, .cog, .dromon: true
         case .trader: true
+        case .musketman, .pikeAndShot, .hussar, .bombard, .caravel, .privateer, .frigate: true
         }
     }
 
@@ -114,9 +115,32 @@ enum UnitSprite: SpriteSet {
     /// The type whose body every ship is drawn with (M2 §8.4, placeholder art).
     static let shipBody = UnitType.galley
 
+    /// The type whose badge cell `type` shows: its own, or for the M3a types (placeholder art,
+    /// no cells of their own yet, which keeps the atlas within its budget) their forebear's.
+    static func badgeType(_ type: UnitType) -> UnitType {
+        switch type {
+        case .musketman: .manAtArms
+        case .pikeAndShot: .pikeman
+        case .hussar: .horseman
+        case .bombard: .trebuchet
+        case .caravel: .cog
+        case .privateer: .galley
+        case .frigate: .dromon
+        default: type
+        }
+    }
+
     /// The type whose body cells `type` is drawn with: its own or the shared ship body.
     static func bodyType(_ type: UnitType) -> UnitType {
-        type.isNaval ? shipBody : type
+        if type.isNaval { return shipBody }
+        // M3a Renaissance types: placeholder bodies of their Medieval forebears until their own art.
+        switch type {
+        case .musketman: return .manAtArms
+        case .pikeAndShot: return .pikeman
+        case .hussar: return .horseman
+        case .bombard: return .trebuchet
+        default: return type
+        }
     }
 
     /// Whether `type` has body cells of its own.
@@ -145,8 +169,9 @@ enum UnitSprite: SpriteSet {
         switch self {
         case .body, .teamMask, .escortedBody: Self.bodyCell
         // Half-size cells keep the atlas within its budget (ART.md §10): job glyphs, ship
-        // badges, the Trader's badge, the tribal village token, the pillaged and embark marks.
-        case .job, .tribalVillage, .pillaged, .embark: 64
+        // badges, the Trader's badge, the tribal village token, the pillaged and embark marks,
+        // and the turn markers' numerals (drawn at most 0.7 of a marker; M3a's Fort glyph).
+        case .job, .tribalVillage, .pillaged, .embark, .digit: 64
         case let .badge(type) where type.isNaval || type == .trader: 64
         default: 128
         }
@@ -244,9 +269,10 @@ enum UnitSprite: SpriteSet {
         case .trader: traderPole // stuck upright in the pack
         case .builder: 0.684 // the surveyor's rod
         case .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 0.596
-        case .scout, .horseman, .knight, .heavyChariot: 0.612
-        case .catapult, .trebuchet: siegeBearer.x - 0.09 * siegeBearer.k
-        case .galley, .quadrireme, .cog, .dromon: 0.5
+        case .musketman, .pikeAndShot: 0.596
+        case .scout, .horseman, .knight, .heavyChariot, .hussar: 0.612
+        case .catapult, .trebuchet, .bombard: siegeBearer.x - 0.09 * siegeBearer.k
+        case .galley, .quadrireme, .cog, .dromon, .caravel, .privateer, .frigate: 0.5
         }
         let k = bodyFit(type), fx = 0.5 + (x - 0.5) * k
         return [east ? 1 - fx : fx, groundLine + (standardMountY - groundLine) * k]
@@ -260,9 +286,10 @@ enum UnitSprite: SpriteSet {
         case .settler: 0.93
         case .trader: 0.95
         case .builder, .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 1
-        case .scout, .horseman, .knight, .heavyChariot: 0.97
-        case .catapult, .trebuchet: 0.95
-        case .galley, .quadrireme, .cog, .dromon: 1
+        case .musketman, .pikeAndShot: 1
+        case .scout, .horseman, .knight, .heavyChariot, .hussar: 0.97
+        case .catapult, .trebuchet, .bombard: 0.95
+        case .galley, .quadrireme, .cog, .dromon, .caravel, .privateer, .frigate: 1
         }
     }
 
@@ -407,6 +434,8 @@ enum UnitSprite: SpriteSet {
             case .catapult: siege(&figure, trebuchet: false)
             case .trebuchet: siege(&figure, trebuchet: true)
             case .galley, .quadrireme, .cog, .dromon: ship(&figure)
+            case .musketman, .pikeAndShot, .hussar, .bombard, .caravel, .privateer, .frigate:
+                preconditionFailure("\(key.type) borrows another type's body (bodyType)")
             }
             let recorded = RecordedFigure(steps: figure.steps, emblems: figure.emblems, size: figure.size)
             done.withLock { $0[key] = recorded }
@@ -1481,6 +1510,16 @@ enum UnitSprite: SpriteSet {
             saw.addLine(to: q(0.7, 0.52))
             saw.closeSubpath()
             shapes.append(saw)
+        case .fort:
+            // An earthwork seen from above: a five-pointed bastion trace round a square keep.
+            let trace = CGMutablePath()
+            for k in 0..<10 {
+                let a = CGFloat.pi / 2 + CGFloat(k) * .pi / 5, r: CGFloat = k % 2 == 0 ? 0.95 : 0.6
+                let p = q(cos(a) * r, sin(a) * r)
+                if k == 0 { trace.move(to: p) } else { trace.addLine(to: p) }
+            }
+            trace.closeSubpath()
+            shapes.append(trace)
         }
         f.glyph(shapes: shapes, halo: h * 0.14)
     }

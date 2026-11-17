@@ -18,7 +18,12 @@ import Testing
                 #expect(map[start].resource == nil, "seed \(seed)")
                 #expect(near(3, start, .bonus) >= 2, "seed \(seed) start \(start)")
                 #expect(near(3, start, .luxury) >= 1, "seed \(seed) start \(start)")
-                #expect(near(6, start, .strategic) >= 1, "seed \(seed) start \(start)")
+                // M3a §3.1: Horses or Iron within 6, Niter within 8.
+                func has(_ radius: Int, _ pool: [Resource]) -> Bool {
+                    map.coords(within: radius, of: start).contains { map[$0].resource.map(pool.contains) ?? false }
+                }
+                #expect(has(6, [.horses, .iron]), "seed \(seed) start \(start)")
+                #expect(has(8, [.niter]), "seed \(seed) start \(start): no Niter within 8")
             }
             for t in map.tiles.indices {
                 let tile = map.tiles[t]
@@ -32,7 +37,7 @@ import Testing
             let land = map.tiles.filter(\.isLand).count
             let placed = map.tiles.compactMap(\.resource)
             for k in [ResourceKind.bonus, .luxury, .strategic] {
-                #expect(placed.filter { kind($0) == k }.count >= land * (k == .bonus ? 32 : k == .luxury ? 18 : 14) / 1000 / 2,
+                #expect(placed.filter { kind($0) == k }.count >= land * (k == .bonus ? 32 : k == .luxury ? 18 : 21) / 1000 / 2,
                         "seed \(seed): too few \(k)")
             }
         }

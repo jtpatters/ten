@@ -26,6 +26,9 @@ enum SaveFixture {
         map[hex(8, 5)] = Tile(terrain: .plains, feature: .forest, improvement: .lumberMill)
         map[hex(9, 5)] = Tile(terrain: .coast, improvement: .fishingBoats, resource: .fish)
         map[hex(0, 4)] = Tile(terrain: .plains, resource: .iron)
+        // A Fort and Niter (M3a §4, §3.1).
+        map[hex(2, 4)] = Tile(terrain: .plains, improvement: .fort)
+        map[hex(7, 4)] = Tile(terrain: .desert, resource: .niter)
         // Roads and a pillaged improvement (M2 §3.3) beside player 0's city, so it remembers them.
         map[hex(3, 1)].road = true
         map[hex(4, 1)].road = true

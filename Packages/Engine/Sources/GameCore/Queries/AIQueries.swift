@@ -232,7 +232,7 @@ extension PlayerView {
         var cities: TileBitSet?
         let explored = me.explored
         for enemy in state.units where enemy.owner != player && !enemy.type.isCivilian && state.isAtWar(player, enemy.owner) {
-            guard let start = index(of: enemy.position), me.visible[start] else { continue }
+            guard let start = index(of: enemy.position), state.sees(player, enemy) else { continue }
             if cities == nil {
                 var known = TileBitSet(count: tileCount)
                 for city in me.memory.cities { if let t = index(of: city.position) { known[t] = true } }

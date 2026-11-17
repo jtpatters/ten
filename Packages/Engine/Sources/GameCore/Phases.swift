@@ -10,7 +10,7 @@ extension GameState {
         guard let first = living.first else { return }
         let next = living.first { $0 > currentPlayer.rawValue }
         if next == nil {
-            if turn >= rules.constants.turnLimit {
+            if let limit = rules.constants.turnLimit, turn >= limit {
                 setOutcome(.victory(player: scoreLeader(), kind: .score), &fx)
                 return
             }

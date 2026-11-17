@@ -226,7 +226,7 @@ extension GameState {
                 visible[map.index(of: s.position)!] && city(s.id)?.position != s.position
             }.map(\.id)
             if !gone.isEmpty { players[p].memory.cities.removeAll { gone.contains($0.id) } }
-            for (u, unit) in units.enumerated() where unit.owner != me && players[p].visible[unitTiles[u]] {
+            for (u, unit) in units.enumerated() where unit.owner != me && players[p].visible[unitTiles[u]] && !isHidden(unit, from: me) {
                 meet(me, unit.owner, &fx)
                 guard !unit.type.isCivilian else { continue }
                 players[p].memory.upsert(UnitSighting(id: unit.id, owner: unit.owner, type: unit.type,

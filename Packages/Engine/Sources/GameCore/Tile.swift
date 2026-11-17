@@ -31,6 +31,12 @@ public enum Improvement: UInt8, Codable, Hashable, Sendable, CaseIterable {
     case farm = 1, mine = 2, pasture = 3
     // M2 §4.1.
     case quarry = 4, plantation = 5, camp = 6, fishingBoats = 7, lumberMill = 8
+    // M3a §4.
+    case fort = 9
+
+    /// Improvements that work the land for yields; the Fort is a military work (M3a §4) that
+    /// Builder job lists, automation and tile notes leave out.
+    public static let tileWork: [Improvement] = allCases.filter { $0 != .fort }
 }
 
 /// A map resource (M2 §3.1). Raw values are append-only (saves and renderer inputs store them).
@@ -38,6 +44,8 @@ public enum Resource: UInt8, Codable, Hashable, Sendable, CaseIterable {
     case wheat = 1, rice, cattle, sheep, deer, stone, fish, bananas
     case wine, silk, spices, incense, ivory, furs, salt, pearls
     case horses, iron
+    // M3a §3.1.
+    case niter
 }
 
 public struct Tile: Codable, Hashable, Sendable {

@@ -26,10 +26,15 @@ extension GameState {
         (players[player.rawValue].policies ?? []).compactMap(rules.policy)
     }
 
-    /// The government's and slotted policies' effects; none for Free Cities.
+    /// The government's, slotted policies' and known techs' and civics' effects (M3a §6.1);
+    /// none for minor factions and Free Cities.
     public func bonuses(of player: PlayerID) -> [Bonuses] {
         guard players.indices.contains(player.rawValue), players[player.rawValue].isMajor else { return [] }
-        return [government(of: player)?.bonuses].compactMap { $0 } + policies(of: player).map(\.bonuses)
+        let p = players[player.rawValue]
+        var all = [government(of: player)?.bonuses].compactMap { $0 } + policies(of: player).map(\.bonuses)
+        for tech in rules.techsWithBonuses where p.knows(tech.id) { all.append(tech.bonuses!) }
+        for civic in rules.civicsWithBonuses where p.knowsCivic(civic.id) { all.append(civic.bonuses!) }
+        return all
     }
 
     public func bonus(_ field: KeyPath<Bonuses, Int?>, for player: PlayerID) -> Int {
@@ -119,9 +124,11 @@ extension GameState {
             if let units = cut.units { return units.contains(type) }
             let def = rules.unit(type)
             guard let classes = cut.classes, classes.contains(def.unitClass) else { return false }
-            guard let maxEra = cut.maxEra else { return true }
             func era(_ id: String?) -> Int { id.flatMap { e in rules.eras.firstIndex { $0.id == e } } ?? 0 }
-            return era(def.tech.flatMap { rules.tech($0)?.era }) <= era(maxEra)
+            let unitEra = era(def.tech.flatMap { rules.tech($0)?.era })
+            if let maxEra = cut.maxEra, unitEra > era(maxEra) { return false }
+            if let minEra = cut.minEra, unitEra < era(minEra) { return false }
+            return true
         case let .building(id):
             if let buildings = cut.buildings { return buildings.contains(id.rawValue) }
             return cut.centre == true && cut.units == nil && cut.classes == nil && rules.building(id)?.quarter == nil
@@ -146,7 +153,19 @@ extension GameState {
         if players[city.owner.rawValue].capital == city.id {
             for b in bonuses { if let c = b.capitalYields { y += c } }
         }
+        for q in city.quarters ?? [] where !q.isPillaged {
+            for b in bonuses { for extra in b.quarterYields ?? [] where extra.quarter == q.kind { y += extra.yields } }
+        }
         return y
+    }
+
+    /// Whether `city` is far enough from its owner's capital for the owner's distant-city
+    /// bonuses (M3a §7.3: Colonial Offices).
+    func isDistantCity(_ city: City) -> Bool {
+        let reach = bonuses(of: city.owner).compactMap(\.distantCityDistance).min()
+        guard let reach, let capital = players[city.owner.rawValue].capital, capital != city.id,
+              let c = self.city(capital) else { return false }
+        return map.distance(index: map.index(of: city.position)!, map.index(of: c.position)!) >= reach
     }
 
     func hasGarrison(_ city: City) -> Bool {

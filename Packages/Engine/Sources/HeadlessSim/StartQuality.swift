@@ -66,7 +66,7 @@ enum StartQuality {
     }
 
     static func improvable(_ tile: Tile, _ rules: Ruleset) -> Bool {
-        tile.isLand && Improvement.allCases.contains { rules.allowsImprovement($0, on: tile) }
+        tile.isLand && Improvement.tileWork.contains { rules.allowsImprovement($0, on: tile) }
     }
 
     static func measure(_ hex: HexCoord, player: Int, map: HexMap, rules: Ruleset) -> StartMetrics {
@@ -95,7 +95,7 @@ enum StartQuality {
             let lake = touchesLake(c, map)
             plain.append(balanced.value(rules.tileYields(tile, knows: none, touchesLake: lake)))
             var best = balanced.value(rules.tileYields(tile, knows: all, touchesLake: lake))
-            for kind in Improvement.allCases where rules.allowsImprovement(kind, on: tile) {
+            for kind in Improvement.tileWork where rules.allowsImprovement(kind, on: tile) {
                 var t = tile
                 t.improvement = kind
                 best = max(best, balanced.value(rules.tileYields(t, knows: all, touchesLake: lake)))

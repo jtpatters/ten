@@ -91,6 +91,9 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
     let civicRequires: [[Int]]
     /// Per improvement ordinal, per (terrain, elevation, feature) combination: may it be built?
     private let improvementSites: [[Bool]]
+    /// Techs and civics with lasting `bonuses` (M3a §6.1), in tree order.
+    let techsWithBonuses: [TechDef]
+    let civicsWithBonuses: [CivicDef]
 
     /// The bundled rules (`Sources/GameCore/Rules/ruleset.json`), loaded on first use.
     public static let standard: Ruleset = {
@@ -162,6 +165,8 @@ public final class Ruleset: Sendable, Hashable, CustomStringConvertible {
         governance = data.governance
         civicRequires = civics.map { civic in civic.requires.map { r in civics.firstIndex { $0.id == r }! } }
         techRequires = data.techs.map { tech in tech.requires.map { r in data.techs.firstIndex { $0.id == r }! } }
+        techsWithBonuses = data.techs.filter { $0.bonuses != nil }
+        civicsWithBonuses = civics.filter { $0.bonuses != nil }
 
         improvementSites = Improvement.allCases.map { improvement in
             let def = data.improvements.first { $0.name == caseName(improvement) }!
@@ -332,6 +337,13 @@ extension UnitType {
         case .cog: 17
         case .dromon: 18
         case .trader: 19
+        case .musketman: 20
+        case .pikeAndShot: 21
+        case .hussar: 22
+        case .bombard: 23
+        case .caravel: 24
+        case .privateer: 25
+        case .frigate: 26
         }
     }
 }
@@ -442,6 +454,15 @@ public struct StockpileRules: Codable, Hashable, Sendable {
     public let strategicPer1000Land: Int
     public let clusterMin: Int
     public let clusterMax: Int
+    /// Strategic fairness at map generation (M3a §3.1): each start gets one of each group's
+    /// resources within its radius, in order. Nil: one of any strategic within 6 (M2 §3.1).
+    public let fairness: [ResourceFairness]?
+}
+
+/// One of `resources` within `radius` of every start (M3a §3.1).
+public struct ResourceFairness: Codable, Hashable, Sendable {
+    public let resources: [String]
+    public let radius: Int
 }
 
 /// Roads and pillage (M2 §3.3).
@@ -698,6 +719,12 @@ public struct ImprovementDef: Codable, Hashable, Sendable {
     public let noResource: Bool?
     /// Extra yields once a tech is known (Mine with Apprenticeship).
     public let techBonuses: [TechYieldBonus]?
+    /// Defence added to a unit standing on it, which also counts as fortified (Fort, M3a §4).
+    public let defense: Int?
+    /// HP more a unit standing on it heals each phase.
+    public let heal: Int?
+    /// Not next to another improvement of this kind owned by the same player.
+    public let spaced: Bool?
 }
 
 /// A unit's class (M1 §7). Military = every class except civilian.
@@ -707,8 +734,10 @@ public enum UnitClass: String, Codable, Hashable, Sendable, CaseIterable {
     case heavyCavalry, siege
     /// M2 §8.4.
     case navalMelee, navalRanged
+    /// M3a §8.2: hidden ships (Privateer, Submarine).
+    case navalRaider
 
-    public var isNaval: Bool { self == .navalMelee || self == .navalRanged }
+    public var isNaval: Bool { self == .navalMelee || self == .navalRanged || self == .navalRaider }
 }
 
 public struct ClassBonus: Codable, Hashable, Sendable {
@@ -789,6 +818,10 @@ public struct BuildingDef: Codable, Hashable, Sendable {
     public let excludes: BuildingID?
     /// Gold per turn (M2 §5.4); nil = none (Palace, Monument).
     public let upkeep: Int?
+    /// Needs this civic known as well as `tech` (M3a §5.1: Museum, Humanism).
+    public let civic: CivicID?
+    /// Added to the city's bombard Strength (Star Fort).
+    public let bombard: Int?
 
     public var yields: Yields { Yields(food: food, production: production, gold: gold, science: science, culture: culture) }
 }
@@ -802,6 +835,8 @@ public struct TechDef: Codable, Hashable, Sendable {
     public let era: String?
     /// Its Insight (M2 §6.2), if any.
     public let insight: InsightDef?
+    /// Lasting effects once known (M3a §6.1: Printing, Physics, …), as a policy's.
+    public let bonuses: Bonuses?
 }
 
 /// A civic (M2 §7.1): researched with Culture like a tech with Science.
@@ -812,6 +847,8 @@ public struct CivicDef: Codable, Hashable, Sendable {
     public let requires: [CivicID]
     public let era: String?
     public let insight: InsightDef?
+    /// Lasting effects once known, as a policy's.
+    public let bonuses: Bonuses?
 }
 
 /// An era (M2 §2). The rules' `eras` are in order: index 0 is the first era.
@@ -902,6 +939,12 @@ public enum InsightKind: String, Codable, Hashable, Sendable, CaseIterable {
     case meetMinors
     /// Be the Patron of a minor faction (M2 §12.2).
     case bePatron
+    /// Own a city on a landmass other than the capital's (M3a §6.2).
+    case foundOverseasCity
+    /// Have a quarter of kind `target` whose adjacency is at least `count` (whole points).
+    case quarterAdjacency
+    /// Have `count` trade routes running.
+    case tradeRoutes
 }
 
 public struct InsightDef: Codable, Hashable, Sendable {
@@ -954,8 +997,8 @@ public struct RuleConstants: Codable, Hashable, Sendable {
     public let knowledge: KnowledgeRules
     public let score: ScoreRules
     public let settle: SettleRules
-    /// The score victory comes at the end of this turn.
-    public let turnLimit: Int
+    /// The score victory comes at the end of this turn; nil = no turn limit (M3a-D1).
+    public let turnLimit: Int?
 }
 
 public struct StartRules: Codable, Hashable, Sendable {
@@ -1310,6 +1353,12 @@ extension RulesetData {
                 if let tech = r.revealedBy { check(techs.contains { $0.id == tech }, "resource \(r.name): unknown tech \(tech.rawValue)") }
             }
             check(stockpile != nil, "resources without a stockpile section")
+            for group in stockpile?.fairness ?? [] {
+                check(!group.resources.isEmpty && group.radius >= 1, "stockpile fairness: empty group or radius below 1")
+                for r in group.resources {
+                    check(resources.contains { $0.name == r && $0.kind == .strategic }, "stockpile fairness: \(r) is not a strategic resource")
+                }
+            }
         }
         let strategic = Set((resources ?? []).filter { $0.kind == .strategic }.map(\.name))
         for unit in units {
@@ -1525,7 +1574,7 @@ extension RulesetData {
         check(c.combat.maxDifference > 0 && c.combat.rollRange >= 0 && c.combat.rollRange < 100
               && c.combat.damageScale > 0 && c.combat.hpPerWoundPenalty > 0, "combat constants out of range")
         check(c.knowledge.sightingMaxAge >= 0, "sighting age negative")
-        check(c.turnLimit >= 1, "turn limit must be positive")
+        check((c.turnLimit ?? 1) >= 1, "turn limit must be positive")
         check(c.settle.radius >= 0, "settle radius negative")
 
         // AI.
@@ -1578,7 +1627,8 @@ extension RulesetData {
     private func insightProblems(_ insight: InsightDef, _ context: String) -> [String] {
         var problems: [String] = []
         let needsCount: Set<InsightKind> = [.ownCoastalCities, .meetPlayers, .ownCities, .buildImprovements, .ownBuildings, .ownUnits,
-                                            .ownQuarters, .cityPopulation, .cityInUnrest, .ownMilitaryUnits, .meetMinors]
+                                            .ownQuarters, .cityPopulation, .cityInUnrest, .ownMilitaryUnits, .meetMinors,
+                                            .foundOverseasCity, .quarterAdjacency, .tradeRoutes]
         if needsCount.contains(insight.kind), (insight.count ?? 0) < 1 { problems.append("\(context): insight needs a count ≥ 1") }
         switch insight.kind {
         case .buildImprovements:
@@ -1595,8 +1645,12 @@ extension RulesetData {
             if (insight.classes ?? []).isEmpty { problems.append("\(context): insight needs classes") }
         case .ownQuarters:
             if let t = insight.target, !(quarters?.kinds ?? []).contains(where: { $0.id.rawValue == t }) { problems.append("\(context): insight quarter \(t) unknown") }
+        case .quarterAdjacency:
+            if !(quarters?.kinds ?? []).contains(where: { $0.id.rawValue == insight.target }) {
+                problems.append("\(context): insight quarter \(insight.target ?? "nil") unknown")
+            }
         case .ownCoastalCities, .meetPlayers, .ownCities, .cityDefended, .cityPopulation, .cityInUnrest, .warDeclaredOn,
-             .ownMilitaryUnits, .clearRaiderCamp, .meetMinors, .bePatron:
+             .ownMilitaryUnits, .clearRaiderCamp, .meetMinors, .bePatron, .foundOverseasCity, .tradeRoutes:
             break
         }
         if insight.text.isEmpty { problems.append("\(context): insight text is empty") }
@@ -1760,8 +1814,9 @@ public struct StrengthBonus: Codable, Hashable, Sendable {
 public struct CostCut: Codable, Hashable, Sendable {
     public let units: [UnitType]?
     public let classes: [UnitClass]?
-    /// Only units of this era or earlier.
+    /// Only units of this era or earlier / later.
     public let maxEra: String?
+    public let minEra: String?
     public let buildings: [String]?
     /// City-centre (non-quarter) buildings.
     public let centre: Bool?
@@ -1811,4 +1866,33 @@ public struct Bonuses: Codable, Hashable, Sendable {
     public let intlTradeCulture: Int?
     public let envoyGold: Int?
     public let friendshipCostPct: Int?
+    // M3a §6–7.
+    /// Extra yields of a building in every city that has it (Printing: Library +1 Science).
+    public let buildingYields: [BuildingYield]?
+    /// Extra yields of every quarter of a kind (Grand Tour: Theater +1 Gold).
+    public let quarterYields: [QuarterYield]?
+    /// Extra yields of each specialist in a kind of quarter (Printing: Campus +1 Science).
+    public let specialistYields: [QuarterYield]?
+    /// Naval units' sight and moves (Navigation, Square Rigging).
+    public let navalSight: Int?
+    public let navalMoves: Int?
+    /// Cities at least `distantCityDistance` from the capital: +Food % and Loyalty/turn
+    /// (Colonial Offices).
+    public let distantCityDistance: Int?
+    public let distantCityFoodPct: Int?
+    public let distantCityLoyalty: Int?
+    /// International trade routes: Gold more for the origin (Chartered Companies).
+    public let intlTradeGold: Int?
+    /// Sea trade routes: range more (Navigation).
+    public let seaTradeRange: Int?
+}
+
+public struct BuildingYield: Codable, Hashable, Sendable {
+    public let building: BuildingID
+    public let yields: Yields
+}
+
+public struct QuarterYield: Codable, Hashable, Sendable {
+    public let quarter: QuarterKind
+    public let yields: Yields
 }

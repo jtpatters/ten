@@ -88,6 +88,8 @@ public enum UnitActionKind: String, Hashable, Sendable, CaseIterable {
     case foundCity, buildFarm, buildMine, buildPasture, fortify, sleep, wake, skip, cancelOrders, disband
     // M2 §4.1.
     case buildQuarry, buildPlantation, buildCamp, buildFishingBoats, buildLumberMill
+    /// M3a §4.
+    case buildFort
     // M2 §3.3.
     case buildRoad, pillage
 }
@@ -209,11 +211,11 @@ public struct PlayerView: Sendable {
     public var cities: [City] { state.cities.filter { $0.owner == player } }
     /// Foreign units on visible tiles, sorted by id.
     public var visibleForeignUnits: [Unit] {
-        state.units.filter { $0.owner != player && isVisible(index: state.map.index(of: $0.position)!) }
+        state.units.filter { $0.owner != player && state.sees(player, $0) }
     }
     /// Own units and foreign units on visible tiles, sorted by id.
     public var visibleUnits: [Unit] {
-        state.units.filter { $0.owner == player || isVisible(index: state.map.index(of: $0.position)!) }
+        state.units.filter { state.sees(player, $0) }
     }
 
     /// An own unit, or a foreign unit on a visible tile.
@@ -245,13 +247,13 @@ public struct PlayerView: Sendable {
 
     public func unit(_ id: UnitID) -> Unit? {
         guard let unit = state.unit(id) else { return nil }
-        return unit.owner == player || isVisible(unit.position) ? unit : nil
+        return state.sees(player, unit) ? unit : nil
     }
 
     /// Own units and visible foreign units on a tile.
     public func units(at hex: HexCoord) -> [Unit] {
         guard isVisible(hex) || state.units.contains(where: { $0.owner == player && $0.position == hex }) else { return [] }
-        return state.units(at: hex).filter { $0.owner == player || isVisible(hex) }
+        return state.units(at: hex).filter { state.sees(player, $0) }
     }
 
     /// An own city.
@@ -460,7 +462,8 @@ public struct PlayerView: Sendable {
             let t = state.map.index(of: unit.position)!
             let known = state.knownResource(at: t, for: player)
             for (kind, improvement) in [(UnitActionKind.buildQuarry, Improvement.quarry), (.buildPlantation, .plantation),
-                                        (.buildCamp, .camp), (.buildFishingBoats, .fishingBoats), (.buildLumberMill, .lumberMill)]
+                                        (.buildCamp, .camp), (.buildFishingBoats, .fishingBoats), (.buildLumberMill, .lumberMill),
+                                        (.buildFort, .fort)]
                 where rules.allowsImprovement(improvement, on: state.map.tiles[t], resource: known) {
                 add(kind, .buildImprovement(unit: id, improvement: improvement), state.improvementProblem(improvement, by: unit))
             }

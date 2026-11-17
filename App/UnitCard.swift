@@ -343,7 +343,7 @@ struct UnitCard: View {
             let base: Int = switch kind {
             case .foundCity: 0
             case .buildFarm, .buildMine, .buildPasture, .buildQuarry, .buildPlantation, .buildCamp, .buildFishingBoats,
-                 .buildLumberMill, .buildRoad: 1
+                 .buildLumberMill, .buildRoad, .buildFort: 1
             case .pillage: 4
             case .wake: 2
             case .cancelOrders: 3
@@ -380,6 +380,7 @@ struct UnitCard: View {
         case .buildCamp: ("Camp", "tent.fill", build(.camp, view))
         case .buildFishingBoats: ("Fishing Boats", "sailboat.fill", build(.fishingBoats, view))
         case .buildLumberMill: ("Lumber Mill", "tree.fill", build(.lumberMill, view))
+        case .buildFort: ("Fort", "flag.fill", fortHelp(view))
         case .buildRoad: ("Road", "road.lanes", "Lay a road on this tile: moving from road to road costs "
                           + "\(view.rules.movesText(1)) of a move. Uses all moves, no charge.")
         case .pillage: ("Pillage", "flame.fill", "Wreck the enemy improvement here (its tile yields nothing until repaired) "
@@ -393,6 +394,13 @@ struct UnitCard: View {
         case .cancelOrders: ("Cancel", "xmark.circle", "Stop the march to its destination.")
         case .disband: ("Disband", "trash", "Remove the unit for good.")
         }
+    }
+
+    /// The Fort's help (M3a §4), its numbers from the rules.
+    static func fortHelp(_ view: PlayerView) -> String {
+        let def = view.rules.improvement(.fort)
+        return "Build a Fort: your land units here get +\(def.defense ?? 0) defence and count as fortified, "
+            + "and heal \(def.heal ?? 0) HP more each turn. Not next to another Fort. Uses a charge."
     }
 
     /// An M2 improvement's help (M2 §4.1): what it adds, and that it puts the tile's resource
