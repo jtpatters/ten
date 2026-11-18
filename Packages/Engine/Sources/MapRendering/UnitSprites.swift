@@ -942,6 +942,48 @@ enum UnitSprite: SpriteSet {
         f.add(f.limb([(x0 - 0.012, top + 0.004), (x1 + 0.012, top + 0.004)], 0.012, 0.012), Material(darkWood, grain: .wood), outline: 0.007)
     }
 
+    /// A hull's sheer: the line of her deck from bow to stern, low in the waist and rising in a
+    /// curve toward both ends (more toward the stern). The rail, the strake, the wales and the
+    /// row of gunports all run along it, so they follow the hull's shape rather than a ruler.
+    private struct Sheer {
+        let low: CGFloat, waist: CGFloat, bowRise: CGFloat, sternRise: CGFloat
+
+        func y(_ x: CGFloat) -> CGFloat {
+            let d = x - waist
+            return low + d * d * (d < 0 ? bowRise : sternRise)
+        }
+
+        /// Points along the sheer from `x0` to `x1`, `drop` below it.
+        func line(_ x0: CGFloat, _ x1: CGFloat, drop: CGFloat = 0, steps: Int = 16) -> [(CGFloat, CGFloat)] {
+            (0...steps).map { i in
+                let x = x0 + (x1 - x0) * CGFloat(i) / CGFloat(steps)
+                return (x, y(x) - drop)
+            }
+        }
+
+        /// A band along the sheer between `top` and `bottom` below it.
+        func band(_ f: Figure, _ x0: CGFloat, _ x1: CGFloat, top: CGFloat, bottom: CGFloat) -> CGPath {
+            f.poly(line(x0, x1, drop: top) + line(x0, x1, drop: bottom).reversed())
+        }
+    }
+
+    /// A row of gunports along the sheer, each a dark opening with upright sides and its sill
+    /// and lintel parallel to the sheer, a gun's iron muzzle showing in it.
+    private static func gunports(_ f: inout Figure, along sheer: Sheer, at xs: [CGFloat], drop: CGFloat, width: CGFloat, height: CGFloat,
+                                 clip: CGPath) {
+        for x in xs {
+            let l = x - width / 2, r = x + width / 2
+            let port = f.poly([(l, sheer.y(l) - drop), (r, sheer.y(r) - drop), (r, sheer.y(r) - drop - height), (l, sheer.y(l) - drop - height)])
+            f.decal(port, Tone(0.09, 0.06, 0.05), alpha: 0.95, clip: clip)
+            let c = (x, sheer.y(x) - drop - height * 0.5)
+            f.decal(f.ellipse(c.0, c.1, width * 0.26, height * 0.27), iron.scaled(0.55), alpha: 0.9, clip: port)
+            f.decal(f.ellipse(c.0 - width * 0.06, c.1 + height * 0.06, width * 0.1, height * 0.1), iron.scaled(1.1), alpha: 0.5, clip: port)
+            // The sill, catching the light.
+            f.decal(f.limb([(l, sheer.y(l) - drop - height), (r, sheer.y(r) - drop - height)], 0.004, 0.004), Tone(0.9, 0.78, 0.55),
+                    alpha: 0.35, clip: clip)
+        }
+    }
+
     /// A caravel (M3a §8.1): a small, deep, round-bellied hull with a raised sterncastle, a
     /// great lateen sail on the mainmast and a smaller one on the mizzen, each bearing a cross in
     /// the team color.
@@ -956,15 +998,16 @@ enum UnitSprite: SpriteSet {
         f.add(f.limb([(0.66, 0.43), (0.9, 0.75)], 0.012, 0.009), Material(darkWood, grain: .wood), outline: 0.007)
         mast(&f, x: 0.5, from: 0.3, to: 0.86)
         // The hull: a deep belly, the bow low and rounded, the sheer rising to the sterncastle.
-        let hull = f.poly([(0.07, 0.335), (0.16, 0.3), (0.34, 0.29), (0.6, 0.3), (0.66, 0.4), (0.9, 0.43), (0.93, 0.4),
-                           (0.9, 0.24), (0.84, 0.17), (0.7, w - 0.01), (0.44, w - 0.02), (0.24, w - 0.005), (0.14, 0.19), (0.09, 0.26)])
+        let sheer = Sheer(low: 0.29, waist: 0.36, bowRise: 0.54, sternRise: 0.17)
+        let bottom = f.blob([(0.06, 0.37), (0.085, 0.26), (0.14, 0.19), (0.26, w - 0.006), (0.46, w - 0.02), (0.7, w - 0.01),
+                             (0.84, 0.17), (0.915, 0.25), (0.935, 0.42), (0.5, 0.55)])
+        let hull = bottom.intersection(f.poly(sheer.line(0, 0.6) + [(0.66, 0.4), (0.9, 0.43), (1, 0.43), (1, 0), (0, 0)]))
         f.add(hull, Material(hullWood, grain: .planks))
-        for y in [0.2, 0.25] as [CGFloat] {
-            f.decal(f.limb([(0.1, y + 0.05 - (y - 0.2)), (0.5, y - 0.012), (0.9, y + 0.02)], 0.006, 0.006), Tone(0.3, 0.2, 0.12),
-                    alpha: 0.5, clip: hull)
+        for drop in [0.085, 0.13] as [CGFloat] {
+            f.decal(f.poly(sheer.line(0.08, 0.92, drop: drop, steps: 20) + sheer.line(0.08, 0.92, drop: drop + 0.006, steps: 20).reversed()),
+                    Tone(0.3, 0.2, 0.12), alpha: 0.5, clip: hull)
         }
-        let strake = f.poly([(0.1, 0.33), (0.6, 0.3), (0.6, 0.272), (0.1, 0.3)])
-        f.decal(strake, teamShade: 1, alpha: 1, clip: hull)
+        f.decal(sheer.band(f, 0.08, 0.64, top: 0.006, bottom: 0.034), teamShade: 1, alpha: 1, clip: hull)
         // The sterncastle's rail and its windows.
         f.add(f.rectPath(0.62, 0.4, 0.31, 0.03), Material(hullWood.scaled(1.15), grain: .wood), outline: 0.008)
         for x in [0.7, 0.76, 0.82] as [CGFloat] {
@@ -1000,17 +1043,18 @@ enum UnitSprite: SpriteSet {
         f.decal(f.rectPath(0.515, 0.36, 0.36, 0.035), teamShade: 0.9, alpha: 0.95, clip: gaff)
         f.add(f.limb([(0.51, 0.76), (0.79, 0.685)], 0.012, 0.009), Material(darkWood, grain: .wood), outline: 0.007)
         f.add(f.limb([(0.51, 0.355), (0.9, 0.365)], 0.012, 0.01), Material(darkWood, grain: .wood), outline: 0.007)
-        // The bowsprit, then the long low hull with its sharp bow and square stern.
+        // The bowsprit, then the long low hull with its sharp bow and square stern, a gentle
+        // sheer, and a strake in the team color pierced for five guns along it.
         f.add(f.limb([(0.2, 0.31), (0.05, 0.38)], 0.016, 0.01), Material(darkWood, grain: .wood), outline: 0.008)
-        let hull = f.poly([(0.08, 0.32), (0.3, 0.3), (0.7, 0.3), (0.92, 0.33), (0.94, 0.33), (0.92, 0.2), (0.82, w),
-                           (0.4, w - 0.012), (0.2, w), (0.12, 0.22)])
+        let sheer = Sheer(low: 0.296, waist: 0.5, bowRise: 0.32, sternRise: 0.26)
+        let bottom = f.blob([(0.07, 0.4), (0.09, 0.3), (0.13, 0.215), (0.24, w + 0.002), (0.45, w - 0.012), (0.74, w - 0.004),
+                             (0.88, 0.185), (0.935, 0.26), (0.96, 0.4), (0.5, 0.5)])
+        let hull = bottom.intersection(f.poly(sheer.line(0, 0.94) + [(0.95, 0.352), (1, 0.352), (1, 0), (0, 0)]))
         f.add(hull, Material(hullWood, grain: .planks))
-        let strake = f.poly([(0.1, 0.31), (0.92, 0.32), (0.92, 0.26), (0.11, 0.26)])
-        f.decal(strake, teamShade: 0.95, alpha: 1, clip: hull)
-        for x in [0.3, 0.44, 0.58, 0.72] as [CGFloat] {
-            f.decal(f.rectPath(x, 0.27, 0.034, 0.03), Tone(0.12, 0.08, 0.06), alpha: 0.95, clip: hull)
-        }
-        f.decal(f.limb([(0.14, 0.215), (0.5, 0.19), (0.9, 0.205)], 0.005, 0.005), Tone(0.5, 0.36, 0.24), alpha: 0.5, clip: hull)
+        f.decal(sheer.band(f, 0.09, 0.93, top: 0.012, bottom: 0.064), teamShade: 0.95, alpha: 1, clip: hull)
+        gunports(&f, along: sheer, at: [0.27, 0.385, 0.5, 0.615, 0.73], drop: 0.022, width: 0.034, height: 0.03, clip: hull)
+        f.decal(sheer.band(f, 0.1, 0.93, top: 0.004, bottom: 0.011), Tone(0.5, 0.36, 0.24), alpha: 0.6, clip: hull)
+        f.decal(sheer.band(f, 0.12, 0.92, top: 0.1, bottom: 0.106), Tone(0.5, 0.36, 0.24), alpha: 0.5, clip: hull)
     }
 
     /// A frigate (M3a §8.1): a big three-masted ship, square-rigged, courses and topsails set,
@@ -1027,23 +1071,26 @@ enum UnitSprite: SpriteSet {
             squareSail(&f, x0: x - half * 0.78, x1: x + half * 0.78, top: upper, foot: top + 0.025, cloth: sailCloth)
         }
         // The jib, ahead of the fore course.
-        f.add(f.blob([(0.25, 0.76), (0.05, 0.42), (0.16, 0.42)]), Material(sailCloth.scaled(1.02), grain: .cloth))
-        f.add(f.limb([(0.2, 0.36), (0.04, 0.43)], 0.018, 0.011), Material(darkWood, grain: .wood), outline: 0.008)
-        // The hull: the sheer rising to a high stern, a gun deck along its middle.
-        let hull = f.poly([(0.07, 0.38), (0.2, 0.36), (0.6, 0.36), (0.82, 0.39), (0.92, 0.45), (0.95, 0.45), (0.93, 0.26),
-                           (0.86, 0.17), (0.7, w - 0.012), (0.36, w - 0.02), (0.18, w - 0.004), (0.1, 0.24)])
+        f.add(f.blob([(0.25, 0.76), (0.05, 0.455), (0.16, 0.44)]), Material(sailCloth.scaled(1.02), grain: .cloth))
+        f.add(f.limb([(0.18, 0.4), (0.04, 0.465)], 0.018, 0.011), Material(darkWood, grain: .wood), outline: 0.008)
+        // The hull: the sheer sweeping up from the waist to the bow and to a high stern, the
+        // gun deck along it: a strake in the team color pierced for eight guns, the gilt rail
+        // above, the wales below, and the windows of the stern.
+        // The round of the bottom is one smooth curve from the stem to the sternpost, cut by
+        // the sheer above.
+        let sheer = Sheer(low: 0.35, waist: 0.45, bowRise: 0.42, sternRise: 0.44)
+        let bottom = f.blob([(0.055, 0.5), (0.068, 0.36), (0.11, 0.23), (0.2, w + 0.004), (0.4, w - 0.018), (0.68, w - 0.01),
+                             (0.86, 0.17), (0.935, 0.27), (0.96, 0.5), (0.5, 0.62)])
+        let hull = bottom.intersection(f.poly(sheer.line(0, 0.87) + [(0.9, 0.455), (1, 0.46), (1, 0), (0, 0)]))
         f.add(hull, Material(hullWood, grain: .planks))
-        let strake = f.poly([(0.1, 0.33), (0.6, 0.32), (0.86, 0.34), (0.86, 0.28), (0.6, 0.264), (0.11, 0.276)])
-        f.decal(strake, teamShade: 0.95, alpha: 1, clip: hull)
-        for i in 0..<7 {
-            let x = 0.17 + CGFloat(i) * 0.093
-            let y = 0.276 + (x < 0.6 ? 0 : (x - 0.6) * 0.06) - (x < 0.3 ? (0.3 - x) * 0.03 : 0)
-            f.decal(f.rectPath(x, y + 0.006, 0.032, 0.03), Tone(0.1, 0.07, 0.05), alpha: 0.95, clip: hull)
+        f.decal(sheer.band(f, 0.08, 0.95, top: 0.032, bottom: 0.088), teamShade: 0.95, alpha: 1, clip: hull)
+        gunports(&f, along: sheer, at: (0..<8).map { 0.17 + CGFloat($0) * 0.086 }, drop: 0.044, width: 0.03, height: 0.028, clip: hull)
+        f.decal(sheer.band(f, 0.08, 0.95, top: 0.008, bottom: 0.018), gold.scaled(0.85), alpha: 0.8, clip: hull)
+        for drop in [0.11, 0.15] as [CGFloat] {
+            f.decal(sheer.band(f, 0.1, 0.94, top: drop, bottom: drop + 0.006), Tone(0.5, 0.38, 0.26), alpha: 0.5, clip: hull)
         }
-        f.decal(f.limb([(0.1, 0.36), (0.6, 0.348), (0.9, 0.42)], 0.008, 0.008), gold.scaled(0.85), alpha: 0.8, clip: hull)
-        f.decal(f.limb([(0.12, 0.22), (0.5, 0.2), (0.9, 0.23)], 0.005, 0.005), Tone(0.5, 0.38, 0.26), alpha: 0.5, clip: hull)
-        for x in [0.86, 0.9] as [CGFloat] {
-            f.decal(f.rectPath(x, 0.37, 0.022, 0.03), Tone(0.95, 0.85, 0.55), alpha: 0.85, clip: hull)
+        for x in [0.875, 0.91] as [CGFloat] {
+            f.decal(f.rectPath(x, sheer.y(x) - 0.026, 0.022, 0.03), Tone(0.95, 0.85, 0.55), alpha: 0.85, clip: hull)
         }
     }
 
@@ -1627,59 +1674,112 @@ enum UnitSprite: SpriteSet {
     /// hussar's wing would rise where the standard hangs, so he has none.)
     private enum Mount { case scout, lance, armored, chariot, hussar }
 
-    /// A rider on a cantering horse, cloaked and hooded in the team color, carrying the standard.
+    /// A rider on a trotting horse, cloaked and hooded in the team color, carrying the standard.
     private static func scout(_ f: inout Figure, coat: Tone = Tone(0.6, 0.36, 0.2), kit: Mount = .scout) {
-        let points = Tone(0.21, 0.14, 0.1), mane = Tone(0.18, 0.11, 0.07)
+        // The lower legs darken from the coat (black on a bay, deep on a chestnut, slate on a grey).
+        let points = Tone(coat.r * 0.42 + 0.06, coat.g * 0.42 + 0.04, coat.b * 0.42 + 0.03)
+        let mane = Tone(coat.r * 0.36 + 0.04, coat.g * 0.36 + 0.03, coat.b * 0.36 + 0.02)
         let hoof = Tone(0.15, 0.11, 0.08), farCoat = coat.scaled(0.72)
         func hoofAt(_ x: CGFloat, _ y: CGFloat, _ k: CGFloat = 1, tilt: CGFloat = 0) {
             f.add(f.blob([(x - 0.023, y + tilt), (x + 0.02, y - tilt), (x + 0.016, y + 0.026 - tilt), (x - 0.016, y + 0.026 + tilt)]),
                   Material(hoof.scaled(k)), outline: 0.01)
         }
 
-        // Far legs in shade: foreleg planted ahead, hind leg reaching under the belly.
-        f.add(f.limb([(0.33, 0.39), (0.315, 0.27), (0.3, 0.22)], 0.07, 0.044), Material(farCoat, grain: .hide))
-        f.add(f.limb([(0.3, 0.23), (0.29, 0.16), (0.284, 0.125)], 0.036, 0.03), Material(points.scaled(0.85)))
-        hoofAt(0.28, 0.103, 0.85)
-        f.add(f.limb([(0.64, 0.42), (0.6, 0.31), (0.585, 0.25)], 0.09, 0.05), Material(farCoat, grain: .hide))
-        f.add(f.limb([(0.586, 0.26), (0.59, 0.18), (0.572, 0.128)], 0.036, 0.028), Material(points.scaled(0.85)))
-        hoofAt(0.566, 0.105, 0.85)
-        // Tail streaming back.
-        f.add(f.limb([(0.752, 0.5), (0.81, 0.49), (0.852, 0.43), (0.87, 0.35), (0.896, 0.28)], 0.062, 0.022), Material(mane, grain: .hide))
+        // A collected trot: the diagonal pair of far foreleg and near hind leg planted, the
+        // near foreleg and far hind leg lifted and folded. Each leg is one silhouette, forearm
+        // or gaskin tapering to the knee or hock, the slim cannon, a fetlock and a sloped
+        // pastern, darker below the knee and hock (its points).
+        func leg(upper: [(CGFloat, CGFloat)], _ uw: (CGFloat, CGFloat), lower: [(CGFloat, CGFloat)], _ lw: (CGFloat, CGFloat)) -> CGPath {
+            let fetlock = lower[lower.count - 2]
+            return f.limb(upper, uw.0, uw.1).union(f.limb(lower, lw.0, lw.1))
+                .union(f.ellipse(fetlock.0, fetlock.1, lw.0 * 0.62, lw.0 * 0.56))
+        }
+        func pointsOf(_ path: CGPath, below lower: [(CGFloat, CGFloat)], _ tone: Tone) {
+            // Darkening down the cannon, so the points shade in rather than end in a cuff.
+            let a = lower[0], b = lower[lower.count - 1], mid = (a.0 + (b.0 - a.0) * 0.4, a.1 + (b.1 - a.1) * 0.4)
+            f.decal(f.limb([a, b], 0.07, 0.07), tone, alpha: 0.4, clip: path)
+            f.decal(f.limb([mid, b], 0.07, 0.07), tone, alpha: 0.75, clip: path)
+        }
+        func liftedHoof(_ from: (CGFloat, CGFloat), _ to: (CGFloat, CGFloat), _ k: CGFloat = 1) {
+            f.add(f.limb([from, to], 0.03, 0.036), Material(hoof.scaled(k)), outline: 0.01)
+        }
+
+        // Far legs in shade: the foreleg planted under the chest, the hind leg swinging forward.
+        let farForeLower: [(CGFloat, CGFloat)] = [(0.33, 0.25), (0.327, 0.155), (0.316, 0.124)]
+        let farFore = leg(upper: [(0.35, 0.42), (0.338, 0.32), (0.33, 0.25)], (0.08, 0.042), lower: farForeLower, (0.036, 0.029))
+        f.add(farFore, Material(farCoat, grain: .hide))
+        pointsOf(farFore, below: [(0.33, 0.235), (0.316, 0.11)], points.scaled(0.85))
+        hoofAt(0.312, 0.102, 0.85)
+        let farHindLower: [(CGFloat, CGFloat)] = [(0.704, 0.27), (0.676, 0.19), (0.656, 0.168)]
+        let farHind = leg(upper: [(0.65, 0.44), (0.672, 0.34), (0.704, 0.27)], (0.11, 0.046), lower: farHindLower, (0.036, 0.028))
+        f.add(farHind, Material(farCoat, grain: .hide))
+        pointsOf(farHind, below: [(0.7, 0.26), (0.65, 0.16)], points.scaled(0.85))
+        liftedHoof((0.66, 0.172), (0.642, 0.15), 0.85)
+        // The tail, set high on the croup, arching out and falling in a full sweep; the far ear.
+        let tail = f.blob([(0.75, 0.535), (0.79, 0.54), (0.832, 0.51), (0.862, 0.44), (0.874, 0.36), (0.896, 0.27), (0.876, 0.244),
+                           (0.85, 0.29), (0.828, 0.36), (0.8, 0.43), (0.762, 0.476)])
+        f.add(tail, Material(mane, grain: .hide))
+        f.decal(f.limb([(0.79, 0.52), (0.84, 0.45), (0.86, 0.33)], 0.008, 0.006), coat.lit, alpha: 0.18, clip: tail)
+        f.add(f.blob([(0.226, 0.742), (0.242, 0.802), (0.258, 0.744)]), Material(farCoat), outline: 0.009)
         // Banner pole in the rider's far hand.
         pole(&f, x: 0.612, from: 0.43)
-        // Barrel, deep chest, arched neck and the upper legs as one silhouette, so the legs
-        // join the body without seams; only knees and hocks show as joints.
-        let barrel = f.blob([(0.27, 0.44), (0.282, 0.375), (0.33, 0.33), (0.45, 0.322), (0.58, 0.33), (0.68, 0.36),
-                             (0.752, 0.41), (0.765, 0.48), (0.73, 0.53), (0.64, 0.545), (0.54, 0.53), (0.44, 0.545),
-                             (0.37, 0.56), (0.3, 0.52)])
-        let neck = f.blob([(0.3, 0.44), (0.27, 0.5), (0.22, 0.58), (0.18, 0.66), (0.196, 0.722), (0.24, 0.73),
-                           (0.3, 0.68), (0.37, 0.6), (0.42, 0.55), (0.36, 0.5)])
-        let foreArm = f.limb([(0.33, 0.4), (0.28, 0.33), (0.252, 0.3)], 0.084, 0.05)
-        let gaskin = f.limb([(0.7, 0.44), (0.74, 0.35), (0.77, 0.29)], 0.11, 0.054)
-        let horse = barrel.union(neck).union(foreArm).union(gaskin)
+        // Chest, barrel and quarters, the arched neck and the near legs as one silhouette, so
+        // the legs join the body without seams. The withers rise above the girth, the back dips
+        // under the saddle and the croup rounds over the quarters.
+        let barrel = f.blob([(0.256, 0.458), (0.264, 0.416), (0.29, 0.385), (0.335, 0.338), (0.45, 0.322), (0.58, 0.332), (0.665, 0.36),
+                             (0.74, 0.4), (0.776, 0.462), (0.766, 0.52), (0.72, 0.553), (0.66, 0.556), (0.58, 0.54), (0.5, 0.538),
+                             (0.43, 0.56), (0.36, 0.53), (0.3, 0.5)])
+        // The neck's underline runs up from the breast to meet the jaw behind the jowl (the
+        // throat latch), so head and neck read apart.
+        let neck = f.blob([(0.258, 0.48), (0.27, 0.54), (0.264, 0.6), (0.248, 0.65), (0.23, 0.7), (0.232, 0.75), (0.275, 0.752),
+                           (0.318, 0.736), (0.364, 0.694), (0.41, 0.636), (0.452, 0.566), (0.38, 0.5)])
+        let nearForeLower: [(CGFloat, CGFloat)] = [(0.222, 0.305), (0.232, 0.218), (0.25, 0.192)]
+        let nearFore = leg(upper: [(0.315, 0.43), (0.27, 0.352), (0.222, 0.305)], (0.084, 0.042), lower: nearForeLower, (0.037, 0.03))
+        let nearHindLower: [(CGFloat, CGFloat)] = [(0.786, 0.268), (0.79, 0.16), (0.8, 0.128)]
+        let nearHind = leg(upper: [(0.71, 0.47), (0.752, 0.36), (0.786, 0.268)], (0.13, 0.05), lower: nearHindLower, (0.04, 0.031))
+        let horse = barrel.union(neck).union(nearFore).union(nearHind)
         f.add(horse, Material(coat, grain: .hide))
-        f.decal(f.blob([(0.34, 0.345), (0.46, 0.33), (0.62, 0.345), (0.55, 0.37), (0.4, 0.37)]), coat.lit, alpha: 0.2, clip: horse)
-        f.decal(f.blob([(0.25, 0.56), (0.3, 0.52), (0.33, 0.54), (0.28, 0.6)]), coat.shadow, alpha: 0.22, clip: horse)
-        // Head: a long wedge from the poll to a soft muzzle, with eye, nostril and ear.
-        let head = f.blob([(0.205, 0.735), (0.17, 0.728), (0.124, 0.684), (0.082, 0.628), (0.064, 0.594), (0.074, 0.566),
-                           (0.104, 0.562), (0.146, 0.588), (0.196, 0.63), (0.23, 0.68)])
+        pointsOf(horse, below: [(0.224, 0.29), (0.25, 0.17)], points)
+        pointsOf(horse, below: [(0.786, 0.25), (0.8, 0.11)], points)
+        // Modelling: the light along the back and the shoulder, the hip's round, shade under
+        // the belly and down the back of the forearm.
+        f.decal(f.blob([(0.34, 0.35), (0.46, 0.336), (0.62, 0.348), (0.55, 0.372), (0.4, 0.372)]), coat.shadow, alpha: 0.25, clip: horse)
+        f.decal(f.limb([(0.42, 0.55), (0.36, 0.48), (0.31, 0.44)], 0.03, 0.02), coat.lit, alpha: 0.22, clip: horse)
+        f.decal(f.ellipse(0.69, 0.5, 0.05, 0.036), coat.lit, alpha: 0.2, clip: horse)
+        f.decal(f.limb([(0.66, 0.53), (0.72, 0.5), (0.75, 0.45)], 0.012, 0.01), coat.shadow, alpha: 0.3, clip: horse)
+        f.decal(f.limb([(0.256, 0.63), (0.284, 0.54)], 0.03, 0.03), coat.shadow, alpha: 0.2, clip: horse)
+        f.decal(f.limb([(0.262, 0.43), (0.296, 0.405), (0.33, 0.39)], 0.012, 0.008), coat.shadow, alpha: 0.45, clip: horse)
+        f.decal(f.ellipse(0.276, 0.46, 0.024, 0.03), coat.lit, alpha: 0.2, clip: horse)
+        hoofAt(0.8, 0.103)
+        liftedHoof((0.248, 0.196), (0.27, 0.176))
+        // Head: the broad jowl, the flat face tapering down to a soft muzzle, the near ear
+        // pricked forward, a dark eye and the nostril.
+        // The head as a horse's is built: the round jowl, the long flat face tapering from the
+        // brow, and a soft muzzle, carried at a slant from the poll.
+        let jowl = f.ellipse(0.206, 0.682, 0.046, 0.05)
+        let face = f.limb([(0.214, 0.722), (0.15, 0.656), (0.092, 0.594)], 0.07, 0.05)
+        let head = jowl.union(face).union(f.ellipse(0.082, 0.578, 0.031, 0.029)).union(f.ellipse(0.226, 0.735, 0.02, 0.018))
         f.add(head, Material(coat, grain: .hide))
-        f.add(f.ellipse(0.082, 0.582, 0.024, 0.022), Material(Tone(0.42, 0.27, 0.19)), outline: 0)
-        f.add(f.ellipse(0.071, 0.586, 0.007, 0.006), Material(ink, shade: 0, light: 0), outline: 0)
-        f.add(f.ellipse(0.162, 0.67, 0.012, 0.013), Material(ink, shade: 0, light: 0), outline: 0)
-        f.decal(f.ellipse(0.159, 0.674, 0.004, 0.004), Tone(1, 0.95, 0.85), alpha: 0.9)
-        f.add(f.blob([(0.2, 0.728), (0.205, 0.79), (0.23, 0.736)]), Material(coat), outline: 0.01)
-        // Mane along the crest of the neck, forelock.
-        f.add(f.limb([(0.21, 0.74), (0.27, 0.72), (0.33, 0.66), (0.38, 0.6), (0.43, 0.555)], 0.044, 0.022), Material(mane, grain: .hide),
-              outline: 0.01)
-        f.add(f.limb([(0.206, 0.736), (0.18, 0.716), (0.164, 0.69)], 0.022, 0.01), Material(mane), outline: 0.008)
-        // Near legs: lead foreleg folded high, hind leg pushing off.
-        f.add(f.limb([(0.252, 0.31), (0.262, 0.24), (0.282, 0.205)], 0.04, 0.03), Material(points))
-        f.add(f.blob([(0.27, 0.19), (0.302, 0.196), (0.298, 0.222), (0.276, 0.216)]), Material(hoof), outline: 0.01)
-        f.add(f.limb([(0.772, 0.3), (0.8, 0.2), (0.818, 0.13)], 0.04, 0.03), Material(points))
-        hoofAt(0.822, 0.104)
-        // Bridle and reins.
-        f.decal(f.limb([(0.18, 0.71), (0.13, 0.63), (0.092, 0.586)], 0.009, 0.009), darkLeather, alpha: 0.9)
+        f.decal(f.ellipse(0.212, 0.676, 0.032, 0.034), coat.lit, alpha: 0.2, clip: head)
+        f.decal(f.limb([(0.17, 0.62), (0.112, 0.566)], 0.022, 0.016), coat.shadow, alpha: 0.3, clip: head)
+        f.decal(f.ellipse(0.078, 0.574, 0.03, 0.03), points, alpha: 0.4, clip: head)
+        f.add(f.ellipse(0.07, 0.588, 0.008, 0.006), Material(ink, shade: 0, light: 0), outline: 0)
+        f.add(f.ellipse(0.176, 0.7, 0.012, 0.013), Material(ink, shade: 0, light: 0), outline: 0)
+        f.decal(f.ellipse(0.173, 0.704, 0.004, 0.004), Tone(1, 0.95, 0.85), alpha: 0.9)
+        f.add(f.blob([(0.212, 0.744), (0.214, 0.81), (0.24, 0.752)]), Material(coat), outline: 0.01)
+        // The mane: lying along the arched crest and falling in locks on the near side; the forelock.
+        let maneShape = f.blob([(0.214, 0.76), (0.27, 0.764), (0.322, 0.746), (0.372, 0.7), (0.418, 0.64), (0.462, 0.568), (0.44, 0.556),
+                                (0.424, 0.59), (0.404, 0.6), (0.392, 0.628), (0.37, 0.64), (0.356, 0.668), (0.33, 0.684), (0.316, 0.708),
+                                (0.29, 0.716), (0.27, 0.732), (0.24, 0.736)])
+        f.add(maneShape, Material(mane, grain: .hide), outline: 0.01)
+        for lock in [[(0.27, 0.752), (0.29, 0.722)], [(0.33, 0.722), (0.345, 0.686)], [(0.385, 0.67), (0.398, 0.632)], [(0.43, 0.61), (0.44, 0.578)]]
+            as [[(CGFloat, CGFloat)]] {
+            f.decal(f.limb(lock, 0.006, 0.004), coat.lit, alpha: 0.22, clip: maneShape)
+        }
+        f.add(f.limb([(0.208, 0.746), (0.186, 0.724), (0.17, 0.7)], 0.022, 0.01), Material(mane), outline: 0.008)
+        // Bridle: the cheekpiece from the poll down to the bit, and the noseband.
+        f.decal(f.limb([(0.212, 0.744), (0.178, 0.664), (0.106, 0.574)], 0.009, 0.009), darkLeather, alpha: 0.9)
+        f.decal(f.limb([(0.098, 0.63), (0.124, 0.578)], 0.009, 0.009), darkLeather, alpha: 0.9)
         // Saddle cloth in the team color, trimmed, and the saddle.
         let cloth = f.blob([(0.45, 0.555), (0.434, 0.46), (0.49, 0.42), (0.62, 0.43), (0.646, 0.5), (0.61, 0.555)])
         f.add(cloth, Material(team: 1, grain: .cloth))
@@ -1716,7 +1816,7 @@ enum UnitSprite: SpriteSet {
         } else {
             f.add(f.limb([(0.506, 0.716), (0.446, 0.646), (0.392, 0.646)], 0.04, 0.03), Material(leather), outline: 0.012)
             f.add(f.ellipse(0.386, 0.646, 0.018, 0.018), Material(skin), outline: 0.008)
-            f.decal(f.limb([(0.382, 0.644), (0.26, 0.648), (0.11, 0.584)], 0.006, 0.005), ink, alpha: 0.55)
+            f.decal(f.limb([(0.382, 0.644), (0.26, 0.648), (0.108, 0.576)], 0.006, 0.005), ink, alpha: 0.55)
         }
         f.add(f.ellipse(0.494, 0.806, 0.043, 0.047), Material(skin))
         f.add(f.poly([(0.455, 0.814), (0.443, 0.796), (0.459, 0.792)]), Material(skin), outline: 0.006)
