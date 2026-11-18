@@ -51,12 +51,24 @@ struct CityLayout {
 
 /// The settlement atlas rects the unit pass uses, looked up once.
 struct TownAtlasTable {
+    /// Each piece's whole cell.
     var pieces: [SettlementPiece: SIMD4<Float>] = [:]
-    /// Per piece with team paint: its team cell's index in rows of cells its size, plus one
-    /// (`cityPiece` in `ShaderUnits.swift`); 0 for none.
+    /// Per piece with team paint: its entry in `cells` plus one (`unit_vertex`); 0 for none.
     var team: [SettlementPiece: Float] = [:]
+    /// The shader's town cell table (`unit_vertex`, vertex buffer 3): per piece with team
+    /// paint, the atlas offset from its cell to its team cell (xy).
+    var cells: [SIMD4<Float>] = []
     var ground = SIMD4<Float>.zero
     var pavedGround = SIMD4<Float>.zero
+
+    /// A piece's quad, trimmed to what the atlas keeps of it (`SettlementSprite.pieceRegion`),
+    /// for a cell `edge` world units wide standing on its foot: its uv rect, size and anchor.
+    func quad(_ piece: SettlementPiece, edge: Float) -> (uv: SIMD4<Float>, sizeAnchor: SIMD4<Float>) {
+        let uv = pieces[piece] ?? .zero, r = SettlementSprite.pieceRegion(piece), foot = piece.foot
+        let lo = SIMD2(r.x, r.y), span = simd_max(SIMD2(r.z, r.w) - lo, SIMD2(repeating: 1e-3))
+        return (SIMD4(uv.x + lo.x * uv.z, uv.y + (1 - r.w) * uv.w, span.x * uv.z, span.y * uv.w),
+                SIMD4(span.x * edge, span.y * edge, (foot.x - lo.x) / span.x, (foot.y - lo.y) / span.y))
+    }
 }
 
 /// A city drawn this frame.
@@ -73,9 +85,9 @@ extension MapRenderer {
     /// Meaning of `SpriteInstance.flags.y` for city instances in the unit pass (after the unit
     /// kinds, `UnitSpriteKind`). Must match `ShaderUnits.swift`.
     enum CitySpriteKind: Float {
-        /// A settlement piece standing on its foot. uv: its cell; tint: owner color, opacity.
-        /// z: 1 when fogged; w: its team cell (`TownAtlasTable.team`), 0 for none (a tribal
-        /// village's huts, tinted white).
+        /// A settlement piece standing on its foot. uv: its painted part (`TownAtlasTable.quad`);
+        /// tint: owner color, opacity. z: 1 when fogged; w: its team cell (`TownAtlasTable.team`),
+        /// 0 for none (a tribal village's huts, tinted white).
         case piece = 11
         /// The trodden ground under a settlement, flat. tint: rgb multiplier, opacity. z: 1
         /// when fogged. w: 1 for a tribal village's, drawn procedurally with no lanes (uv: its
@@ -136,14 +148,13 @@ extension MapRenderer {
     func townAtlasTable() -> TownAtlasTable {
         if let table = cityArt.atlasTable { return table }
         var table = TownAtlasTable()
-        let width = Float(SpriteSheet<SettlementSprite>.width), height = Float(SpriteSheet<SettlementSprite>.height)
-        assert(townAtlas.width == SpriteSheet<SettlementSprite>.width && townAtlas.height == SpriteSheet<SettlementSprite>.height)
         for piece in SettlementPiece.allCases {
-            table.pieces[piece] = townAtlas.uv(.piece(piece))
+            let uv = townAtlas.uv(.piece(piece))
+            table.pieces[piece] = uv
             guard piece.hasTeam else { table.team[piece] = 0; continue }
-            let uv = townAtlas.uv(.team(piece)), cell = Float(piece.cellSize)
-            let column = (uv.x * width / cell).rounded(), row = (uv.y * height / cell).rounded()
-            table.team[piece] = row * (width / cell) + column + 1
+            let team = townAtlas.uv(.team(piece))
+            table.cells.append(SIMD4(team.x - uv.x, team.y - uv.y, 0, 0))
+            table.team[piece] = Float(table.cells.count)
         }
         table.ground = townAtlas.uv(.ground)
         table.pavedGround = townAtlas.uv(.pavedGround)
@@ -281,9 +292,9 @@ extension MapRenderer {
         let s = cityUnit()
         let color = Palette.playerStyle(city.marker.owner.rawValue).rgb
         return city.layout.pieces.map { placed in
-            let edge = placed.piece.edge * placed.scale * s, foot = placed.piece.foot
+            let quad = table.quad(placed.piece, edge: placed.piece.edge * placed.scale * s)
             return SpriteInstance(position: [city.center.x + placed.at.x * s, city.center.y + placed.at.y * s, 0, 0],
-                                  sizeAnchor: [edge, edge, foot.x, foot.y], uv: table.pieces[placed.piece] ?? .zero,
+                                  sizeAnchor: quad.sizeAnchor, uv: quad.uv,
                                   tint: SIMD4(color, opacity),
                                   flags: [1, CitySpriteKind.piece.rawValue, city.fogged ? 1 : 0, table.team[placed.piece] ?? 0])
         }

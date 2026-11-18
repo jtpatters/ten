@@ -102,6 +102,27 @@ enum SettlementSprite: SpriteSet {
         }
     }
 
+    static var bakeName: String { "towns.atlas" }
+
+    /// A piece and its team cell: `pieceRegion` (city piece quads are trimmed to it,
+    /// `TownAtlasTable`). Grounds fill their cells.
+    var sampled: SIMD4<Float>? {
+        switch self {
+        case let .piece(p), let .team(p): Self.pieceRegion(p)
+        case .ground, .pavedGround: [0, 0, 1, 1]
+        }
+    }
+
+    /// A piece's painted extent, out to whole texels of the smallest mip level the sampler
+    /// reads and half of one more: as far as filtering spreads its paint zoomed out, so a quad
+    /// trimmed to it shows all a whole cell's quad did.
+    static func pieceRegion(_ piece: SettlementPiece) -> SIMD4<Float> {
+        let box = bounds[piece] ?? [0, 0, 1, 1], size = Float(piece.cellSize), a = Float(SpriteSheet<SettlementSprite>.alignment)
+        func lo(_ v: Float) -> Float { max(((v * size / a).rounded(.down) * a - a / 2) / size, 0) }
+        func hi(_ v: Float) -> Float { min(((v * size / a).rounded(.up) * a + a / 2) / size, 1) }
+        return SIMD4(lo(box.x), lo(box.y), hi(box.z), hi(box.w))
+    }
+
     /// How ground depth shows on a billboard: the tilt's cosine (`MapRenderer.tiltPitch`).
     static let depth: CGFloat = cos(0.6)
 

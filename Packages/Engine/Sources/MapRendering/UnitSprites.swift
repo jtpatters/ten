@@ -24,8 +24,8 @@ private typealias Canvas = FigurePaint.Canvas
 ///   paint (the unit shader multiplies the owner's color into the grey there), green how near
 ///   it is to the body's silhouette (`rimField`), from which the shader draws the rim around
 ///   the figure. Data has no light in it, so only the west-facing body's is painted and the
-///   east-facing body reads it mirrored (the figure instance says where it is, `maskCode`).
-///   Its alpha is zero and its border empty, so nothing sampling a neighboring cell picks it up.
+///   east-facing body reads it mirrored (`figureCells`; the figure instance says where it is,
+///   `maskCode`). Its border is empty, so the rim ends inside the cell.
 /// - `escortedBody`: the settler without its banner pole, for when the unit escorting it carries
 ///   the standard (its data shares the Settler's `teamMask`).
 /// - `emblem`: each player's emblem in its ink, laid onto shields as its own instance, and into
@@ -161,6 +161,47 @@ enum UnitSprite: SpriteSet {
         }
         return (type, false)
     }
+
+    static var bakeName: String { "units.atlas" }
+
+    /// The cells a figure is drawn from: the body cell it samples (a mirrored west-facing body
+    /// reads its own cell, right to left), its data cell, whether the data is in blue and
+    /// alpha, and whether it reads the data mirrored (an east-facing body reading its
+    /// west-facing twin's).
+    struct FigureCells: Hashable {
+        let body: UnitSprite
+        let mirroredBody: Bool
+        let data: UnitSprite
+        let high: Bool
+        let mirroredData: Bool
+    }
+
+    static func figureCells(_ type: UnitType, east: Bool, escorted: Bool = false) -> FigureCells {
+        // Only the settler sets its banner pole down when escorted: the builder's pole is its
+        // surveyor's rod.
+        if escorted, type == .settler {
+            return FigureCells(body: .escortedBody(east: east), mirroredBody: false, data: .teamMask(.settler), high: true,
+                               mirroredData: east)
+        }
+        let body = bodyType(type), shares = sharesWestBody(body), data = dataCell(body)
+        return FigureCells(body: .body(body, east: east && !shares), mirroredBody: east && shares, data: .teamMask(data.key),
+                           high: data.high, mirroredData: east && !shares)
+    }
+
+    /// Every figure the unit pass can draw: each type facing west and east, then the escorted
+    /// settler facing west and east (`UnitAtlasTable`).
+    static let allFigureCells: [FigureCells] = UnitType.allCases.flatMap { type in
+        [false, true].map { figureCells(type, east: $0) }
+    } + [false, true].map { figureCells(.settler, east: $0, escorted: true) }
+
+    /// What a figure's quads may cover of its cell (fractions, y up): all of it inside the data
+    /// border. (Its rim reaches 32 texels past its paint, and the blur of the smaller mip levels
+    /// further, so bodies and data cells keep their whole cells: they fill them nearly to the
+    /// edge anyway.)
+    static let figureLimit: SIMD4<Float> = {
+        let border = Float(dataBorder) / Float(bodyCell)
+        return SIMD4(border, border, 1 - border, 1 - border)
+    }()
 
     /// Body cell edge in pixels (every other cell is 128).
     static let bodyCell = 256
@@ -1650,7 +1691,7 @@ private enum Prerendered {
         UnitSprite.prepareRecordings()
         let keys = UnitSprite.all.filter { if case .digit = $0 { false } else { true } }
         let images = Mutex<[UnitSprite: CGImage]>([:])
-        DispatchQueue.concurrentPerform(iterations: keys.count) { i in
+        SpritePainting.perform(keys.count) { i in
             let key = keys[i]
             guard let ctx = UnitSprite.bitmap(key.cellSize) else { return }
             key.paint(cell: CGRect(x: 0, y: 0, width: key.cellSize, height: key.cellSize), ctx: ctx)

@@ -18,17 +18,12 @@ constant float kUnitStandardFit = \#(UnitSprite.standardArtFit);  // the standar
 constant float kUnitBaseMargin = \#(UnitSprite.baseMargin);
 constant float kUnitGroundLine = \#(UnitSprite.groundLine);
 constant float kUnitLegTop = \#(UnitSprite.legTop);
-// The atlas is 2048 texels wide and as tall as its cells need (`SpriteSheet.height`): bodies
-// (and their data cells) are 256-texel cells, everything else 128. Every cell sits at a multiple
-// of its own size, so its origin follows from any uv in it. A figure instance names its data
-// cell by its index in rows of body cells (`UnitAtlasTable.maskCode`).
-constant float2 kUnitAtlasTexels = float2(\#(Float(SpriteSheet<UnitSprite>.width)), \#(Float(SpriteSheet<UnitSprite>.height)));
-constant float2 kUnitBodyCell = float2(\#(Float(UnitSprite.bodyCell)), \#(Float(UnitSprite.bodyCell))) / kUnitAtlasTexels;
-constant uint kUnitBodiesPerRow = \#(SpriteSheet<UnitSprite>.width / UnitSprite.bodyCell)u;
-constant float2 kUnitSmallCell = float2(128.0, 128.0) / kUnitAtlasTexels;
-// The settlement atlas (`SettlementSprite`), bound as fragment texture 1: city pieces sample it,
-// and a piece with team paint finds its team cell by its index in rows of cells its size.
-constant float2 kTownAtlasTexels = float2(\#(Float(SpriteSheet<SettlementSprite>.width)), \#(Float(SpriteSheet<SettlementSprite>.height)));
+// The atlases are 2048 texels wide and as tall as their packed sprites need (`SpriteSheet`).
+// A sprite's uv rect is its whole cell, of which the atlas keeps only the part its quads
+// cover, so a figure or standard finds its whole cell (and a figure its data cell) in the
+// unit cell table, and a city piece with team paint its team cell in the town cell table
+// (`UnitAtlasTable.cells`, `TownAtlasTable.cells`). The settlement atlas is fragment texture 1.
+constant float kUnitAtlasWidth = \#(Float(SpriteSheet<UnitSprite>.width));
 // Strategic medallions (`UnitSprite.medallion*`), in radii of the frame: the dark rim, the band
 // in the owner's color and pattern, the keyline inside it and the cream field, which shows the
 // middle `kUnitBadgeField` of the type's badge cell. Quads leave room for the ink outline.
@@ -83,7 +78,9 @@ struct UnitOut {
 
 vertex UnitOut unit_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
                            const device SpriteInstance* sprites [[buffer(0)]],
-                           constant Uniforms& u [[buffer(1)]]) {
+                           constant Uniforms& u [[buffer(1)]],
+                           const device float4* unitCells [[buffer(2)]],
+                           const device float4* townCells [[buffer(3)]]) {
     uint copies = uint(u.dims.w);
     SpriteInstance s = sprites[iid / copies];
     uint copy = iid % copies;
@@ -126,30 +123,27 @@ vertex UnitOut unit_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     o.cellLocal = corner;
     o.quadHeight = s.sizeAnchor.y;
     if (kind == 0 || kind == 1) {
-        // Trimmed quads (`UnitSprite.bounds`) still know their place in the whole cell.
-        float2 size = kind == 0 ? kUnitBodyCell : kUnitSmallCell;
-        float2 origin = floor(s.uv.xy / size + 1e-3) * size;
-        o.cell = float4(origin, size);
-        o.cellLocal = float2((o.uv.x - origin.x) / size.x, 1.0 - (o.uv.y - origin.y) / size.y);
-        o.quadHeight = s.sizeAnchor.y * size.y / max(abs(s.uv.w), 1e-6);
-    }
-    if (kind == 0) {
-        // The data cell: position.w is its index in rows of body cells plus one, negative
-        // when this east-facing body reads its west-facing twin's data mirrored.
+        // Trimmed quads (`UnitSprite.bounds`) still know their place in the whole cell. A
+        // figure's position.w is its index in the cell table plus one (its body cell, then its
+        // data cell), plus a quarter when its data is in blue and alpha, negative when this
+        // east-facing body reads its west-facing twin's data mirrored; a standard's is its
+        // cell's index plus one.
         float code = s.position.w;
         uint index = uint(max(abs(code) - 0.5, 0.0));
-        float2 maskOrigin = float2(float(index % kUnitBodiesPerRow), float(index / kUnitBodiesPerRow)) * kUnitBodyCell;
-        float2 at = float2(code < 0.0 ? 1.0 - o.cellLocal.x : o.cellLocal.x, 1.0 - o.cellLocal.y);
-        o.maskUV = maskOrigin + at * kUnitBodyCell;
-        o.maskHigh = fract(abs(code)) > 0.1 ? 1.0 : 0.0;
+        float4 cell = kind == 0 ? unitCells[2u * index] : unitCells[index];
+        o.cell = cell;
+        o.cellLocal = float2((o.uv.x - cell.x) / cell.z, 1.0 - (o.uv.y - cell.y) / cell.w);
+        o.quadHeight = s.sizeAnchor.y * cell.w / max(abs(s.uv.w), 1e-6);
+        if (kind == 0) {
+            float4 data = unitCells[2u * index + 1u];
+            float2 at = float2(code < 0.0 ? 1.0 - o.cellLocal.x : o.cellLocal.x, 1.0 - o.cellLocal.y);
+            o.maskUV = data.xy + at * data.zw;
+            o.maskHigh = fract(abs(code)) > 0.1 ? 1.0 : 0.0;
+        }
     }
     if (kind == 11 && s.flags.w > 0.5) {
-        // A city piece's team cell: flags.w is its index in rows of cells its size, plus one.
-        float cellTexels = s.uv.z * kTownAtlasTexels.x;
-        uint perRow = uint(kTownAtlasTexels.x / cellTexels + 0.5);
-        uint index = uint(s.flags.w - 0.5);
-        float2 origin = float2(float(index % perRow), float(index / perRow)) * cellTexels / kTownAtlasTexels;
-        o.maskUV = origin + (o.uv - s.uv.xy);
+        // A city piece's team cell: flags.w is its offset's index in the town cell table plus one.
+        o.maskUV = o.uv + townCells[uint(s.flags.w - 0.5)].xy;
     }
     o.tint = s.tint;
     o.world = p;
@@ -158,7 +152,7 @@ vertex UnitOut unit_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
     o.rise = (corner.y - s.sizeAnchor.w) * s.sizeAnchor.y;
     // Mip-0 texels per point across the quad, times the rim's widest reach, with a point of
     // slack (`unit_fragment` skips empty texels further out).
-    o.reach = abs(s.uv.z) * kUnitAtlasTexels.x / max(s.sizeAnchor.x, 1e-4) * u.eye.w * (kUnitRimPoints + kUnitRimLinePoints + 1.0);
+    o.reach = abs(s.uv.z) * kUnitAtlasWidth / max(s.sizeAnchor.x, 1e-4) * u.eye.w * (kUnitRimPoints + kUnitRimLinePoints + 1.0);
     // A cast shadow is one color at varying strength, and the atmosphere scales with strength
     // (premultiplied), so it is worked out here, at the corners, rather than for every pixel:
     // its cloud shadow, haze and vignette change over tiles, not across a shadow. A base fill
@@ -198,8 +192,8 @@ static float4 unitFigure(float4 body, float team, float3 color, float dim) {
 }
 
 // Mip-0 atlas texels per pixel at atlas position `uv`.
-static float unitTexelsPerPixel(float2 uv) {
-    float2 t = uv * kUnitAtlasTexels;
+static float unitTexelsPerPixel(float2 uv, texture2d<float> atlas) {
+    float2 t = uv * float2(atlas.get_width(), atlas.get_height());
     return max(0.5 * (length(dfdx(t)) + length(dfdy(t))), 1e-3);
 }
 
@@ -824,7 +818,7 @@ static float4 unitColor(UnitOut in, constant Uniforms& u, texture2d<float> atlas
         float2 data = unitData(in, atlas, smp);   // x: team paint, y: nearness to the silhouette
         c = unitFigure(body, data.x, in.tint.rgb, in.params.y) * in.tint.a;
         // The rim lies under the figure and fades out at the feet, so it stays planted.
-        float4 rim = unitRim(1.0 - data.y, unitTexelsPerPixel(in.uv), in.cellLocal, kUnitAtlasTexels.x * in.cell.z, in.params.z, u)
+        float4 rim = unitRim(1.0 - data.y, unitTexelsPerPixel(in.uv, atlas), in.cellLocal, kUnitAtlasWidth * in.cell.z, in.params.z, u)
                    * smoothstep(kUnitGroundLine + 0.005, kUnitGroundLine + 0.05, in.cellLocal.y);
         c = unitOver(rim * in.tint.a, c);
     } else if (kind == 1) {
@@ -834,7 +828,7 @@ static float4 unitColor(UnitOut in, constant Uniforms& u, texture2d<float> atlas
         c.rgb *= w.z;
         c = unitDimmed(c, in.params.y) * in.tint.a;
         float field = 1.0 - atlas.sample(smp, uv + in.tint.xy).g;
-        c = unitOver(unitRim(field, unitTexelsPerPixel(uv), w.xy, kUnitAtlasTexels.x * in.cell.z, in.tint.z, u) * in.tint.a, c);
+        c = unitOver(unitRim(field, unitTexelsPerPixel(uv, atlas), w.xy, kUnitAtlasWidth * in.cell.z, in.tint.z, u) * in.tint.a, c);
     } else if (kind == 2) {
         // Darkest at the feet, fading and softening (a blurrier mip) toward the tip.
         float t = saturate((in.local.y - in.params.z) / max(1.0 - in.params.z, 1e-3));

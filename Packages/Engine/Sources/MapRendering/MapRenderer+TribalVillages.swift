@@ -176,9 +176,9 @@ extension MapRenderer {
     func tribalVillagePieces(_ village: ShownTribalVillage, table: TownAtlasTable, opacity: Float) -> [SpriteInstance] {
         let s = cityUnit()
         return village.layout.pieces.map { placed in
-            let edge = placed.piece.edge * placed.scale * s, foot = placed.piece.foot
+            let quad = table.quad(placed.piece, edge: placed.piece.edge * placed.scale * s)
             return SpriteInstance(position: [village.center.x + placed.at.x * s, village.center.y + placed.at.y * s, 0, 0],
-                                  sizeAnchor: [edge, edge, foot.x, foot.y], uv: table.pieces[placed.piece] ?? .zero,
+                                  sizeAnchor: quad.sizeAnchor, uv: quad.uv,
                                   tint: [1, 1, 1, opacity], flags: [1, CitySpriteKind.piece.rawValue, village.fogged ? 1 : 0, 0])
         }
     }

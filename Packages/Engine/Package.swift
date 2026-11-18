@@ -11,6 +11,7 @@ let package = Package(
         .library(name: "GameAI", targets: ["GameAI"]),
         .library(name: "Persistence", targets: ["Persistence"]),
         .executable(name: "headless-sim", targets: ["HeadlessSim"]),
+        .executable(name: "atlas-baker", targets: ["AtlasBaker"]),
     ],
     targets: [
         // Pure Swift simulation. Must never import UIKit/SpriteKit/AppKit. The rules data is a
@@ -24,6 +25,8 @@ let package = Package(
         // Save files.
         .target(name: "Persistence", dependencies: ["GameCore"]),
         .executableTarget(name: "HeadlessSim", dependencies: ["GameCore", "MapGen", "GameAI"]),
+        // Paints the sprite atlases ahead of time for the App's bundle (App/Tools/bake-atlases.sh).
+        .executableTarget(name: "AtlasBaker", dependencies: ["MapRendering"]),
 
         // MapGen: the tribal village tests play on generated maps (phase 3g).
         .testTarget(name: "GameCoreTests", dependencies: ["GameCore", "MapGen"]),

@@ -306,6 +306,17 @@ public final class MapRenderer: NSObject {
     /// done: compiling the shaders (a cold compile of `Shaders.source` takes about half a
     /// second on a Mac and longer on older iPads) and painting the sprite sheets. Call it
     /// early, while the start screen is up.
+    /// Where `prewarm` (or the first renderer) reads baked atlases (`AtlasBaker`): by default
+    /// the app bundle's `Atlases` folder. A missing bake, or one made from other code, is
+    /// painted instead.
+    public static var bakedAtlasDirectory: URL? {
+        get { SpriteSheetPainter.directory.withLock { $0 } }
+        set { SpriteSheetPainter.directory.withLock { $0 = newValue } }
+    }
+
+    /// The atlases that were read from a bake rather than painted (`AtlasBaker` file names).
+    public static var bakedAtlases: Set<String> { SpriteSheetPainter.shared.bakedSets }
+
     public static func prewarm() {
         if let device = MTLCreateSystemDefaultDevice() { ShaderLibrary.shared.start(device: device) }
         SpriteSheetPainter.shared.start()
@@ -776,6 +787,7 @@ public final class MapRenderer: NSObject {
             Self.bind(&uniforms, to: encoder)
             encoder.setVertexTexture(tiles, index: 0)
             encoder.setVertexBuffer(buffer, offset: 0, index: 0)
+            bindCellTables(to: encoder)
             encoder.setFragmentTexture(unitAtlasTexture, index: 0)
             encoder.setFragmentTexture(townAtlas.texture, index: 1)
             encoder.setFragmentSamplerState(sampler, index: 0)

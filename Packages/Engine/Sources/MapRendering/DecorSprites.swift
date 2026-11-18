@@ -310,10 +310,44 @@ extension DecorSprite {
         layouts.withLock { $0[art.code] } ?? art.untrimmedLayout
     }
 
+    static var bakeName: String { "decor.atlas" }
+
+    /// Decorations are trimmed to their paint: their quads cover only their images' layouts,
+    /// which are within it.
+    var sampled: SIMD4<Float>? { nil }
+
+    /// The image layouts painting recorded, as (code, then bounds, foot and unit) doubles.
+    static func bakeExtras() -> Data {
+        var out = Data()
+        for (code, l) in layouts.withLock({ $0 }).sorted(by: { $0.key < $1.key }) {
+            for v in [Double(code), l.bounds.minX, l.bounds.minY, l.bounds.width, l.bounds.height, l.foot.x, l.foot.y, l.unit] {
+                withUnsafeBytes(of: v.bitPattern.littleEndian) { out.append(contentsOf: $0) }
+            }
+        }
+        return out
+    }
+
+    static func restoreBakeExtras(_ data: Data) throws {
+        let record = 8 * MemoryLayout<UInt64>.size
+        guard data.count % record == 0 else { throw SpriteSheet<DecorSprite>.BakeError.malformed }
+        var table: [Int: DecorImageLayout] = [:]
+        let values: [Double] = stride(from: 0, to: data.count, by: 8).map { at in
+            var bits: UInt64 = 0
+            withUnsafeMutableBytes(of: &bits) { $0.copyBytes(from: data[(data.startIndex + at)..<(data.startIndex + at + 8)]) }
+            return Double(bitPattern: UInt64(littleEndian: bits))
+        }
+        for k in stride(from: 0, to: values.count, by: 8) {
+            let v = values[k..<(k + 8)].map { CGFloat($0) }
+            table[Int(v[0])] = DecorImageLayout(bounds: CGRect(x: v[1], y: v[2], width: v[3], height: v[4]),
+                                                foot: CGPoint(x: v[5], y: v[6]), unit: v[7])
+        }
+        layouts.withLock { $0 = table }
+    }
+
     private static func bakeAll() {
         let cells = all
         let images = Mutex<[DecorSprite: CGImage]>([:])
-        DispatchQueue.concurrentPerform(iterations: cells.count) { k in
+        let work: (Int) -> Void = { k in
             let cell = cells[k], size = cell.cellSize
             guard let ctx = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
                                       space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -328,6 +362,7 @@ extension DecorSprite {
                 for (code, layout) in found { table[code] = layout }
             }
         }
+        SpritePainting.perform(cells.count, work)
         let done = images.withLock { $0 }
         baked.withLock { $0.merge(done) { a, _ in a } }
     }

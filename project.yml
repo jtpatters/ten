@@ -23,6 +23,12 @@ targets:
         excludes: ["**/*.md", "Tools/**"]
     # A shared scheme, so `make sim` never depends on Xcode autocreating one.
     scheme: {}
+    # The map's sprite atlases, painted at build time into the bundle's Atlases folder
+    # (docs/ART.md §10); the app paints them at launch only if they are missing.
+    postCompileScripts:
+      - name: Bake map atlases
+        script: '"$SRCROOT/App/Tools/bake-atlases.sh" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Atlases"'
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: Engine
         products: [GameCore, MapGen, MapRendering, GameAI, Persistence]
@@ -47,3 +53,5 @@ targets:
         # `xcodegen generate`, so it lives here.
         DEVELOPMENT_TEAM: GGVMNSURCF
         SWIFT_STRICT_CONCURRENCY: complete
+        # The atlas bake builds and runs a Mac tool from the engine package.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO

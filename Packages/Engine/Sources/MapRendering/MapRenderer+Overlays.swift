@@ -1,6 +1,7 @@
 import CoreGraphics
 import GameCore
 import QuartzCore
+import Metal
 import simd
 
 /// A path turn marker: the hex where one turn's movement ends.
@@ -52,6 +53,8 @@ struct UnitArtState {
     var anchors: [UnitID: SIMD2<Float>] = [:]
     /// Atlas rects the unit pass needs every frame, looked up once.
     var atlasTable: UnitAtlasTable?
+    /// The unit and town cell tables on the GPU (`bindCellTables`).
+    var cellTables: (units: MTLBuffer, towns: MTLBuffer)?
 }
 
 /// Where a unit's figure stood and how big it was, and the center and radii of the base it

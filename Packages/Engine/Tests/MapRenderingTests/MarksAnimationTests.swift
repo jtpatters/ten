@@ -447,8 +447,8 @@ import simd
     /// herds on every open pasture site, placed once; each shows only while its tile has that
     /// improvement, and open-land scatter clears from farms. The decor atlas keeps its size.
     @Test func improvementDecorationsShowOnlyWhereBuilt() throws {
-        #expect(SpriteSheet<DecorSprite>.width == 2048 && SpriteSheet<DecorSprite>.height == 1536)
         let f = try Self.field()
+        #expect(f.renderer.decorAtlas.width == 2048 && f.renderer.decorAtlas.height <= 1536)
         let map = f.map
         let decor = MapRenderer.makeDecorations(map: map, layout: f.renderer.layout, atlas: f.renderer.decorAtlas)
         var mines: [Int: Int] = [:], herds: [Int: Int] = [:], props: [Int: Int] = [:], cluttered: [Int: Int] = [:]

@@ -1,5 +1,6 @@
 import CoreGraphics
 import GameCore
+import Metal
 import QuartzCore
 import simd
 
@@ -50,12 +51,13 @@ struct UnitVisual {
 enum UnitSpriteKind: Float {
     /// A unit's shared body, anchored at its feet; its quad is trimmed to the painted figure
     /// and its rim (`UnitSprite.bounds`). tint: owner color, opacity. z: dim amount; w: how
-    /// light the ground under it is (`groundLightness`), which sets its rim. position.w: where
-    /// its data cell is (`UnitAtlasTable.maskCode`).
+    /// light the ground under it is (`groundLightness`), which sets its rim. position.w: its
+    /// cells in the cell table (`UnitAtlasTable.maskCode`).
     case figure = 0
     /// A standard on its pole, anchored at the pole foot and trimmed like a figure. tint.xy:
     /// the atlas offset from its cell to the shared `standardField` cell; tint.z: the ground's
-    /// lightness; tint.w: opacity. z: dim amount (it hangs limp); w: sway phase.
+    /// lightness; tint.w: opacity. z: dim amount (it hangs limp); w: sway phase. position.w:
+    /// its cell's index in the cell table plus one (`UnitAtlasTable.standardBase`).
     case standard = 1
     /// A figure's silhouette laid flat away from the sun, trimmed like the figure. w: the
     /// feet's height in the quad.
@@ -368,7 +370,8 @@ extension MapRenderer {
                     let type = shown[member.index].type
                     let quad = Self.trim(table.body(type, east: spot.east, escorted: escorted),
                                          box: table.bodyBounds(type, east: spot.east, escorted: escorted),
-                                         pad: Self.shadowPad, edge: member.d, pin: [0.5, g], cell: UnitSprite.bodyCell)
+                                         pad: Self.shadowPad, edge: member.d, pin: [0.5, g],
+                                         limit: UnitSprite.figureLimit)
                     sprites.append(SpriteInstance(position: [member.feet.x, member.feet.y, 0, -1], sizeAnchor: quad.sizeAnchor,
                                                   uv: quad.uv, tint: [0, 0, 0, 0.38 * near * shown[member.index].opacity],
                                                   flags: [0, UnitSpriteKind.castShadow.rawValue, 0, quad.sizeAnchor.w]))
@@ -473,7 +476,8 @@ extension MapRenderer {
                     let escorted = member.index == spot.escorted
                     let quad = Self.trim(table.body(u.type, east: spot.east, escorted: escorted),
                                          box: table.bodyBounds(u.type, east: spot.east, escorted: escorted),
-                                         pad: SIMD4(repeating: rimPad / dm), edge: dm, pin: [0.5, g], cell: UnitSprite.bodyCell)
+                                         pad: SIMD4(repeating: rimPad / dm), edge: dm, pin: [0.5, g],
+                                         limit: UnitSprite.figureLimit)
                     let mask = table.maskCode(u.type, east: spot.east, escorted: escorted)
                     let alpha = near * u.opacity
                     sprites.append(SpriteInstance(position: [member.feet.x, member.feet.y, 0, mask], sizeAnchor: quad.sizeAnchor,
@@ -498,9 +502,10 @@ extension MapRenderer {
                 let pad = rimPad / size
                 let quad = Self.trim(table.standards[spot.owner], box: table.standardBounds,
                                      pad: [pad + Self.standardFlutter, pad, pad + Self.standardFlutter, pad], edge: size,
-                                     pin: UnitSprite.standardFoot, cell: 128)
+                                     pin: UnitSprite.standardFoot, limit: Self.standardLimit)
                 let field = table.standardField - table.standards[spot.owner]
-                sprites.append(SpriteInstance(position: [lead.feet.x + (mount.x - 0.5) * lead.d, lead.feet.y + up.y * h, up.z * h, -1],
+                let cell = Float(table.standardBase + spot.owner + 1)
+                sprites.append(SpriteInstance(position: [lead.feet.x + (mount.x - 0.5) * lead.d, lead.feet.y + up.y * h, up.z * h, cell],
                                               sizeAnchor: quad.sizeAnchor, uv: quad.uv, tint: [field.x, field.y, spot.ground, near * u.opacity],
                                               flags: [1, UnitSpriteKind.standard.rawValue, spot.dimmed ? Self.standardDim : 0, phase]))
                 claim(tile(spot).map(PickTarget.unit))
@@ -685,15 +690,20 @@ extension MapRenderer {
     }
 
     /// A quad trimmed to `box` (lo x, lo y, hi x, hi y as fractions of its atlas cell, y up)
-    /// grown by `pad` (left, bottom, right, top, cell fractions) and kept off the border of
-    /// its `cell`-texel cell (so filtering never reaches a neighbor): its uv rect, and its size
-    /// and anchor for a cell `edge` world units wide whose point `pin` (cell fractions) stays at
-    /// the instance's position. The shader finds the whole cell again from any uv inside it.
+    /// grown by `pad` (left, bottom, right, top, cell fractions) and kept within `limit` (the
+    /// part of the cell the atlas keeps, `SpriteSet.sampled`): its uv rect, and its size and
+    /// anchor for a cell `edge` world units wide whose point `pin` (cell fractions) stays at
+    /// the instance's position. The shader finds the whole cell in its cell table.
+    /// Standards keep off their cells' border: their rim ends there (`unitRim`).
+    private static let standardLimit: SIMD4<Float> = {
+        let border = Float(UnitSprite.dataBorder) / 128
+        return SIMD4(border, border, 1 - border, 1 - border)
+    }()
+
     private static func trim(_ uv: SIMD4<Float>, box: SIMD4<Float>, pad: SIMD4<Float>, edge: Float, pin: SIMD2<Float>,
-                             cell: Int) -> (uv: SIMD4<Float>, sizeAnchor: SIMD4<Float>) {
-        let border = Float(UnitSprite.dataBorder) / Float(cell)
-        let lo = simd_max(SIMD2(box.x - pad.x, box.y - pad.y), SIMD2(repeating: border))
-        let hi = simd_min(SIMD2(box.z + pad.z, box.w + pad.w), SIMD2(repeating: 1 - border))
+                             limit: SIMD4<Float>) -> (uv: SIMD4<Float>, sizeAnchor: SIMD4<Float>) {
+        let lo = simd_max(SIMD2(box.x - pad.x, box.y - pad.y), SIMD2(limit.x, limit.y))
+        let hi = simd_min(SIMD2(box.z + pad.z, box.w + pad.w), SIMD2(limit.z, limit.w))
         let span = simd_max(hi - lo, SIMD2(repeating: 1e-3))
         let rect = SIMD4(uv.x + lo.x * uv.z, uv.y + (1 - hi.y) * uv.w, span.x * uv.z, span.y * uv.w)
         return (rect, SIMD4(span.x * edge, span.y * edge, (pin.x - lo.x) / span.x, (pin.y - lo.y) / span.y))
@@ -936,41 +946,39 @@ extension MapRenderer {
         return art.blend
     }
 
+    /// Binds the cell tables the unit vertex shader reads (`UnitAtlasTable.cells` as vertex
+    /// buffer 2, `TownAtlasTable.cells` as 3), made once.
+    func bindCellTables(to encoder: MTLRenderCommandEncoder) {
+        if unitArt.cellTables == nil {
+            func buffer(_ cells: [SIMD4<Float>]) -> MTLBuffer {
+                let cells = cells.isEmpty ? [SIMD4<Float>.zero] : cells
+                return device.makeBuffer(bytes: cells, length: MemoryLayout<SIMD4<Float>>.stride * cells.count, options: .storageModeShared)!
+            }
+            unitArt.cellTables = (buffer(unitAtlasTable().cells), buffer(townAtlasTable().cells))
+        }
+        guard let tables = unitArt.cellTables else { return }
+        encoder.setVertexBuffer(tables.units, offset: 0, index: 2)
+        encoder.setVertexBuffer(tables.towns, offset: 0, index: 3)
+    }
+
     /// The atlas rects the unit pass uses every frame, looked up once.
     func unitAtlasTable() -> UnitAtlasTable {
         if let table = unitArt.atlasTable { return table }
         let players = Palette.playerStyles.indices
         var table = UnitAtlasTable()
-        // The shader finds each cell's origin from any uv inside it, and a figure's data cell
-        // from its index in rows of body cells, in an atlas of the size it was built for
-        // (`kUnitAtlasTexels` in `ShaderUnits.swift`).
-        assert(unitAtlas.width == SpriteSheet<UnitSprite>.width && unitAtlas.height == SpriteSheet<UnitSprite>.height)
-        func code(_ mask: UnitSprite) -> Float {
-            let uv = unitAtlas.uv(mask), cell = Float(UnitSprite.bodyCell)
-            let x = Int((uv.x * Float(unitAtlas.width) / cell).rounded()), y = Int((uv.y * Float(unitAtlas.height) / cell).rounded())
-            assert(abs(uv.z * Float(unitAtlas.width) - cell) < 1e-3, "data cells are body cells")
-            return Float(y * (unitAtlas.width / UnitSprite.bodyCell) + x + 1)
+        // Figures in `UnitSprite.allFigureCells` order (`UnitAtlasTable.figure`): the body to
+        // draw (a mirrored one read right to left, its boxes mirrored) and, for the shader
+        // (`unit_vertex`), its body and data cells.
+        for (v, figure) in UnitSprite.allFigureCells.enumerated() {
+            let uv = unitAtlas.uv(figure.body), box = UnitSprite.bounds(figure.body)
+            table.bodies.append(figure.mirroredBody ? SIMD4(uv.x + uv.z, uv.y, -uv.z, uv.w) : uv)
+            table.bodyBoxes.append(figure.mirroredBody ? SIMD4(1 - box.z, box.y, 1 - box.x, box.w) : box)
+            table.cells += [uv, unitAtlas.uv(figure.data)]
+            let code = Float(v + 1) + (figure.high ? 0.25 : 0)
+            table.masks.append(figure.mirroredData ? -code : code)
         }
-        for unitType in UnitType.allCases {
-            let type = UnitSprite.bodyType(unitType)
-            for east in [false, true] {
-                if east, UnitSprite.sharesWestBody(type) {
-                    // The west-facing cell read right to left (a negative width), its box mirrored.
-                    let uv = unitAtlas.uv(.body(type, east: false)), box = UnitSprite.bounds(.body(type, east: false))
-                    table.bodies.append(SIMD4(uv.x + uv.z, uv.y, -uv.z, uv.w))
-                    table.bodyBoxes.append(SIMD4(1 - box.z, box.y, 1 - box.x, box.w))
-                } else {
-                    table.bodies.append(unitAtlas.uv(.body(type, east: east)))
-                    table.bodyBoxes.append(UnitSprite.bounds(.body(type, east: east)))
-                }
-            }
-            // A fraction of a quarter: the data is in the cell's blue and alpha (`dataCell`).
-            let data = UnitSprite.dataCell(type)
-            table.masks.append(code(.teamMask(data.key)) + (data.high ? 0.25 : 0))
-        }
-        table.escorted = [false, true].map { unitAtlas.uv(.escortedBody(east: $0)) }
-        table.escortedBoxes = [false, true].map { UnitSprite.bounds(.escortedBody(east: $0)) }
-        table.escortedMask = code(.teamMask(.settler)) + 0.25 // in the Settler's blue and alpha
+        table.standardBase = table.cells.count
+        table.cells += players.map { unitAtlas.uv(.standard(player: $0)) }
         table.standards = players.map { unitAtlas.uv(.standard(player: $0)) }
         table.standardBounds = UnitSprite.bounds(.standard(player: 0))
         table.standardField = unitAtlas.uv(.standardField)
@@ -1093,18 +1101,18 @@ enum FigureEntry {
 struct UnitAtlasTable {
     /// Each unit type's position in `allCases` (which builds a new array on every call).
     private static let typeIndex = Dictionary(uniqueKeysWithValues: UnitType.allCases.enumerated().map { ($1, $0) })
+    private static let typeCount = UnitType.allCases.count
 
-    /// Bodies by type and facing (type index * 2 + east), and the settler without its pole by
-    /// facing (when its escort carries the standard), with what each paints of its cell
+    /// By figure (`figure`): the body to draw and what it paints of its cell
     /// (`UnitSprite.bounds`).
     var bodies: [SIMD4<Float>] = []
     var bodyBoxes: [SIMD4<Float>] = []
-    var escorted: [SIMD4<Float>] = []
-    var escortedBoxes: [SIMD4<Float>] = []
-    /// Where each type's data cell is (its index in rows of body cells, plus one), and the
-    /// settler's without its pole: `maskCode`.
+    /// The figure instances' `maskCode`s, by figure.
     var masks: [Float] = []
-    var escortedMask: Float = 0
+    /// The shader's cell table (`unit_vertex`, vertex buffer 2): each figure's body cell and
+    /// data cell, then each player's standard cell from `standardBase`.
+    var cells: [SIMD4<Float>] = []
+    var standardBase = 0
     var standards: [SIMD4<Float>] = []
     var standardBounds = SIMD4<Float>(0, 0, 1, 1)
     /// The silhouette distance field every standard shares (`UnitSprite.standardField`).
@@ -1122,25 +1130,27 @@ struct UnitAtlasTable {
     /// The boat under an embarked land unit (`UnitSprite.embark`).
     var embark: SIMD4<Float>?
 
+    /// A figure's index: type index * 2 + east, then the settler without its banner pole
+    /// (when its escort carries the standard) facing west and east, as in
+    /// `UnitSprite.allFigureCells`.
+    static func figure(_ type: UnitType, east: Bool, escorted isEscorted: Bool = false) -> Int {
+        if isEscorted, type == .settler { return 2 * typeCount + (east ? 1 : 0) }
+        return (typeIndex[type] ?? 0) * 2 + (east ? 1 : 0)
+    }
+
     func body(_ type: UnitType, east: Bool, escorted isEscorted: Bool = false) -> SIMD4<Float> {
-        // Only the settler sets its banner pole down when escorted: the builder's pole is its
-        // surveyor's rod.
-        if isEscorted, type == .settler { return escorted[east ? 1 : 0] }
-        return bodies[(Self.typeIndex[type] ?? 0) * 2 + (east ? 1 : 0)]
+        bodies[Self.figure(type, east: east, escorted: isEscorted)]
     }
 
     func bodyBounds(_ type: UnitType, east: Bool, escorted isEscorted: Bool = false) -> SIMD4<Float> {
-        if isEscorted, type == .settler { return escortedBoxes[east ? 1 : 0] }
-        return bodyBoxes[(Self.typeIndex[type] ?? 0) * 2 + (east ? 1 : 0)]
+        bodyBoxes[Self.figure(type, east: east, escorted: isEscorted)]
     }
 
-    /// A figure instance's position.w: its data cell's index in the atlas's rows of body cells
-    /// plus one, negative when the east-facing body reads the west-facing body's data mirrored.
+    /// A figure instance's position.w: its index plus one (its cells in `cells`), plus a
+    /// quarter when its data is in its data cell's blue and alpha, negative when it reads its
+    /// data mirrored (an east-facing body reading the west-facing body's).
     func maskCode(_ type: UnitType, east: Bool, escorted isEscorted: Bool = false) -> Float {
-        let code = isEscorted && type == .settler ? escortedMask : masks[Self.typeIndex[type] ?? 0]
-        // A mirrored west-facing body reads its own data as it is (an escorted Trader keeps its
-        // own body; only the Settler has an escorted one, painted facing both ways).
-        return east && !UnitSprite.sharesWestBody(type) ? -code : code
+        masks[Self.figure(type, east: east, escorted: isEscorted)]
     }
 
     func badge(_ type: UnitType) -> SIMD4<Float> { badges[Self.typeIndex[type] ?? 0] }

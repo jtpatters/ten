@@ -1,6 +1,6 @@
 SIM ?= iPad Pro 11-inch (M5)
 
-.PHONY: project test sim headless determinism balance balance-sizes opponents narrate open
+.PHONY: project test sim headless determinism balance balance-sizes opponents narrate open atlases
 
 SEED ?= 1
 
@@ -39,6 +39,10 @@ opponents:          ## The AI against a scripted turtle, then the scripted playe
 
 narrate:            ## One narrated AI Duel game (make narrate SEED=3): a line per notable AI decision
 	cd Packages/Engine && swift run -c release headless-sim --ai --size duel --seed $(SEED) --turns 150 --narrate
+
+atlases:            ## Bake the map's sprite atlases into build/atlases (as the app build does) and read them back
+	App/Tools/bake-atlases.sh build/atlases
+	build/atlas-bake/build/release/atlas-baker --check build/atlases
 
 sim: project        ## Build the iOS app for the simulator
 	xcodebuild -project TenThousandYears.xcodeproj -scheme TenThousandYears \

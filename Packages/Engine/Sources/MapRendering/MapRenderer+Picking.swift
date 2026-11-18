@@ -130,6 +130,7 @@ extension MapRenderer {
         encoder.setRenderPipelineState(pickPipeline)
         Self.bind(&uniforms, to: encoder)
         encoder.setVertexBuffer(spriteBuffer, offset: 0, index: 0)
+        bindCellTables(to: encoder)
         encoder.setFragmentBuffer(idBuffer, offset: 0, index: 2)
         encoder.setFragmentTexture(unitAtlas.texture, index: 0)
         encoder.setFragmentTexture(townAtlas.texture, index: 1)

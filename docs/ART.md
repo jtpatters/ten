@@ -185,14 +185,32 @@ S is the HSV saturation of the median colour, L* is CIELAB lightness and ΔE is 
   than 30% slower than the baseline.
 - Renderer setup at most 150 ms slower than the baseline; decoration placement at most 30 ms
   on the Large map; total texture memory at most 48 MB on the Large map, 50 MB at the very
-  most (M1 §15). Atlases: decor 2048×1536, units 2048×1536 since M2's nine land units and the
-  Trader (which share their data cells two to a cell and mirror their west-facing body to face
-  east: placeholder art, so their sun is on the wrong side facing east, the one exception to the
-  no-mirroring rule above; the unit atlas is full, so the Trader's body took the escorted
-  settler's data cell, whose data now shares the Settler's, and its own data shares the
-  Builder's),
-  settlements 2048×512 (§11); the shaders take their sizes from the atlases (`kUnitAtlasTexels`,
-  `kTownAtlasTexels`).
+  most (M1 §15). Atlases are 2048 wide and as tall as their packing needs (below). M2's nine
+  land units and the Trader share their data cells two to a cell and mirror their west-facing
+  body to face east: placeholder art, so their sun is on the wrong side facing east, the one
+  exception to the no-mirroring rule above.
+- **Packed atlases.** Sprites are painted into square cells as before, but an atlas keeps only
+  each cell's *window*: the part the renderer samples (`SpriteSet.sampled`: unit cells whole,
+  a settlement piece its painted extent out to whole level-4 texels and half of one more,
+  decorations wherever they paint plus 4 texels) and an 8-texel gutter, out to multiples of
+  16 texels. Windows are packed skyline style (`SpriteSheet.pack`), so every mip level the
+  sampler reads (0–4, `lodMaxClamp`) box-filters only one sprite's texels, and a sample inside
+  a window never reaches a neighbour. `uv(key)` still gives the whole *virtual* cell, so cell
+  fractions work as before; the unit shader reads its cells from tables (vertex buffers 2 and
+  3) rather than a fixed grid. Measured at the change (Apple M5): decor 2048×1424 (was 1536),
+  units 2048×1536 (bodies fill their cells, so no saving), settlements 2048×448 (was 512);
+  packing is 86–98% efficient, and every gallery view matches the unpacked atlases to within
+  28 levels in a few dozen pixels (both painted serially). Room for M3a's units has to come
+  from the texture budget, not from packing.
+- **Baked atlases.** The App's build paints the atlases on the Mac (`atlas-baker`, a build
+  phase running `App/Tools/bake-atlases.sh`; `make atlases` does the same into
+  `build/atlases`) and bundles them in `Atlases/`: level 0 compressed with LZFSE (about 4 MB
+  in all), mips made on the GPU at load. A bake carries a fingerprint of its set's keys, cell
+  sizes and regions; a missing bake, or one made from other code, is ignored and the app paints
+  at launch as before (`MapRenderer.bakedAtlases` says which were read). The baker paints
+  serially (`SpritePainting`): Core Graphics painting in parallel now and then differs by a
+  level or more in a few texels, and a bake should depend only on the code. Painting all three
+  takes about 370 ms serially in a release build on an M5; reading the bakes about 13 ms.
 - East–west wrap stays seamless (noise periods tied to map width; sprites instanced across
   the seam).
 - No MSAA: every edge is antialiased by the art itself (analytic coverage in shaders,
