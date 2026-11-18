@@ -67,13 +67,10 @@ enum UnitSprite: SpriteSet {
 
     static var all: [UnitSprite] {
         var keys: [UnitSprite] = []
-        // The four ships share the Galley's body (placeholder art, ART.md §10's budget).
+        // The four Medieval-and-older ships share the Galley's body (placeholder art).
         for type in UnitType.allCases where hasOwnBody(type) && !lateBodies.contains(type) {
-            if sharesWestBody(type) {
-                keys += [.body(type, east: false)] + (dataCell(type).key == type ? [.teamMask(type)] : [])
-            } else {
-                keys += [.body(type, east: false), .body(type, east: true), .teamMask(type)]
-            }
+            keys += sharesWestBody(type) ? [.body(type, east: false)] : [.body(type, east: false), .body(type, east: true)]
+            if dataCell(type).key == type { keys.append(.teamMask(type)) }
         }
         keys += [.escortedBody(east: false), .escortedBody(east: true)]
         // The Trader's body takes the cell the escorted settler's data had (that data is now in
@@ -98,14 +95,16 @@ enum UnitSprite: SpriteSet {
     }
 
     /// The M2 types have no east-facing body cell: facing east they show the west-facing body
-    /// mirrored (lit from the upper right), which keeps the atlas within its budget (ART.md §10).
+    /// mirrored (lit from the upper right), from when the atlas had M1's 48 MB budget (ART.md
+    /// §10).
     static func sharesWestBody(_ type: UnitType) -> Bool {
         switch type {
         case .settler, .builder, .scout, .warrior, .archer, .spearman: false
         case .horseman, .heavyChariot, .swordsman, .catapult, .manAtArms, .crossbowman, .pikeman, .knight, .trebuchet: true
         case .galley, .quadrireme, .cog, .dromon: true
         case .trader: true
-        case .musketman, .pikeAndShot, .hussar, .bombard, .caravel, .privateer, .frigate: true
+        // M3a's types paint both facings (ART.md §10's budget since M3a).
+        case .musketman, .pikeAndShot, .hussar, .bombard, .caravel, .privateer, .frigate: false
         }
     }
 
@@ -115,43 +114,28 @@ enum UnitSprite: SpriteSet {
     /// The type whose body every ship is drawn with (M2 §8.4, placeholder art).
     static let shipBody = UnitType.galley
 
-    /// The type whose badge cell `type` shows: its own, or for the M3a types (placeholder art,
-    /// no cells of their own yet, which keeps the atlas within its budget) their forebear's.
-    static func badgeType(_ type: UnitType) -> UnitType {
-        switch type {
-        case .musketman: .manAtArms
-        case .pikeAndShot: .pikeman
-        case .hussar: .horseman
-        case .bombard: .trebuchet
-        case .caravel: .cog
-        case .privateer: .galley
-        case .frigate: .dromon
-        default: type
-        }
-    }
+    /// The type whose badge cell `type` shows (every type has its own).
+    static func badgeType(_ type: UnitType) -> UnitType { type }
 
     /// The type whose body cells `type` is drawn with: its own or the shared ship body.
     static func bodyType(_ type: UnitType) -> UnitType {
-        if type.isNaval { return shipBody }
-        // M3a Renaissance types: placeholder bodies of their Medieval forebears until their own art.
         switch type {
-        case .musketman: return .manAtArms
-        case .pikeAndShot: return .pikeman
-        case .hussar: return .horseman
-        case .bombard: return .trebuchet
-        default: return type
+        case .galley, .quadrireme, .cog, .dromon: shipBody
+        default: type
         }
     }
 
     /// Whether `type` has body cells of its own.
     static func hasOwnBody(_ type: UnitType) -> Bool { bodyType(type) == type }
 
-    /// The M2 types' data cells hold two types each: the first in red and green, the second
-    /// in blue and alpha (the same budget, ART.md §10). The Trader's data is in the Builder's
-    /// cell, and the escorted settler's (its body without the banner pole) in the Settler's.
+    /// Data cells hold two types each where they can: the first in red and green, the second
+    /// in blue and alpha (data has no light in it, so this costs nothing). The Trader's data is
+    /// in the Builder's cell, and the escorted settler's (its body without the banner pole) in
+    /// the Settler's.
     static let pairedData: [(UnitType, UnitType?)] = [(.horseman, .heavyChariot), (.swordsman, .catapult),
                                                       (.manAtArms, .crossbowman), (.pikeman, .knight), (.trebuchet, .galley),
-                                                      (.builder, .trader)]
+                                                      (.builder, .trader), (.musketman, .pikeAndShot), (.hussar, .bombard),
+                                                      (.caravel, .privateer)]
 
     /// The type whose `teamMask` cell holds `type`'s data, and whether in blue and alpha.
     static func dataCell(_ type: UnitType) -> (key: UnitType, high: Bool) {
@@ -312,7 +296,8 @@ enum UnitSprite: SpriteSet {
         case .warrior, .archer, .spearman, .swordsman, .manAtArms, .crossbowman, .pikeman: 0.596
         case .musketman, .pikeAndShot: 0.596
         case .scout, .horseman, .knight, .heavyChariot, .hussar: 0.612
-        case .catapult, .trebuchet, .bombard: siegeBearer.x - 0.09 * siegeBearer.k
+        case .catapult, .trebuchet: siegeBearer.x - 0.09 * siegeBearer.k
+        case .bombard: bombardBearer.x - 0.09 * bombardBearer.k
         case .galley, .quadrireme, .cog, .dromon, .caravel, .privateer, .frigate: 0.5
         }
         let k = bodyFit(type), fx = 0.5 + (x - 0.5) * k
@@ -336,6 +321,8 @@ enum UnitSprite: SpriteSet {
 
     /// Where a siege engine's standard-bearer stands (feet x, build), beside the engine.
     private static let siegeBearer: (x: Float, k: Float) = (0.2, 0.86)
+    /// A bombard's standard-bearer stands behind the gun, clear of its muzzle.
+    private static let bombardBearer: (x: Float, k: Float) = (0.8, 0.86)
 
     /// The standard is painted in a frame of its own (`standard`, fractions, y up) and fitted
     /// into the middle of its cell by this scale about this point, so its rim has room all
@@ -440,6 +427,7 @@ enum UnitSprite: SpriteSet {
     fileprivate static let canvas = Tone(0.95, 0.9, 0.78), gold = Tone(0.93, 0.74, 0.32)
     fileprivate static let ink = Tone(0.1, 0.07, 0.05), cream = Tone(0.98, 0.94, 0.84)
     fileprivate static let rimBrown = Tone(0.27, 0.17, 0.1)
+    fileprivate static let stocking = Tone(0.84, 0.8, 0.7), walnut = Tone(0.42, 0.27, 0.16)
 
     // MARK: Recorded bodies
 
@@ -475,8 +463,13 @@ enum UnitSprite: SpriteSet {
             case .catapult: siege(&figure, trebuchet: false)
             case .trebuchet: siege(&figure, trebuchet: true)
             case .galley, .quadrireme, .cog, .dromon: ship(&figure)
-            case .musketman, .pikeAndShot, .hussar, .bombard, .caravel, .privateer, .frigate:
-                preconditionFailure("\(key.type) borrows another type's body (bodyType)")
+            case .musketman: musketman(&figure)
+            case .pikeAndShot: pikeAndShot(&figure)
+            case .hussar: scout(&figure, coat: Tone(0.22, 0.16, 0.13), kit: .hussar)
+            case .bombard: bombard(&figure)
+            case .caravel: caravel(&figure)
+            case .privateer: privateer(&figure)
+            case .frigate: frigate(&figure)
             }
             let recorded = RecordedFigure(steps: figure.steps, emblems: figure.emblems, size: figure.size)
             done.withLock { $0[key] = recorded }
@@ -712,16 +705,25 @@ enum UnitSprite: SpriteSet {
     /// spears (spearmen); bare heads, fur, axes and small shields (warriors); hoods, bows and
     /// quivers (archers); straw hats, tools and a wheelbarrow (builders).
     private struct Person {
-        enum Head { case helmet(Crest), hood, strawHat, cap, hair, headband }
+        /// Renaissance soldiers wear a steel `morion` (a combed helmet whose brim sweeps up to a
+        /// point at each end) or a broad-brimmed `feltHat` with a plume in the team color.
+        enum Head { case helmet(Crest), hood, strawHat, cap, hair, headband, morion, feltHat }
         enum Crest { case tall, plume, ridge }
-        enum Torso { case cuirass(Tone), tunic, jerkin(Tone), fur }
-        enum Lower { case skirt, tunic, kilt }
-        enum Legs { case greaves, wraps, bare }
+        /// A `doublet` is the team color, with a falling linen collar and a bandolier of powder
+        /// charges across it; it always has sleeves.
+        enum Torso { case cuirass(Tone), tunic, jerkin(Tone), fur, doublet }
+        enum Lower { case skirt, tunic, kilt, breeches }
+        enum Legs { case greaves, wraps, bare, hose }
         /// What the hands hold: a spear upright or leveled, the standard's pole, a long axe
         /// raised in both hands, a club cocked over the shoulder, a bow drawn or held ready,
         /// a pick raised overhead, a wheelbarrow's handles, a surveyor's rod (which carries the
-        /// standard), a walking staff ahead and a pack animal's halter rope behind (a merchant).
-        enum Gear { case spearUp, spearLevel, standard, axeRaised, club, bowDrawn, bowReady, pickRaised, barrow, rod, lead }
+        /// standard), a walking staff ahead and a pack animal's halter rope behind (a merchant);
+        /// a musket aimed over its forked rest or held at the port, and a pike far longer
+        /// than a spear, upright or leveled at the charge.
+        enum Gear {
+            case spearUp, spearLevel, standard, axeRaised, club, bowDrawn, bowReady, pickRaised, barrow, rod, lead
+            case musketAim, musketPort, pikeUp, pikeLevel
+        }
         enum Shield { case none, front, turned, slung, buckler }
         var x: CGFloat, y: CGFloat, k: CGFloat
         var skin: CGFloat = 1
@@ -845,6 +847,206 @@ enum UnitSprite: SpriteSet {
                           lower: .skirt, legs: .greaves, gear: .spearLevel, stride: 1.25))
     }
 
+    /// Three musketeers in plumed felt hats and doublets of the team color, with bandoliers of
+    /// powder charges (M3a §8.1): one with his musket held at the port, the
+    /// standard-bearer, and one in front aiming over his forked rest, the match lit.
+    private static func musketman(_ f: inout Figure) {
+        person(&f, Person(x: 0.3, y: 0.205, k: 0.86, skin: 0.93, head: .feltHat, torso: .doublet, lower: .breeches, legs: .hose,
+                          gear: .musketPort, stride: 1.05))
+        person(&f, Person(x: 0.672, y: 0.215, k: 0.84, skin: 1.03, head: .feltHat, torso: .doublet, lower: .breeches, legs: .hose,
+                          gear: .standard, beard: false, stride: 0.8))
+        person(&f, Person(x: 0.52, y: 0.1, k: 1.0, skin: 0.95, head: .feltHat, torso: .doublet, lower: .breeches, legs: .hose,
+                          gear: .musketAim, stride: 1.2))
+    }
+
+    /// Pike and shot (M3a §8.1): a musketeer in his felt hat behind, musket at the port; the
+    /// standard-bearer in morion and breastplate; and in front a pikeman in morion and
+    /// breastplate with his long pike leveled at the charge, far past his file.
+    private static func pikeAndShot(_ f: inout Figure) {
+        person(&f, Person(x: 0.3, y: 0.205, k: 0.86, skin: 0.92, head: .feltHat, torso: .doublet, lower: .breeches, legs: .hose,
+                          gear: .musketPort, stride: 1.0))
+        person(&f, Person(x: 0.672, y: 0.215, k: 0.84, skin: 1.03, head: .morion, torso: .cuirass(iron.scaled(0.92)), lower: .breeches,
+                          legs: .hose, gear: .standard, stride: 0.8, sleeves: true))
+        person(&f, Person(x: 0.53, y: 0.1, k: 1.0, skin: 0.97, head: .morion, torso: .cuirass(iron), lower: .breeches, legs: .hose,
+                          gear: .pikeLevel, stride: 1.3, sleeves: true))
+    }
+
+    /// A bombard (M3a §8.1): a great hooped iron barrel on a timber bed painted in the team
+    /// color, one big spoked wheel under it and the trail on the ground behind, a pyramid of
+    /// stone shot by the muzzle, and the standard-bearer standing back by the trail.
+    private static func bombard(_ f: inout Figure) {
+        let gun = Tone(0.4, 0.41, 0.45), stone = Tone(0.62, 0.6, 0.56)
+        // The trail behind, down to the ground, and the bed under the barrel.
+        f.add(f.limb([(0.42, 0.2), (0.72, 0.115)], 0.05, 0.036), Material(darkWood, grain: .wood))
+        let bed = f.poly([(0.16, 0.27), (0.62, 0.23), (0.64, 0.17), (0.2, 0.2)])
+        f.add(bed, Material(team: 1, grain: .planks))
+        f.decal(f.poly([(0.16, 0.27), (0.62, 0.23), (0.62, 0.215), (0.16, 0.255)]), Tone(0.3, 0.2, 0.12), alpha: 0.5, clip: bed)
+        for x in [0.24, 0.5] as [CGFloat] {
+            f.add(f.ellipse(x, 0.236 - (x - 0.2) * 0.07, 0.012, 0.012), Material(iron, gloss: 0.7), outline: 0.006)
+        }
+        // The barrel: thick and hooped, a little raised, the muzzle flared, the bore dark.
+        let breech: (CGFloat, CGFloat) = (0.62, 0.3), mouth: (CGFloat, CGFloat) = (0.13, 0.385)
+        let barrel = f.limb([breech, mouth], 0.13, 0.11)
+        f.add(barrel, Material(gun, grain: .metal, gloss: 0.7))
+        let a = atan2(mouth.1 - breech.1, mouth.0 - breech.0), c = cos(a), s = sin(a)
+        func along(_ t: CGFloat, _ across: CGFloat) -> (CGFloat, CGFloat) {
+            (breech.0 + (mouth.0 - breech.0) * t - s * across, breech.1 + (mouth.1 - breech.1) * t + c * across)
+        }
+        for t in [0.12, 0.3, 0.48, 0.66, 0.84] as [CGFloat] {
+            let w: CGFloat = 0.068 - 0.01 * t
+            f.decal(f.limb([along(t, -w), along(t, w)], 0.016, 0.016), gun.lit, alpha: 0.55, clip: barrel)
+            f.decal(f.limb([along(t + 0.025, -w), along(t + 0.025, w)], 0.008, 0.008), gun.shadow, alpha: 0.5, clip: barrel)
+        }
+        f.add(f.blob([along(0.95, -0.07), along(1.0, -0.07), along(1.0, 0.07), along(0.95, 0.07)]), Material(gun.scaled(1.05), grain: .metal,
+              gloss: 0.8), outline: 0.01)
+        f.add(f.ellipse(mouth.0 - 0.002, mouth.1, 0.022, 0.05), Material(gun.scaled(0.9), gloss: 0.5), outline: 0.008)
+        f.add(f.ellipse(mouth.0 - 0.004, mouth.1, 0.012, 0.032), Material(ink, shade: 0, light: 0), outline: 0)
+        // The breech cap and its lifting ring.
+        f.add(f.ellipse(breech.0 + 0.012, breech.1 - 0.002, 0.04, 0.06), Material(gun.scaled(0.92), grain: .metal, gloss: 0.6), outline: 0.01)
+        f.decalStroke(f.ellipse(0.44, 0.39, 0.02, 0.02), gun.shadow, width: 0.008)
+        // One big wheel; the far one is hidden behind the bed.
+        f.wheel(0.42, 0.18, 0.105)
+        // Stone shot by the muzzle.
+        for (x, y) in [(0.09, 0.128), (0.15, 0.128), (0.12, 0.178)] as [(CGFloat, CGFloat)] {
+            f.add(f.ellipse(x, y, 0.03, 0.028), Material(stone, grain: .hide, gloss: 0.2), outline: 0.009)
+        }
+        person(&f, Person(x: CGFloat(bombardBearer.x), y: 0.1, k: CGFloat(bombardBearer.k), skin: 0.96, head: .morion,
+                          torso: .doublet, lower: .breeches, legs: .hose, gear: .standard, beard: true, stride: 0.9))
+    }
+
+    // MARK: Ships
+
+    /// Ships face west (bow left), floating at `shipWaterline`; the mainmast stands at x 0.5 and
+    /// its top carries the standard (`standardMount`). Every hull is painted wood with a strake
+    /// in the team color; sails are canvas.
+    private static let shipWaterline: CGFloat = 0.14
+    private static let sailCloth = Tone(0.93, 0.88, 0.76), tannedCloth = Tone(0.8, 0.6, 0.42)
+
+    private static func mast(_ f: inout Figure, x: CGFloat, from bottom: CGFloat, to top: CGFloat, width: CGFloat = 0.022) {
+        f.add(f.limb([(x, bottom), (x, top)], width, width * 0.7), Material(darkWood, grain: .wood), outline: 0.009)
+    }
+
+    /// A square sail on its yard, between `x0` and `x1` at the top (`top`) and spreading a little
+    /// to its foot (`foot`), bellied out; seams run down it.
+    private static func squareSail(_ f: inout Figure, x0: CGFloat, x1: CGFloat, top: CGFloat, foot: CGFloat, cloth: Tone) {
+        let spread = (x1 - x0) * 0.08, belly = (top - foot) * 0.1
+        let sail = f.blob([(x0, top), ((x0 + x1) / 2, top + belly * 0.3), (x1, top), (x1 + spread, (top + foot) / 2),
+                           (x1 + spread * 0.6, foot), ((x0 + x1) / 2, foot - belly), (x0 - spread * 0.6, foot),
+                           (x0 - spread, (top + foot) / 2)])
+        f.add(sail, Material(cloth, grain: .cloth))
+        for t in [0.25, 0.5, 0.75] as [CGFloat] {
+            let x = x0 + (x1 - x0) * t
+            f.decal(f.limb([(x, top), (x + (x - (x0 + x1) / 2) * 0.08, foot - belly * (1 - abs(t - 0.5) * 2))], 0.004, 0.004),
+                    cloth.shadow, alpha: 0.35, clip: sail)
+        }
+        f.add(f.limb([(x0 - 0.012, top + 0.004), (x1 + 0.012, top + 0.004)], 0.012, 0.012), Material(darkWood, grain: .wood), outline: 0.007)
+    }
+
+    /// A caravel (M3a §8.1): a small, deep, round-bellied hull with a raised sterncastle, a
+    /// great lateen sail on the mainmast and a smaller one on the mizzen, each bearing a cross in
+    /// the team color.
+    private static func caravel(_ f: inout Figure) {
+        let hullWood = Tone(0.52, 0.35, 0.21), w = shipWaterline
+        // Mizzen first (behind the main sail), then the mainmast.
+        mast(&f, x: 0.79, from: 0.36, to: 0.72, width: 0.018)
+        let mizzen = f.blob([(0.69, 0.47), (0.88, 0.72), (0.9, 0.44)])
+        f.add(mizzen, Material(sailCloth, grain: .cloth))
+        f.decal(f.limb([(0.83, 0.48), (0.83, 0.62)], 0.014, 0.014), teamShade: 0.95, alpha: 0.95, clip: mizzen)
+        f.decal(f.limb([(0.79, 0.555), (0.87, 0.555)], 0.014, 0.014), teamShade: 0.95, alpha: 0.95, clip: mizzen)
+        f.add(f.limb([(0.66, 0.43), (0.9, 0.75)], 0.012, 0.009), Material(darkWood, grain: .wood), outline: 0.007)
+        mast(&f, x: 0.5, from: 0.3, to: 0.86)
+        // The hull: a deep belly, the bow low and rounded, the sheer rising to the sterncastle.
+        let hull = f.poly([(0.07, 0.335), (0.16, 0.3), (0.34, 0.29), (0.6, 0.3), (0.66, 0.4), (0.9, 0.43), (0.93, 0.4),
+                           (0.9, 0.24), (0.84, 0.17), (0.7, w - 0.01), (0.44, w - 0.02), (0.24, w - 0.005), (0.14, 0.19), (0.09, 0.26)])
+        f.add(hull, Material(hullWood, grain: .planks))
+        for y in [0.2, 0.25] as [CGFloat] {
+            f.decal(f.limb([(0.1, y + 0.05 - (y - 0.2)), (0.5, y - 0.012), (0.9, y + 0.02)], 0.006, 0.006), Tone(0.3, 0.2, 0.12),
+                    alpha: 0.5, clip: hull)
+        }
+        let strake = f.poly([(0.1, 0.33), (0.6, 0.3), (0.6, 0.272), (0.1, 0.3)])
+        f.decal(strake, teamShade: 1, alpha: 1, clip: hull)
+        // The sterncastle's rail and its windows.
+        f.add(f.rectPath(0.62, 0.4, 0.31, 0.03), Material(hullWood.scaled(1.15), grain: .wood), outline: 0.008)
+        for x in [0.7, 0.76, 0.82] as [CGFloat] {
+            f.decal(f.rectPath(x, 0.33, 0.026, 0.034), Tone(0.2, 0.13, 0.08), alpha: 0.85, clip: hull)
+        }
+        // The great lateen: its yard slanting up from the bow to high abaft the mast.
+        let sail = f.blob([(0.21, 0.37), (0.61, 0.8), (0.63, 0.39)])
+        f.add(sail, Material(sailCloth, grain: .cloth))
+        f.decal(f.limb([(0.5, 0.42), (0.5, 0.66)], 0.024, 0.024), teamShade: 0.95, alpha: 0.95, clip: sail)
+        f.decal(f.limb([(0.42, 0.54), (0.58, 0.54)], 0.024, 0.024), teamShade: 0.95, alpha: 0.95, clip: sail)
+        f.decal(f.limb([(0.24, 0.39), (0.58, 0.76)], 0.006, 0.006), sailCloth.shadow, alpha: 0.35, clip: sail)
+        f.add(f.limb([(0.17, 0.33), (0.64, 0.84)], 0.016, 0.011), Material(darkWood, grain: .wood), outline: 0.008)
+    }
+
+    /// A privateer (M3a §8.1): a long, low, dark raider with a raked bowsprit and a jib, square
+    /// sails on her foremast, a gaff sail abaft the mainmast, all of tanned canvas, and a
+    /// strake in the team color pierced for guns.
+    private static func privateer(_ f: inout Figure) {
+        let hullWood = Tone(0.27, 0.2, 0.16), w = shipWaterline
+        mast(&f, x: 0.29, from: 0.3, to: 0.8, width: 0.02)
+        mast(&f, x: 0.5, from: 0.3, to: 0.86)
+        // Square sails on the foremast: the course and the topsail above it; then the jib, set
+        // ahead of them from the foremast's head to the bowsprit's end.
+        squareSail(&f, x0: 0.2, x1: 0.38, top: 0.56, foot: 0.38, cloth: tannedCloth)
+        squareSail(&f, x0: 0.22, x1: 0.36, top: 0.75, foot: 0.59, cloth: tannedCloth)
+        f.add(f.blob([(0.27, 0.78), (0.06, 0.38), (0.19, 0.37)]), Material(tannedCloth.scaled(1.04), grain: .cloth))
+        // The gaff sail, from the mainmast back to the boom's end, and its spars.
+        let gaff = f.poly([(0.515, 0.36), (0.515, 0.76), (0.78, 0.68), (0.87, 0.37)])
+        f.add(gaff, Material(tannedCloth, grain: .cloth))
+        for t in [0.33, 0.66] as [CGFloat] {
+            f.decal(f.limb([(0.515, 0.36 + 0.4 * t), (0.87 - 0.09 * t, 0.37 + 0.31 * t)], 0.004, 0.004), tannedCloth.shadow, alpha: 0.4, clip: gaff)
+        }
+        f.decal(f.rectPath(0.515, 0.36, 0.36, 0.035), teamShade: 0.9, alpha: 0.95, clip: gaff)
+        f.add(f.limb([(0.51, 0.76), (0.79, 0.685)], 0.012, 0.009), Material(darkWood, grain: .wood), outline: 0.007)
+        f.add(f.limb([(0.51, 0.355), (0.9, 0.365)], 0.012, 0.01), Material(darkWood, grain: .wood), outline: 0.007)
+        // The bowsprit, then the long low hull with its sharp bow and square stern.
+        f.add(f.limb([(0.2, 0.31), (0.05, 0.38)], 0.016, 0.01), Material(darkWood, grain: .wood), outline: 0.008)
+        let hull = f.poly([(0.08, 0.32), (0.3, 0.3), (0.7, 0.3), (0.92, 0.33), (0.94, 0.33), (0.92, 0.2), (0.82, w),
+                           (0.4, w - 0.012), (0.2, w), (0.12, 0.22)])
+        f.add(hull, Material(hullWood, grain: .planks))
+        let strake = f.poly([(0.1, 0.31), (0.92, 0.32), (0.92, 0.26), (0.11, 0.26)])
+        f.decal(strake, teamShade: 0.95, alpha: 1, clip: hull)
+        for x in [0.3, 0.44, 0.58, 0.72] as [CGFloat] {
+            f.decal(f.rectPath(x, 0.27, 0.034, 0.03), Tone(0.12, 0.08, 0.06), alpha: 0.95, clip: hull)
+        }
+        f.decal(f.limb([(0.14, 0.215), (0.5, 0.19), (0.9, 0.205)], 0.005, 0.005), Tone(0.5, 0.36, 0.24), alpha: 0.5, clip: hull)
+    }
+
+    /// A frigate (M3a §8.1): a big three-masted ship, square-rigged, courses and topsails set,
+    /// a jib on her bowsprit, a gun deck along a strake in the team color with a row of ports,
+    /// and a high stern with its windows.
+    private static func frigate(_ f: inout Figure) {
+        let hullWood = Tone(0.33, 0.24, 0.17), w = shipWaterline
+        mast(&f, x: 0.27, from: 0.36, to: 0.8)
+        mast(&f, x: 0.5, from: 0.36, to: 0.86)
+        mast(&f, x: 0.74, from: 0.38, to: 0.76)
+        for (x, half, top, foot, upper) in [(0.27, 0.1, 0.6, 0.43, 0.77), (0.5, 0.115, 0.62, 0.43, 0.81), (0.74, 0.08, 0.6, 0.45, 0.73)]
+            as [(CGFloat, CGFloat, CGFloat, CGFloat, CGFloat)] {
+            squareSail(&f, x0: x - half, x1: x + half, top: top, foot: foot, cloth: sailCloth)
+            squareSail(&f, x0: x - half * 0.78, x1: x + half * 0.78, top: upper, foot: top + 0.025, cloth: sailCloth)
+        }
+        // The jib, ahead of the fore course.
+        f.add(f.blob([(0.25, 0.76), (0.05, 0.42), (0.16, 0.42)]), Material(sailCloth.scaled(1.02), grain: .cloth))
+        f.add(f.limb([(0.2, 0.36), (0.04, 0.43)], 0.018, 0.011), Material(darkWood, grain: .wood), outline: 0.008)
+        // The hull: the sheer rising to a high stern, a gun deck along its middle.
+        let hull = f.poly([(0.07, 0.38), (0.2, 0.36), (0.6, 0.36), (0.82, 0.39), (0.92, 0.45), (0.95, 0.45), (0.93, 0.26),
+                           (0.86, 0.17), (0.7, w - 0.012), (0.36, w - 0.02), (0.18, w - 0.004), (0.1, 0.24)])
+        f.add(hull, Material(hullWood, grain: .planks))
+        let strake = f.poly([(0.1, 0.33), (0.6, 0.32), (0.86, 0.34), (0.86, 0.28), (0.6, 0.264), (0.11, 0.276)])
+        f.decal(strake, teamShade: 0.95, alpha: 1, clip: hull)
+        for i in 0..<7 {
+            let x = 0.17 + CGFloat(i) * 0.093
+            let y = 0.276 + (x < 0.6 ? 0 : (x - 0.6) * 0.06) - (x < 0.3 ? (0.3 - x) * 0.03 : 0)
+            f.decal(f.rectPath(x, y + 0.006, 0.032, 0.03), Tone(0.1, 0.07, 0.05), alpha: 0.95, clip: hull)
+        }
+        f.decal(f.limb([(0.1, 0.36), (0.6, 0.348), (0.9, 0.42)], 0.008, 0.008), gold.scaled(0.85), alpha: 0.8, clip: hull)
+        f.decal(f.limb([(0.12, 0.22), (0.5, 0.2), (0.9, 0.23)], 0.005, 0.005), Tone(0.5, 0.38, 0.26), alpha: 0.5, clip: hull)
+        for x in [0.86, 0.9] as [CGFloat] {
+            f.decal(f.rectPath(x, 0.37, 0.022, 0.03), Tone(0.95, 0.85, 0.55), alpha: 0.85, clip: hull)
+        }
+    }
+
     /// A siege engine on its wheels, its timbers draped in the team color, with a crewman
     /// carrying the standard in front: a catapult (a throwing arm with its bucket) or a
     /// trebuchet (a tall A-frame, a long arm with its sling and a counterweight).
@@ -899,7 +1101,7 @@ enum UnitSprite: SpriteSet {
             }
         }
         let sleeve: Material? = switch s.torso {
-        case .tunic where s.sleeves: Material(team: 0.9, grain: .cloth)
+        case .tunic where s.sleeves, .cuirass where s.sleeves, .doublet: Material(team: 0.9, grain: .cloth)
         case let .jerkin(tone) where s.sleeves: Material(tone.scaled(0.95), grain: .hide)
         default: nil
         }
@@ -977,6 +1179,30 @@ enum UnitSprite: SpriteSet {
             arm([(0.03, 0.42), (-0.03, 0.34), (-0.1, 0.28)], far: true, sleeve: sleeve, hand: false)
             f.add(limb([(-0.07, 0.29), (-0.2, 0.25)], 0.02, 0.02), Material(wood.scaled(0.8), grain: .wood), outline: 0.008)
             f.add(oval(-0.1, 0.285, 0.021, 0.021), Material(farSkin), outline: 0.008)
+        case .musketPort:
+            // At the port: across the body, the butt by the near hip and the muzzle up and
+            // forward past the face (clear of the standard, which hangs above and behind), the
+            // far hand high on the fore-end.
+            musket(&f, butt: p(0.07, 0.25), muzzle: p(-0.17, 0.8), k: k)
+            arm([(0.03, 0.43), (-0.03, 0.47), (-0.075, 0.52)], far: true, sleeve: sleeve, hand: false)
+            f.add(oval(-0.076, 0.52, 0.022, 0.022), Material(farSkin), outline: 0.008)
+        case .musketAim:
+            // The far hand reaches forward under the barrel to the fore-end.
+            arm([(0.03, 0.43), (-0.05, 0.43), (-0.13, 0.433)], far: true, sleeve: sleeve, hand: false)
+        case .pikeUp:
+            // Grounded beside the foot and held upright, its head high over every helmet.
+            f.add(limb([(-0.06, 0.0), (-0.1, 0.86)], 0.018, 0.015), Material(wood, grain: .wood), outline: 0.01)
+            spearhead(&f, at: p(-0.1, 0.85), angle: .pi / 2 + 0.046, k: k * 0.85)
+            arm([(0.028, 0.43), (-0.03, 0.39), (-0.08, 0.42)], far: true, sleeve: sleeve, hand: false)
+            f.add(oval(-0.081, 0.42, 0.022, 0.022), Material(farSkin), outline: 0.008)
+        case .pikeLevel:
+            // At the charge: both hands near the butt end, the long shaft leveled at chest
+            // height, reaching far past the front of the file.
+            let butt = p(0.3, 0.27), tip = p(-0.4, 0.47)
+            f.add(f.limb([butt, tip], 0.018 * k, 0.015 * k), Material(wood, grain: .wood), outline: 0.01)
+            spearhead(&f, at: tip, angle: atan2(tip.1 - butt.1, tip.0 - butt.0), k: k * 0.85)
+            arm([(0.03, 0.43), (0.0, 0.37), (-0.05, 0.375)], far: true, sleeve: sleeve, hand: false)
+            f.add(oval(-0.052, 0.376, 0.022, 0.022), Material(farSkin), outline: 0.008)
         }
 
         // Legs in a stride: thighs, lower legs and feet (far leg in shade).
@@ -986,6 +1212,7 @@ enum UnitSprite: SpriteSet {
             as [((CGFloat, CGFloat), (CGFloat, CGFloat), (CGFloat, CGFloat), CGFloat)] {
             let thigh: Material = switch s.legs {
             case .wraps: Material(Tone(0.46, 0.38, 0.28).scaled(tint), grain: .cloth)
+            case .hose: Material(stocking.scaled(tint), grain: .cloth)
             default: Material(skinTone.scaled(tint))
             }
             f.add(limb([hip, knee], 0.056, 0.046), thigh)
@@ -999,6 +1226,11 @@ enum UnitSprite: SpriteSet {
                     let a = (knee.0 + (foot.0 - knee.0) * t, knee.1 + (foot.1 - knee.1) * t)
                     f.decal(limb([(a.0 - 0.024, a.1 - 0.012), (a.0 + 0.024, a.1 + 0.01)], 0.006, 0.006), darkLeather, alpha: 0.45, clip: shin)
                 }
+            case .hose:
+                // Stockings gartered below the knee in the team color.
+                f.add(shin, Material(stocking.scaled(tint), grain: .cloth))
+                f.decal(limb([(knee.0 - 0.03, knee.1 - 0.012), (knee.0 + 0.03, knee.1 - 0.008)], 0.014, 0.014), teamShade: 0.7 * tint,
+                        alpha: 0.9, clip: shin)
             case .bare:
                 f.add(shin, Material(skinTone.scaled(tint * 0.96)))
                 f.add(limb([(foot.0 + 0.002, 0.11), (foot.0, 0.04)], 0.052, 0.05), Material(Tone(0.5, 0.42, 0.33).scaled(tint), grain: .hide),
@@ -1019,6 +1251,12 @@ enum UnitSprite: SpriteSet {
             let hem = blob([(-0.082, 0.15), (-0.066, 0.262), (0.066, 0.262), (0.088, 0.15), (0.0, 0.135)])
             f.add(hem, Material(team: 0.92, grain: .cloth))
             f.decal(limb([(-0.084, 0.158), (0.0, 0.142), (0.09, 0.158)], 0.012, 0.012), teamShade: 0.6, alpha: 0.7, clip: hem)
+        case .breeches:
+            // Full breeches gathered at the knee, in a deep shade of the team color.
+            let breeches = blob([(-0.08, 0.256), (-0.084, 0.2), (-0.066, 0.146), (-0.02, 0.15), (0.0, 0.185), (0.03, 0.145),
+                                 (0.08, 0.15), (0.092, 0.2), (0.07, 0.256)])
+            f.add(breeches, Material(team: 0.66, grain: .cloth))
+            f.decal(limb([(0.004, 0.25), (0.0, 0.19)], 0.006, 0.004), teamShade: 0.4, alpha: 0.6, clip: breeches)
         case .kilt:
             let fur = Tone(0.47, 0.38, 0.28)
             f.add(poly([(-0.08, 0.26), (-0.086, 0.17), (-0.06, 0.15), (-0.04, 0.17), (-0.02, 0.142), (0.004, 0.166), (0.03, 0.14),
@@ -1038,6 +1276,21 @@ enum UnitSprite: SpriteSet {
             for y in [0.3, 0.36, 0.42] as [CGFloat] {
                 f.decal(limb([(-0.05, y), (0.05, y + 0.004)], 0.004, 0.004), tone.shadow, alpha: 0.6, clip: torsoPath)
             }
+        case .doublet:
+            f.add(torsoPath, Material(team: 0.95, grain: .cloth))
+            // Buttons down the front, a bandolier from the far shoulder to the near hip with its
+            // little wooden powder charges, and a falling linen collar.
+            for y in [0.28, 0.32, 0.36, 0.4] as [CGFloat] {
+                f.decal(oval(-0.05 + (0.42 - y) * 0.1, y, 0.007, 0.007), gold, alpha: 0.9, clip: torsoPath)
+            }
+            let strap = limb([(0.05, 0.45), (0.0, 0.36), (-0.06, 0.26)], 0.016, 0.016)
+            f.decal(strap, darkLeather, alpha: 0.95, clip: torsoPath)
+            for t in [0.25, 0.5, 0.75] as [CGFloat] {
+                let x = 0.05 - 0.11 * t, y = 0.45 - 0.19 * t
+                f.add(limb([(x, y - 0.008), (x - 0.002, y - 0.036)], 0.013, 0.011), Material(wood.scaled(1.1), grain: .wood), outline: 0.006)
+            }
+            f.add(blob([(-0.052, 0.438), (-0.03, 0.418), (0.0, 0.43), (0.03, 0.418), (0.05, 0.44), (0.0, 0.46)]), Material(linen),
+                  outline: 0.007)
         case .fur:
             f.add(torsoPath, Material(team: 0.92, grain: .cloth))
             let pelt = blob([(-0.03, 0.46), (0.04, 0.462), (0.074, 0.41), (0.066, 0.3), (0.03, 0.27), (0.0, 0.34), (-0.04, 0.4)])
@@ -1105,6 +1358,31 @@ enum UnitSprite: SpriteSet {
             f.add(limb([(0.06, 0.53), (0.09, 0.5), (0.1, 0.46)], 0.014, 0.008), Material(team: 0.85, grain: .cloth), outline: 0.007)
         case .hair:
             f.add(limb([(0.06, 0.53), (0.098, 0.5), (0.106, 0.45)], 0.026, 0.014), Material(hair, grain: .hide), outline: 0.008)
+        case .morion:
+            // A plume at the back, the brim curving up to a point fore and aft, the dome and
+            // its tall comb.
+            f.add(limb([(0.05, 0.6), (0.1, 0.63), (0.13, 0.6)], 0.032, 0.014), Material(team: 1, grain: .cloth), outline: 0.009)
+            let dome = blob([(-0.05, 0.56), (-0.046, 0.6), (-0.012, 0.624), (0.03, 0.622), (0.058, 0.598), (0.06, 0.56)])
+            // The comb: a tall thin crescent from brow to nape.
+            f.add(blob([(-0.046, 0.596), (-0.036, 0.656), (0.0, 0.69), (0.036, 0.682), (0.058, 0.64), (0.058, 0.596)]),
+                  Material(iron.scaled(0.96), grain: .metal, gloss: 0.9), outline: 0.008)
+            f.add(dome, Material(iron, grain: .metal, gloss: 1))
+            // The brim, narrow over the ears and swept up to a sharp point fore and aft.
+            let brim = poly([(-0.118, 0.63), (-0.084, 0.572), (-0.04, 0.55), (0.04, 0.55), (0.09, 0.572), (0.124, 0.632),
+                             (0.08, 0.59), (0.0, 0.572), (-0.074, 0.59)])
+            f.add(brim, Material(iron.scaled(1.04), grain: .metal, gloss: 0.9), outline: 0.01)
+            f.decalStroke(limb([(-0.05, 0.6), (0.06, 0.598)], 0.001, 0.001), iron.lit, width: 0.006 * k)
+        case .feltHat:
+            // A broad felt brim tilted over the brow, a tall crown with a band, and a big plume
+            // curling back off it.
+            let felt = Tone(0.24, 0.2, 0.17)
+            f.add(limb([(0.02, 0.62), (0.08, 0.66), (0.14, 0.64), (0.162, 0.586)], 0.048, 0.016), Material(team: 1, grain: .cloth),
+                  outline: 0.01)
+            f.add(blob([(-0.042, 0.56), (-0.046, 0.628), (-0.01, 0.65), (0.036, 0.646), (0.05, 0.566)]), Material(felt, grain: .hide),
+                  outline: 0.01)
+            f.decal(poly([(-0.046, 0.57), (0.05, 0.574), (0.05, 0.594), (-0.046, 0.59)]), darkLeather, alpha: 0.85)
+            f.add(blob([(-0.122, 0.556), (-0.06, 0.574), (0.03, 0.578), (0.104, 0.568), (0.11, 0.548), (0.04, 0.548), (-0.06, 0.538)]),
+                  Material(felt, grain: .hide), outline: 0.01)
         }
 
         // The near arm and what it holds, then the shield in front.
@@ -1132,6 +1410,22 @@ enum UnitSprite: SpriteSet {
         case .lead:
             // Back past the hip to the halter rope.
             arm([(-0.004, 0.43), (0.05, 0.37), (0.12, 0.35)], far: false, sleeve: sleeve)
+        case .musketPort:
+            // The near hand at the wrist of the stock.
+            arm([(-0.004, 0.43), (0.03, 0.37), (0.035, 0.33)], far: false, sleeve: sleeve)
+        case .musketAim:
+            // Over its forked rest, aimed level: the butt in the near shoulder, the cheek on the
+            // stock, the near hand at the lock, elbow up.
+            f.add(limb([(-0.2, -0.004), (-0.2, 0.418)], 0.014, 0.012), Material(darkWood, grain: .wood), outline: 0.008)
+            f.add(limb([(-0.226, 0.45), (-0.2, 0.418), (-0.174, 0.45)], 0.01, 0.01), Material(iron, gloss: 0.6), outline: 0.007)
+            musket(&f, butt: p(0.05, 0.43), muzzle: p(-0.44, 0.455), k: k)
+            f.add(oval(-0.132, 0.44, 0.022, 0.022), Material(farSkin), outline: 0.008)
+            arm([(-0.004, 0.43), (0.06, 0.41), (0.012, 0.428)], far: false, sleeve: sleeve)
+        case .pikeUp:
+            arm([(-0.004, 0.43), (-0.03, 0.36), (-0.072, 0.3)], far: false, sleeve: sleeve)
+        case .pikeLevel:
+            // The near hand back by the hip, near the butt.
+            arm([(-0.004, 0.43), (0.04, 0.37), (0.07, 0.336)], far: false, sleeve: sleeve)
         }
         switch s.shield {
         case .front:
@@ -1204,6 +1498,30 @@ enum UnitSprite: SpriteSet {
         f.add(blade, Material(iron, grain: .metal, gloss: 0.9), outline: 0.011)
         // A bright bevel along the edge.
         f.decal(f.limb(edge.map { q($0.0, $0.1 - 0.012) }, 0.012 * k, 0.012 * k), iron.lit, alpha: 0.9, clip: blade)
+    }
+
+    /// A matchlock musket from the butt to the muzzle: a heavy walnut stock to the lock, then a
+    /// long iron barrel on a slim fore-end, the match smouldering in its serpentine.
+    private static func musket(_ f: inout Figure, butt: (CGFloat, CGFloat), muzzle: (CGFloat, CGFloat), k: CGFloat) {
+        let a = atan2(muzzle.1 - butt.1, muzzle.0 - butt.0), length = hypot(muzzle.0 - butt.0, muzzle.1 - butt.1) / k
+        let c = cos(a), s = sin(a)
+        // Frame: along the barrel from the butt (cell fractions at k = 1) and across it, toward
+        // the side the stock's heel drops to.
+        let down: CGFloat = c >= 0 ? 1 : -1
+        func q(_ along: CGFloat, _ across: CGFloat) -> (CGFloat, CGFloat) {
+            (butt.0 + (c * along + s * across * down) * k, butt.1 + (s * along - c * across * down) * k)
+        }
+        f.add(f.limb([q(0.16, 0.0), q(length, 0.0)], 0.017 * k, 0.014 * k), Material(iron.scaled(0.8), grain: .metal, gloss: 0.8),
+              outline: 0.008)
+        f.add(f.limb([q(0.16, 0.008), q(length * 0.78, 0.006)], 0.012 * k, 0.01 * k), Material(walnut, grain: .wood), outline: 0.006)
+        f.add(f.ellipse(q(length, 0).0, q(length, 0).1, 0.011 * k, 0.011 * k), Material(ink, shade: 0, light: 0), outline: 0.004)
+        let stock = f.poly([q(0.0, -0.016), q(0.04, -0.014), q(0.2, -0.008), q(0.2, 0.012), q(0.1, 0.02), q(0.0, 0.05)])
+        f.add(stock, Material(walnut, grain: .wood), outline: 0.009)
+        f.decal(f.poly([q(0.0, -0.016), q(0.012, -0.016), q(0.012, 0.046), q(0.0, 0.05)]), darkWood, alpha: 0.8, clip: stock)
+        // The lock plate and serpentine with its glowing match.
+        f.add(f.rectPath(q(0.16, 0.004).0 - 0.012 * k, q(0.16, 0.004).1 - 0.008 * k, 0.026 * k, 0.016 * k), Material(iron, gloss: 0.7),
+              outline: 0.006)
+        f.decal(f.ellipse(q(0.175, -0.022).0, q(0.175, -0.022).1, 0.007 * k, 0.007 * k), Tone(1, 0.6, 0.2), alpha: 0.95)
     }
 
     /// A knobbed wooden club from its grip to its head.
@@ -1303,8 +1621,11 @@ enum UnitSprite: SpriteSet {
     }
 
     /// What a mounted body carries besides its rider (M2 §8.1): nothing (the scout), a lance
-    /// (horseman), an iron helm and a caparison in the team color (knight), or a chariot.
-    private enum Mount { case scout, lance, armored, chariot }
+    /// (horseman), an iron helm and a caparison in the team color (knight), or a chariot; or a
+    /// hussar's kit (M3a §8.1): a braided dolman in the team color under a fur-trimmed pelisse,
+    /// a tall fur kolpak with a plume, and a curved sabre thrust out at the charge. (A winged
+    /// hussar's wing would rise where the standard hangs, so he has none.)
+    private enum Mount { case scout, lance, armored, chariot, hussar }
 
     /// A rider on a cantering horse, cloaked and hooded in the team color, carrying the standard.
     private static func scout(_ f: inout Figure, coat: Tone = Tone(0.6, 0.36, 0.2), kit: Mount = .scout) {
@@ -1365,22 +1686,53 @@ enum UnitSprite: SpriteSet {
         f.decalStroke(cloth, gold, width: 0.009, clip: cloth)
         f.add(f.blob([(0.466, 0.572), (0.486, 0.54), (0.584, 0.546), (0.604, 0.584), (0.546, 0.572)]), Material(darkLeather, gloss: 0.4),
               outline: 0.01)
-        // Rider: cloak streaming back, torso leaning in, near leg, hooded head.
-        f.add(f.blob([(0.52, 0.765), (0.61, 0.758), (0.69, 0.68), (0.744, 0.58), (0.684, 0.598), (0.62, 0.616), (0.552, 0.64)]),
-              Material(team: 1, grain: .cloth))
-        f.add(f.blob([(0.478, 0.572), (0.468, 0.64), (0.478, 0.718), (0.51, 0.758), (0.56, 0.742), (0.576, 0.664), (0.568, 0.574)]),
-              Material(leather, grain: .hide))
+        // Rider: cloak streaming back, torso leaning in, near leg, hooded head (a hussar's
+        // pelisse, braided dolman and kolpak).
+        let cloak = f.blob([(0.52, 0.765), (0.61, 0.758), (0.69, 0.68), (0.744, 0.58), (0.684, 0.598), (0.62, 0.616), (0.552, 0.64)])
+        f.add(cloak, Material(team: 1, grain: .cloth))
+        if kit == .hussar {
+            f.decalStroke(cloak, Tone(0.82, 0.78, 0.7), width: 0.016, clip: cloak)
+        }
+        let torso = f.blob([(0.478, 0.572), (0.468, 0.64), (0.478, 0.718), (0.51, 0.758), (0.56, 0.742), (0.576, 0.664), (0.568, 0.574)])
+        if kit == .hussar {
+            f.add(torso, Material(team: 0.9, grain: .cloth))
+            for y in [0.62, 0.655, 0.69] as [CGFloat] {
+                f.decal(f.limb([(0.474, y), (0.53, y + 0.004)], 0.008, 0.008), gold, alpha: 0.95, clip: torso)
+            }
+        } else {
+            f.add(torso, Material(leather, grain: .hide))
+        }
         f.decal(f.rectPath(0.456, 0.594, 0.13, 0.022), darkLeather, alpha: 0.9)
-        f.add(f.limb([(0.548, 0.59), (0.47, 0.54), (0.478, 0.455)], 0.054, 0.04), Material(Tone(0.42, 0.34, 0.24), grain: .cloth))
+        f.add(f.limb([(0.548, 0.59), (0.47, 0.54), (0.478, 0.455)], 0.054, 0.04),
+              Material(kit == .hussar ? Tone(0.78, 0.7, 0.54) : Tone(0.42, 0.34, 0.24), grain: .cloth))
         f.add(f.blob([(0.45, 0.418), (0.51, 0.418), (0.506, 0.462), (0.468, 0.474)]), Material(darkLeather), outline: 0.01)
-        f.add(f.limb([(0.506, 0.716), (0.446, 0.646), (0.392, 0.646)], 0.04, 0.03), Material(leather), outline: 0.012)
-        f.add(f.ellipse(0.386, 0.646, 0.018, 0.018), Material(skin), outline: 0.008)
-        f.decal(f.limb([(0.382, 0.644), (0.26, 0.648), (0.11, 0.584)], 0.006, 0.005), ink, alpha: 0.55)
+        if kit == .hussar {
+            // The sabre arm thrust forward, the curved blade raised ahead.
+            f.add(f.limb([(0.506, 0.716), (0.45, 0.7), (0.4, 0.72)], 0.04, 0.03), Material(team: 0.85, grain: .cloth), outline: 0.012)
+            f.add(f.limb([(0.395, 0.72), (0.33, 0.77), (0.25, 0.8), (0.16, 0.8)], 0.016, 0.007), Material(iron.scaled(1.1), grain: .metal,
+                  gloss: 1), outline: 0.008)
+            f.add(f.limb([(0.4, 0.7), (0.39, 0.745)], 0.012, 0.012), Material(gold, gloss: 0.8), outline: 0.006)
+            f.add(f.ellipse(0.398, 0.72, 0.018, 0.018), Material(skin), outline: 0.008)
+        } else {
+            f.add(f.limb([(0.506, 0.716), (0.446, 0.646), (0.392, 0.646)], 0.04, 0.03), Material(leather), outline: 0.012)
+            f.add(f.ellipse(0.386, 0.646, 0.018, 0.018), Material(skin), outline: 0.008)
+            f.decal(f.limb([(0.382, 0.644), (0.26, 0.648), (0.11, 0.584)], 0.006, 0.005), ink, alpha: 0.55)
+        }
         f.add(f.ellipse(0.494, 0.806, 0.043, 0.047), Material(skin))
         f.add(f.poly([(0.455, 0.814), (0.443, 0.796), (0.459, 0.792)]), Material(skin), outline: 0.006)
         f.add(f.ellipse(0.469, 0.814, 0.008, 0.009), Material(ink, shade: 0, light: 0), outline: 0)
-        f.add(f.blob([(0.464, 0.83), (0.478, 0.866), (0.518, 0.882), (0.55, 0.858), (0.566, 0.818), (0.562, 0.758), (0.53, 0.778), (0.502, 0.822)]),
-              Material(team: 0.84, grain: .cloth))
+        if kit == .hussar {
+            // A drooping moustache, then the kolpak: tall fur, a bag in the team color and a
+            // feather plume.
+            f.add(f.limb([(0.452, 0.786), (0.47, 0.784), (0.49, 0.77)], 0.012, 0.006), Material(Tone(0.3, 0.19, 0.12)), outline: 0.005)
+            f.add(f.limb([(0.53, 0.88), (0.57, 0.86), (0.585, 0.8)], 0.03, 0.016), Material(team: 1, grain: .cloth), outline: 0.009)
+            f.add(f.blob([(0.456, 0.83), (0.458, 0.884), (0.49, 0.906), (0.536, 0.9), (0.556, 0.86), (0.55, 0.82), (0.5, 0.834)]),
+                  Material(Tone(0.24, 0.19, 0.15), grain: .hide), outline: 0.011)
+            f.add(f.limb([(0.48, 0.9), (0.47, 0.93), (0.448, 0.945)], 0.014, 0.006), Material(cream, grain: .cloth), outline: 0.007)
+        } else {
+            f.add(f.blob([(0.464, 0.83), (0.478, 0.866), (0.518, 0.882), (0.55, 0.858), (0.566, 0.818), (0.562, 0.758), (0.53, 0.778),
+                          (0.502, 0.822)]), Material(team: 0.84, grain: .cloth))
+        }
         switch kit {
         case .scout:
             break
@@ -1399,6 +1751,8 @@ enum UnitSprite: SpriteSet {
             f.add(f.poly([(0.64, 0.3), (0.93, 0.3), (0.91, 0.5), (0.67, 0.47)]), Material(team: 1, grain: .cloth))
             f.decal(f.poly([(0.64, 0.3), (0.93, 0.3), (0.93, 0.33), (0.64, 0.33)]), darkWood, alpha: 0.8)
             f.wheel(0.8, 0.2, 0.1)
+        case .hussar:
+            break
         }
     }
 

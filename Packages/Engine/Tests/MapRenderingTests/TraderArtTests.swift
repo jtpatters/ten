@@ -12,7 +12,7 @@ struct TraderArtTests {
     @Test func traderHasItsOwnBodyWithinTheAtlas() throws {
         #expect(UnitSprite.hasOwnBody(.trader) && UnitSprite.sharesWestBody(.trader))
         let r = MapRendererTests.makeRenderer()
-        #expect(r.unitAtlas.width == 2048 && r.unitAtlas.height <= 1536)
+        #expect(r.unitAtlas.width == 2048 && r.unitAtlas.height <= 2112)
         let table = r.unitAtlasTable()
         #expect(table.body(.trader, east: false) != table.body(.settler, east: false))
         #expect(table.bodyBounds(.trader, east: false) != table.bodyBounds(.settler, east: false))

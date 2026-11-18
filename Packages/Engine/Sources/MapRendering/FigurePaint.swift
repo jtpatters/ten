@@ -361,7 +361,7 @@ enum FigurePaint {
                 head.addCurve(to: q(-0.34, -0.98), control1: q(-0.08, -0.38), control2: q(-0.3, -0.62))
                 head.closeSubpath()
                 shapes.append(head)
-            case .horseman, .hussar:
+            case .horseman:
                 // A lance with its pennon, slanting up to the west.
                 shapes.append(line([q(0.9, -0.9), q(-0.6, 0.6)], width: 0.13 * h))
                 let tip = CGMutablePath()
@@ -387,7 +387,7 @@ enum FigurePaint {
                     shapes.append(line([q(-0.8 * side, -0.8), q(0.72 * side, 0.9)], width: 0.16 * h))
                     shapes.append(line([q(-0.66 * side - 0.26, -0.44), q(-0.66 * side + 0.26, -0.72)], width: 0.12 * h))
                 }
-            case .manAtArms, .musketman:
+            case .manAtArms:
                 // A long axe: a haft and a broad crescent blade.
                 shapes.append(line([q(0.5, -0.98), q(-0.2, 0.9)], width: 0.14 * h))
                 let blade = CGMutablePath()
@@ -404,7 +404,7 @@ enum FigurePaint {
                 shapes.append(bow.copy(strokingWithWidth: 0.18 * h, lineCap: .round, lineJoin: .round, miterLimit: 4))
                 shapes.append(line([q(-0.95, 0.1), q(0.95, 0.1)], width: 0.06 * h))
                 shapes.append(line([q(0, 0.9), q(0, -0.95)], width: 0.2 * h))
-            case .pikeman, .pikeAndShot:
+            case .pikeman:
                 // Three pikes upright, heads up.
                 for x in [-0.55, 0, 0.55] as [CGFloat] {
                     shapes.append(line([q(x, -0.95), q(x, 0.5)], width: 0.12 * h))
@@ -426,7 +426,7 @@ enum FigurePaint {
                 shapes.append(line([q(0.8, -0.6), q(-0.5, 0.6)], width: 0.14 * h))
                 shapes.append(line([q(0.1, -0.6), q(0.1, 0.1)], width: 0.14 * h))
                 shapes.append(CGPath(ellipseIn: circle(-0.62, 0.72, 0.26), transform: nil))
-            case .trebuchet, .bombard:
+            case .trebuchet:
                 // An A-frame, the long arm across it and the counterweight.
                 shapes.append(line([q(-0.7, -0.95), q(0, 0.4), q(0.7, -0.95)], width: 0.14 * h))
                 shapes.append(line([q(-0.9, 0.9), q(0.6, 0.05)], width: 0.12 * h))
@@ -443,7 +443,108 @@ enum FigurePaint {
                 shapes.append(line([q(-0.3, 0.55), q(0.3, 0.55)], width: 0.16 * h))
                 shapes.append(line([q(-0.32, 0.9), q(0, 0.6), q(0.32, 0.9)], width: 0.14 * h))
                 shapes.append(CGPath(ellipseIn: circle(0.68, 0.58, 0.28), transform: nil))
-            case .galley, .quadrireme, .cog, .dromon, .caravel, .privateer, .frigate:
+            // Their stocks and hilts at the lower left: a medallion's emblem badge covers its
+            // lower right.
+            case .musketman:
+                // A musket slanting up to the east, its heavy stock below, smoke at the muzzle.
+                shapes.append(line([q(-0.44, -0.4), q(0.72, 0.58)], width: 0.12 * h))
+                let stock = CGMutablePath()
+                stock.addLines(between: [q(-0.3, -0.24), q(-0.62, -0.5), q(-0.98, -0.98), q(-0.66, -0.98), q(-0.2, -0.42)])
+                stock.closeSubpath()
+                shapes.append(stock)
+                for (x, y, r) in [(0.8, 0.78, 0.18), (0.5, 0.86, 0.14), (0.86, 0.46, 0.13)] as [(CGFloat, CGFloat, CGFloat)] {
+                    shapes.append(CGPath(ellipseIn: circle(x, y, r), transform: nil))
+                }
+            case .pikeAndShot:
+                // A pike upright, a musket slanting across it.
+                shapes.append(line([q(0.3, -0.98), q(0.3, 0.55)], width: 0.12 * h))
+                let head = CGMutablePath()
+                head.addLines(between: [q(0.3, 0.98), q(0.46, 0.52), q(0.14, 0.52)])
+                head.closeSubpath()
+                shapes.append(head)
+                shapes.append(line([q(-0.6, -0.36), q(0.4, 0.86)], width: 0.1 * h))
+                let stock = CGMutablePath()
+                stock.addLines(between: [q(-0.48, -0.2), q(-0.74, -0.48), q(-0.98, -0.94), q(-0.7, -0.94), q(-0.38, -0.36)])
+                stock.closeSubpath()
+                shapes.append(stock)
+            case .hussar:
+                // A curved sabre, edge up, its knuckle-bow guard below.
+                let blade = CGMutablePath()
+                blade.move(to: q(-0.5, -0.5))
+                blade.addQuadCurve(to: q(0.96, 0.82), control: q(0.1, 0.5))
+                blade.addQuadCurve(to: q(-0.34, -0.62), control: q(0.4, 0.2))
+                blade.closeSubpath()
+                shapes.append(blade)
+                shapes.append(line([q(-0.24, -0.4), q(-0.66, -0.76)], width: 0.12 * h))
+                shapes.append(line([q(-0.62, -0.72), q(-0.92, -0.96)], width: 0.18 * h))
+                let guardBow = CGMutablePath()
+                guardBow.move(to: q(-0.3, -0.36))
+                guardBow.addQuadCurve(to: q(-0.86, -0.9), control: q(-0.86, -0.36))
+                shapes.append(guardBow.copy(strokingWithWidth: 0.09 * h, lineCap: .round, lineJoin: .round, miterLimit: 4))
+            case .bombard:
+                // A fat hooped barrel on a wheel, muzzle up to the west.
+                let barrel = CGMutablePath()
+                barrel.addLines(between: [q(-0.96, 0.4), q(-0.76, 0.74), q(0.7, -0.08), q(0.56, -0.42)])
+                barrel.closeSubpath()
+                shapes.append(barrel)
+                shapes.append(CGPath(ellipseIn: circle(0.66, -0.25, 0.22), transform: nil))
+                let wheel = CGPath(ellipseIn: circle(0.02, -0.56, 0.42), transform: nil)
+                shapes.append(wheel.copy(strokingWithWidth: 0.14 * h, lineCap: .butt, lineJoin: .round, miterLimit: 4))
+                shapes.append(CGPath(ellipseIn: circle(0.02, -0.56, 0.12), transform: nil))
+            case .caravel:
+                // A round hull with a high stern under a lateen sail.
+                let hull = CGMutablePath()
+                hull.move(to: q(-0.95, -0.32))
+                hull.addLine(to: q(0.66, -0.32))
+                hull.addLine(to: q(0.72, -0.14))
+                hull.addLine(to: q(0.98, -0.12))
+                hull.addQuadCurve(to: q(-0.95, -0.32), control: q(0.2, -1.25))
+                hull.closeSubpath()
+                shapes.append(hull)
+                shapes.append(line([q(0.1, -0.4), q(0.1, 0.9)], width: 0.1 * h))
+                let sail = CGMutablePath()
+                sail.addLines(between: [q(-0.7, -0.12), q(0.5, 0.98), q(0.46, -0.16)])
+                sail.closeSubpath()
+                shapes.append(sail)
+            case .privateer:
+                // A low hull, a raked jib and a gaff sail on two masts.
+                let hull = CGMutablePath()
+                hull.move(to: q(-0.98, -0.3))
+                hull.addLine(to: q(0.95, -0.3))
+                hull.addLine(to: q(0.86, -0.7))
+                hull.addLine(to: q(-0.62, -0.72))
+                hull.closeSubpath()
+                shapes.append(hull)
+                for x in [-0.36, 0.2] as [CGFloat] { shapes.append(line([q(x, -0.36), q(x, 0.94)], width: 0.09 * h)) }
+                let jib = CGMutablePath()
+                jib.addLines(between: [q(-0.42, 0.86), q(-0.96, -0.2), q(-0.44, -0.2)])
+                jib.closeSubpath()
+                shapes.append(jib)
+                let gaff = CGMutablePath()
+                gaff.addLines(between: [q(0.26, -0.18), q(0.26, 0.84), q(0.82, 0.6), q(0.96, -0.18)])
+                gaff.closeSubpath()
+                shapes.append(gaff)
+            case .frigate:
+                // Three masts of square sails over a long hull pierced for guns.
+                let hull = CGMutablePath()
+                hull.move(to: q(-0.98, -0.34))
+                hull.addLine(to: q(0.98, -0.22))
+                hull.addLine(to: q(0.84, -0.78))
+                hull.addLine(to: q(-0.7, -0.8))
+                hull.closeSubpath()
+                var ports = CGPath(rect: .zero, transform: nil)
+                for i in 0..<4 {
+                    let x = -0.56 + CGFloat(i) * 0.4
+                    ports = ports.union(CGPath(rect: CGRect(x: q(x, 0).x, y: q(0, -0.6).y, width: 0.16 * h, height: 0.14 * h), transform: nil))
+                }
+                shapes.append(hull.subtracting(ports))
+                for (x, w) in [(-0.6, 0.42), (0.0, 0.48), (0.58, 0.36)] as [(CGFloat, CGFloat)] {
+                    shapes.append(line([q(x, -0.3), q(x, 0.98)], width: 0.08 * h))
+                    shapes.append(CGPath(rect: CGRect(x: q(x - w / 2, 0).x, y: q(0, -0.16).y, width: w * h, height: 0.44 * h), transform: nil))
+                    shapes.append(CGPath(rect: CGRect(x: q(x - w * 0.38, 0).x, y: q(0, 0.36).y, width: w * 0.76 * h, height: 0.4 * h),
+                                         transform: nil))
+                }
+            case .galley, .quadrireme, .cog, .dromon:
                 // A hull under a mast and sail: one sail (galley, cog) or two (quadrireme, dromon);
                 // the war galleys carry a ram.
                 let hull = CGMutablePath()

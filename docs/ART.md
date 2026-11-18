@@ -184,11 +184,13 @@ S is the HSV saturation of the median colour, L* is CIELAB lightness and ΔE is 
   interleaved A/B runs, minimum of many frames) as a relative measure: no view may get more
   than 30% slower than the baseline.
 - Renderer setup at most 150 ms slower than the baseline; decoration placement at most 30 ms
-  on the Large map; total texture memory at most 48 MB on the Large map, 50 MB at the very
-  most (M1 §15). Atlases are 2048 wide and as tall as their packing needs (below). M2's nine
-  land units and the Trader share their data cells two to a cell and mirror their west-facing
-  body to face east: placeholder art, so their sun is on the wrong side facing east, the one
-  exception to the no-mirroring rule above.
+  on the Large map; total texture memory at most **80 MB** on the Large map (M3a-D10, for era
+  art; M1 §15 had 48 MB). Atlases are 2048 wide and as tall as their packing needs (below):
+  at M3a 3a.1, decor 1424, units 2112, settlements 448, and 54.8 MB on the Large map. Data
+  cells hold two types each where they can (red and green, blue and alpha). M2's nine land
+  units and the Trader mirror their west-facing body to face east: placeholder art from the
+  48 MB budget, so their sun is on the wrong side facing east, the one exception to the
+  no-mirroring rule above. M3a's units paint both facings.
 - **Packed atlases.** Sprites are painted into square cells as before, but an atlas keeps only
   each cell's *window*: the part the renderer samples (`SpriteSet.sampled`: unit cells whole,
   a settlement piece its painted extent out to whole level-4 texels and half of one more,
@@ -200,8 +202,8 @@ S is the HSV saturation of the median colour, L* is CIELAB lightness and ΔE is 
   3) rather than a fixed grid. Measured at the change (Apple M5): decor 2048×1424 (was 1536),
   units 2048×1536 (bodies fill their cells, so no saving), settlements 2048×448 (was 512);
   packing is 86–98% efficient, and every gallery view matches the unpacked atlases to within
-  28 levels in a few dozen pixels (both painted serially). Room for M3a's units has to come
-  from the texture budget, not from packing.
+  28 levels in a few dozen pixels (both painted serially). Room for M3a's units came from
+  the texture budget (M3a-D10), not from packing.
 - **Baked atlases.** The App's build paints the atlases on the Mac (`atlas-baker`, a build
   phase running `App/Tools/bake-atlases.sh`; `make atlases` does the same into
   `build/atlases`) and bundles them in `Atlases/`: level 0 compressed with LZFSE (about 4 MB
@@ -654,7 +656,9 @@ filters:
 - `--filter TribalVillageGallery`: the tribal village views, and `--filter TribalVillageLooks`
   more of them (`g20e`…`g20n`: every zoom, a take half faded and over, and many layouts on
   every kind of land);
-- `--filter ArtLineup`: the six unit types side by side at every zoom (`g05b`);
+- `--filter ArtLineup`: the six unit types side by side at every zoom (`g05b`); the M3a units
+  beside their forebears, one row facing each way, on land and at sea, near and strategic
+  (`g05c-renaissance-*`);
 - `--filter RoadGallery`: a road network (straight, bends of every angle, a T, a crossroads, a
   hairpin, a dense cluster, a dead end and a lone road) partly out of sight, at every zoom
   (`r01`…`r06`), and Traders beside Settlers of two players, close up, at standard and strategic

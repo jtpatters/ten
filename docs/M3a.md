@@ -29,6 +29,7 @@ HeadlessSim (§17); where this document and SPEC.md disagree for M3a, this docum
 | M3a-D6 | Ideologies (SPEC §7.4: original, neutral names) | **Liberty** (representative), **Equality** (planned economy), **Order** (militarist), from the civics *Suffrage*, *Planned Economy*, *Militarism*. **Free choice** among the three (ordinary governments, M2 switching rules). **Diplomatic weight:** same ideology +5, different −5 (§7.2). | Named by what each values: neutral, no real party or regime names. The modifier makes an ideology more than a slot layout and lets Modern-era blocs form. |
 | M3a-D7 | M2 saves | **Not loadable** (rules id `m3a.x`). | Niter, Coal and Oil are placed at map generation; adding them to an existing map has no faithful answer (as M2-D4). |
 | M3a-D8 | Naval raiders (Privateer, Submarine) | **Hidden**: seen only by adjacent units and by Destroyers within their sight (§9.4). | The class needs a reason to exist; hiding is the cheapest one that reads clearly. |
+| M3a-D10 | Texture budget for era art | **80 MB on the Large map** (M1 §15 set 48 MB, 50 at most). Every M3a unit gets its own body in both facings (lit from the upper left either way) and its own badge; atlases are baked at build time and packed (ART.md §10). | The user's call: no compromise on art quality. Large maps only run on 6 GB devices; the whole app stays well under SPEC's 1.2 GB. |
 
 ### 0.2 Proposed (still open)
 Each has a recommendation; the rest of this document assumes it.
@@ -704,9 +705,14 @@ Simplified where the M2 promotion and bonus fields already cover the spirit; rev
   does not build them yet.
 - **AI raiders:** at war, Privateers attack like naval melee, else head for the nearest seen
   enemy sea route tile, else the water by a known enemy city. No avoidance of enemy warships yet.
-- **Art:** the seven new units use their forebears' bodies and badges (placeholders); the turn
-  marker numerals moved to 64 px cells so the Fort job glyph fits in the 2048 × 1536 unit atlas.
-  Their own art needs atlas room beyond ART.md §10's budget (to decide with the art pass).
+- **Art:** the turn marker numerals moved to 64 px cells so the Fort job glyph fits. Then, with
+  M3a-D10's budget, the seven new units got their own art: musketeers in felt hats and doublets
+  (one aiming over a forked rest), pike and shot (morions, a leveled pike, a musketeer at the
+  port), a hussar (dolman, pelisse, kolpak, sabre), a bombard (a hooped barrel on its bed and
+  wheel), and three ships, a caravel (lateen sails with crosses), a privateer (tanned canvas,
+  jib and gaff) and a frigate (three masts of square sails, a gun deck), each in both facings,
+  with badges of their own (`g05c-renaissance-*`). The unit atlas is 2048 × 2112; Large-map
+  textures 54.8 MB.
 
 **Cut order inside M3a** if it runs long (lowest value first): tier 3 promotions for new classes
 → naval raider hiding (they become ordinary ships) → patrol/intercept (fighters only strike) →

@@ -451,7 +451,7 @@ import GameCore
     @Test func noAtlasGrows() throws {
         let scene = try TribalVillageFixture.scene()
         let r = MapRenderer(state: scene.state, viewer: Self.me)
-        #expect(r.unitAtlas.width == 2048 && r.unitAtlas.height <= 1536 && r.townAtlas.width == 2048 && r.townAtlas.height <= 512)
+        #expect(r.unitAtlas.width == 2048 && r.unitAtlas.height <= 2112 && r.townAtlas.width == 2048 && r.townAtlas.height <= 512)
         #expect(r.unitAtlas.uv(.tribalVillage) != .zero)
     }
 }

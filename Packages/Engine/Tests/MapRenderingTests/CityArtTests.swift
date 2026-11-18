@@ -425,19 +425,19 @@ struct CityGallery {
         #expect(columns(0.2, fogged: true) == 0)
     }
 
-    /// Atlas sizes (M1 §15) and the texture budget on a Large map (ART.md §10: 48 MB target,
-    /// 50 MB cap).
+    /// Atlas sizes (M1 §15) and the texture budget on a Large map (ART.md §10: 80 MB since
+    /// M3a-D10).
     @Test func atlasesAndTexturesFitTheirBudgets() throws {
         let generated = MapGenerator.generate(MapGenSettings(size: .large, seed: 3))
         let state = GameState.newGame(seed: 3, map: generated.map, startPositions: generated.startPositions)
         let r = MapRenderer(state: state, viewer: PlayerID(0))
-        #expect(r.unitAtlas.width == 2048 && r.unitAtlas.height <= 1536)
+        #expect(r.unitAtlas.width == 2048 && r.unitAtlas.height <= 2112)
         #expect(r.townAtlas.width == 2048 && r.townAtlas.height <= 512)
         #expect(r.decorAtlas.width == 2048 && r.decorAtlas.height <= 1536)
         print("Atlas heights: decor \(r.decorAtlas.height), units \(r.unitAtlas.height), settlements \(r.townAtlas.height)")
         _ = try #require(r.renderImage(width: 800, height: 600))
         let megabytes = Double(r.textureMemoryBytes) / 1_048_576
         print(String(format: "Large map textures: %.1f MB", megabytes))
-        #expect(megabytes <= 50)
+        #expect(megabytes <= 80)
     }
 }
