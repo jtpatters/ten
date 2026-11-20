@@ -961,26 +961,55 @@ enum UnitSprite: SpriteSet {
             }
         }
 
+        /// The sheer's rise per unit of run at `x`.
+        func slope(_ x: CGFloat) -> CGFloat {
+            let d = x - waist
+            return 2 * d * (d < 0 ? bowRise : sternRise)
+        }
+
+        /// A `width` by `height` opening centred `drop` below the sheer at `x`, turned to lie
+        /// along it: its sill and lintel parallel to the sheer there, its sides square to them.
+        func opening(_ f: Figure, at x: CGFloat, drop: CGFloat, width: CGFloat, height: CGFloat) -> CGPath {
+            Self.quad(f, center: (x, y(x) - drop), slope: slope(x), width: width, height: height)
+        }
+
+        /// A rectangle centred at `center`, its long sides at `slope`.
+        static func quad(_ f: Figure, center c: (CGFloat, CGFloat), slope: CGFloat, width: CGFloat, height: CGFloat) -> CGPath {
+            let n = (1 + slope * slope).squareRoot(), t = (1 / n, slope / n), u = (-t.1, t.0)
+            let a = width / 2, b = height / 2
+            return f.poly([(c.0 - t.0 * a + u.0 * b, c.1 - t.1 * a + u.1 * b), (c.0 + t.0 * a + u.0 * b, c.1 + t.1 * a + u.1 * b),
+                           (c.0 + t.0 * a - u.0 * b, c.1 + t.1 * a - u.1 * b), (c.0 - t.0 * a - u.0 * b, c.1 - t.1 * a - u.1 * b)])
+        }
+
         /// A band along the sheer between `top` and `bottom` below it.
         func band(_ f: Figure, _ x0: CGFloat, _ x1: CGFloat, top: CGFloat, bottom: CGFloat) -> CGPath {
             f.poly(line(x0, x1, drop: top) + line(x0, x1, drop: bottom).reversed())
         }
     }
 
-    /// A row of gunports along the sheer, each a dark opening with upright sides and its sill
-    /// and lintel parallel to the sheer, a gun's iron muzzle showing in it.
+    /// A row of gunports along the sheer, each centred `drop` below it and turned to lie along
+    /// it (so the row keeps to the middle of its strake and follows its curve), a dark opening
+    /// with a gun's iron muzzle showing and its sill catching the light.
     private static func gunports(_ f: inout Figure, along sheer: Sheer, at xs: [CGFloat], drop: CGFloat, width: CGFloat, height: CGFloat,
                                  clip: CGPath) {
         for x in xs {
-            let l = x - width / 2, r = x + width / 2
-            let port = f.poly([(l, sheer.y(l) - drop), (r, sheer.y(r) - drop), (r, sheer.y(r) - drop - height), (l, sheer.y(l) - drop - height)])
+            let port = sheer.opening(f, at: x, drop: drop, width: width, height: height)
             f.decal(port, Tone(0.09, 0.06, 0.05), alpha: 0.95, clip: clip)
-            let c = (x, sheer.y(x) - drop - height * 0.5)
-            f.decal(f.ellipse(c.0, c.1, width * 0.26, height * 0.27), iron.scaled(0.55), alpha: 0.9, clip: port)
+            let c = (x, sheer.y(x) - drop)
+            f.decal(f.ellipse(c.0, c.1, width * 0.27, height * 0.29), iron.scaled(0.55), alpha: 0.9, clip: port)
             f.decal(f.ellipse(c.0 - width * 0.06, c.1 + height * 0.06, width * 0.1, height * 0.1), iron.scaled(1.1), alpha: 0.5, clip: port)
-            // The sill, catching the light.
-            f.decal(f.limb([(l, sheer.y(l) - drop - height), (r, sheer.y(r) - drop - height)], 0.004, 0.004), Tone(0.9, 0.78, 0.55),
+            f.decal(sheer.opening(f, at: x, drop: drop + height * 0.5 + 0.002, width: width, height: 0.004), Tone(0.9, 0.78, 0.55),
                     alpha: 0.35, clip: clip)
+        }
+    }
+
+    /// Windows along the sheer like gunports, glazed and lit.
+    private static func sternWindows(_ f: inout Figure, along sheer: Sheer, at xs: [CGFloat], drop: CGFloat, width: CGFloat,
+                                     height: CGFloat, clip: CGPath) {
+        for x in xs {
+            f.decal(sheer.opening(f, at: x, drop: drop, width: width + 0.008, height: height + 0.008), Tone(0.2, 0.13, 0.08), alpha: 0.85,
+                    clip: clip)
+            f.decal(sheer.opening(f, at: x, drop: drop, width: width, height: height), Tone(0.95, 0.85, 0.55), alpha: 0.9, clip: clip)
         }
     }
 
@@ -1008,10 +1037,15 @@ enum UnitSprite: SpriteSet {
                     Tone(0.3, 0.2, 0.12), alpha: 0.5, clip: hull)
         }
         f.decal(sheer.band(f, 0.08, 0.64, top: 0.006, bottom: 0.034), teamShade: 1, alpha: 1, clip: hull)
-        // The sterncastle's rail and its windows.
-        f.add(f.rectPath(0.62, 0.4, 0.31, 0.03), Material(hullWood.scaled(1.15), grain: .wood), outline: 0.008)
-        for x in [0.7, 0.76, 0.82] as [CGFloat] {
-            f.decal(f.rectPath(x, 0.33, 0.026, 0.034), Tone(0.2, 0.13, 0.08), alpha: 0.85, clip: hull)
+        // The sterncastle's rail along its rising deck, and a row of windows under it, parallel
+        // to it.
+        let rise: CGFloat = 0.125  // the castle deck climbs from (0.66, 0.4) to (0.9, 0.43)
+        let castleDeck = { (x: CGFloat) -> CGFloat in 0.4 + (x - 0.66) * rise }
+        f.add(Sheer.quad(f, center: (0.775, castleDeck(0.775) + 0.008), slope: rise, width: 0.31, height: 0.03),
+              Material(hullWood.scaled(1.15), grain: .wood), outline: 0.008)
+        for x in [0.72, 0.78, 0.84] as [CGFloat] {
+            f.decal(Sheer.quad(f, center: (x, castleDeck(x) - 0.052), slope: rise, width: 0.026, height: 0.034), Tone(0.2, 0.13, 0.08),
+                    alpha: 0.85, clip: hull)
         }
         // The great lateen: its yard slanting up from the bow to high abaft the mast.
         let sail = f.blob([(0.21, 0.37), (0.61, 0.8), (0.63, 0.39)])
@@ -1052,7 +1086,7 @@ enum UnitSprite: SpriteSet {
         let hull = bottom.intersection(f.poly(sheer.line(0, 0.94) + [(0.95, 0.352), (1, 0.352), (1, 0), (0, 0)]))
         f.add(hull, Material(hullWood, grain: .planks))
         f.decal(sheer.band(f, 0.09, 0.93, top: 0.012, bottom: 0.064), teamShade: 0.95, alpha: 1, clip: hull)
-        gunports(&f, along: sheer, at: [0.27, 0.385, 0.5, 0.615, 0.73], drop: 0.022, width: 0.034, height: 0.03, clip: hull)
+        gunports(&f, along: sheer, at: [0.27, 0.385, 0.5, 0.615, 0.73], drop: 0.038, width: 0.034, height: 0.032, clip: hull)
         f.decal(sheer.band(f, 0.1, 0.93, top: 0.004, bottom: 0.011), Tone(0.5, 0.36, 0.24), alpha: 0.6, clip: hull)
         f.decal(sheer.band(f, 0.12, 0.92, top: 0.1, bottom: 0.106), Tone(0.5, 0.36, 0.24), alpha: 0.5, clip: hull)
     }
@@ -1084,13 +1118,11 @@ enum UnitSprite: SpriteSet {
         let hull = bottom.intersection(f.poly(sheer.line(0, 0.87) + [(0.9, 0.455), (1, 0.46), (1, 0), (0, 0)]))
         f.add(hull, Material(hullWood, grain: .planks))
         f.decal(sheer.band(f, 0.08, 0.95, top: 0.032, bottom: 0.088), teamShade: 0.95, alpha: 1, clip: hull)
-        gunports(&f, along: sheer, at: (0..<8).map { 0.17 + CGFloat($0) * 0.086 }, drop: 0.044, width: 0.03, height: 0.028, clip: hull)
+        gunports(&f, along: sheer, at: (0..<8).map { 0.165 + CGFloat($0) * 0.086 }, drop: 0.06, width: 0.032, height: 0.032, clip: hull)
+        sternWindows(&f, along: sheer, at: [0.88, 0.915], drop: 0.06, width: 0.022, height: 0.028, clip: hull)
         f.decal(sheer.band(f, 0.08, 0.95, top: 0.008, bottom: 0.018), gold.scaled(0.85), alpha: 0.8, clip: hull)
         for drop in [0.11, 0.15] as [CGFloat] {
             f.decal(sheer.band(f, 0.1, 0.94, top: drop, bottom: drop + 0.006), Tone(0.5, 0.38, 0.26), alpha: 0.5, clip: hull)
-        }
-        for x in [0.875, 0.91] as [CGFloat] {
-            f.decal(f.rectPath(x, sheer.y(x) - 0.026, 0.022, 0.03), Tone(0.95, 0.85, 0.55), alpha: 0.85, clip: hull)
         }
     }
 
